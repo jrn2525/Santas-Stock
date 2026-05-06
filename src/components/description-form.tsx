@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useActionState } from "react";
-import { createCategory, updateCategory } from "@/lib/actions/categories";
+import { createDescription, updateDescription } from "@/lib/actions/descriptions";
 import { emptyFormState, type FormState } from "@/lib/actions/state";
 
-type Category = {
+type Description = {
   id: string;
   name: string;
   parentId: string | null;
@@ -16,16 +16,16 @@ type Category = {
 
 type ParentOption = { id: string; name: string };
 
-export function CategoryForm({
-  category,
+export function DescriptionForm({
+  description,
   parents,
 }: {
-  category?: Category;
+  description?: Description;
   parents: ParentOption[];
 }) {
-  const action = category
-    ? updateCategory.bind(null, category.id)
-    : createCategory;
+  const action = description
+    ? updateDescription.bind(null, description.id)
+    : createDescription;
 
   const [state, formAction, pending] = useActionState<FormState, FormData>(
     action,
@@ -37,20 +37,20 @@ export function CategoryForm({
       <Field
         label="Name"
         name="name"
-        defaultValue={category?.name ?? ""}
+        defaultValue={description?.name ?? ""}
         errors={state.errors.name}
         required
       />
 
       <SelectField
-        label="Parent category"
+        label="Parent description"
         name="parentId"
-        defaultValue={category?.parentId ?? ""}
+        defaultValue={description?.parentId ?? ""}
         errors={state.errors.parentId}
       >
         <option value="">— None (top level) —</option>
         {parents
-          .filter((p) => p.id !== category?.id)
+          .filter((p) => p.id !== description?.id)
           .map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
@@ -63,7 +63,7 @@ export function CategoryForm({
           Default retirement profile
         </legend>
         <p className="text-xs text-gray-500">
-          Items in this category inherit these values unless overridden on the item.
+          Items with this description inherit these values unless overridden on the item.
         </p>
 
         <Field
@@ -71,7 +71,7 @@ export function CategoryForm({
           name="defaultRetirementMaxSeasons"
           type="number"
           min={1}
-          defaultValue={category?.defaultRetirementMaxSeasons ?? ""}
+          defaultValue={description?.defaultRetirementMaxSeasons ?? ""}
           errors={state.errors.defaultRetirementMaxSeasons}
         />
 
@@ -80,14 +80,14 @@ export function CategoryForm({
           name="defaultRetirementMaxRepairs"
           type="number"
           min={1}
-          defaultValue={category?.defaultRetirementMaxRepairs ?? ""}
+          defaultValue={description?.defaultRetirementMaxRepairs ?? ""}
           errors={state.errors.defaultRetirementMaxRepairs}
         />
 
         <SelectField
           label="Minimum acceptable condition"
           name="defaultRetirementConditionFloor"
-          defaultValue={category?.defaultRetirementConditionFloor ?? ""}
+          defaultValue={description?.defaultRetirementConditionFloor ?? ""}
           errors={state.errors.defaultRetirementConditionFloor}
         >
           <option value="">— Not set —</option>
@@ -105,10 +105,10 @@ export function CategoryForm({
           disabled={pending}
           className="rounded-md bg-santa-red px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
         >
-          {pending ? "Saving..." : category ? "Save changes" : "Create category"}
+          {pending ? "Saving..." : description ? "Save changes" : "Create description"}
         </button>
         <Link
-          href="/categories"
+          href="/descriptions"
           className="text-sm text-gray-400 underline hover:text-white"
         >
           Cancel

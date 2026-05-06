@@ -4,13 +4,22 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 async function getCounts() {
-  const [items, categories, locations, retired] = await Promise.all([
+  const [items, descriptions, locations, available, allocated, totalQty] = await Promise.all([
     prisma.item.count(),
-    prisma.category.count(),
+    prisma.description.count(),
     prisma.location.count(),
-    prisma.item.count({ where: { status: "RETIRED" } }),
+    prisma.item.count({ where: { status: "AVAILABLE" } }),
+    prisma.item.count({ where: { status: "ALLOCATED" } }),
+    prisma.item.aggregate({ _sum: { quantity: true } }),
   ]);
-  return { items, categories, locations, retired };
+  return {
+    items,
+    descriptions,
+    locations,
+    available,
+    allocated,
+    totalQty: totalQty._sum.quantity ?? 0,
+  };
 }
 
 async function getDbStatus() {
@@ -60,9 +69,14 @@ export default async function DashboardPage() {
 
       <section className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Items" value={counts.items} href="/items" />
-        <StatCard label="Categories" value={counts.categories} href="/categories" />
+        <StatCard label="Total stock qty" value={counts.totalQty} href="/items" />
+        <StatCard label="Descriptions" value={counts.descriptions} href="/descriptions" />
         <StatCard label="Locations" value={counts.locations} href="/locations" />
-        <StatCard label="Retired items" value={counts.retired} />
+      </section>
+
+      <section className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <StatCard label="Available items" value={counts.available} />
+        <StatCard label="Allocated items" value={counts.allocated} />
       </section>
 
       <section className="mt-10 rounded-lg border border-gray-700 bg-gray-900/50 p-6">

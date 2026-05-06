@@ -3,12 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import {
-  ConditionGrade,
-  ItemStatus,
-  LifecycleType,
-  Prisma,
-} from "@prisma/client";
+import { ItemStatus, LifecycleType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { assertRoleForAction, WRITE_ROLES } from "@/lib/auth-helpers";
 import type { FormState } from "./state";
@@ -32,38 +27,37 @@ const optionalDecimal = z.preprocess(
 const ItemSchema = z.object({
   sku: z.string().min(1, "SKU is required.").max(64),
   name: z.string().min(1, "Name is required.").max(160),
-  description: optionalString,
   manufacturer: optionalString,
   model: optionalString,
   serial: optionalString,
   barcode: optionalString,
-  categoryId: optionalString,
+  descriptionId: optionalString,
   status: z.nativeEnum(ItemStatus),
-  conditionGrade: z.nativeEnum(ConditionGrade),
   lifecycleType: z.nativeEnum(LifecycleType),
+  quantity: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? 0 : Number(v)),
+    z.number().int().min(0, "Quantity must be 0 or more."),
+  ),
   currentLocationId: optionalString,
   homeLocationId: optionalString,
-  purchaseCost: optionalDecimal,
-  replacementCost: optionalDecimal,
+  unitCost: optionalDecimal,
 });
 
 function readForm(formData: FormData) {
   return ItemSchema.safeParse({
     sku: formData.get("sku"),
     name: formData.get("name"),
-    description: formData.get("description"),
     manufacturer: formData.get("manufacturer"),
     model: formData.get("model"),
     serial: formData.get("serial"),
     barcode: formData.get("barcode"),
-    categoryId: formData.get("categoryId"),
+    descriptionId: formData.get("descriptionId"),
     status: formData.get("status"),
-    conditionGrade: formData.get("conditionGrade"),
     lifecycleType: formData.get("lifecycleType"),
+    quantity: formData.get("quantity"),
     currentLocationId: formData.get("currentLocationId"),
     homeLocationId: formData.get("homeLocationId"),
-    purchaseCost: formData.get("purchaseCost"),
-    replacementCost: formData.get("replacementCost"),
+    unitCost: formData.get("unitCost"),
   });
 }
 
@@ -71,20 +65,17 @@ function buildData(parsed: z.infer<typeof ItemSchema>) {
   return {
     sku: parsed.sku,
     name: parsed.name,
-    description: parsed.description,
     manufacturer: parsed.manufacturer,
     model: parsed.model,
     serial: parsed.serial,
     barcode: parsed.barcode,
-    categoryId: parsed.categoryId,
+    descriptionId: parsed.descriptionId,
     status: parsed.status,
-    conditionGrade: parsed.conditionGrade,
     lifecycleType: parsed.lifecycleType,
+    quantity: parsed.quantity,
     currentLocationId: parsed.currentLocationId,
     homeLocationId: parsed.homeLocationId,
-    purchaseCost: parsed.purchaseCost === null ? null : new Prisma.Decimal(parsed.purchaseCost),
-    replacementCost:
-      parsed.replacementCost === null ? null : new Prisma.Decimal(parsed.replacementCost),
+    unitCost: parsed.unitCost === null ? null : new Prisma.Decimal(parsed.unitCost),
   };
 }
 

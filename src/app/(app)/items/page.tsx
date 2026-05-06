@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ConditionGrade, ItemStatus } from "@prisma/client";
+import { ItemStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { deleteItem } from "@/lib/actions/items";
@@ -8,28 +8,13 @@ import { DeleteButton } from "@/components/delete-button";
 export const dynamic = "force-dynamic";
 
 const statusLabels: Record<ItemStatus, string> = {
-  IN_STORAGE: "In storage",
-  RESERVED: "Reserved",
-  CHECKED_OUT: "Checked out",
-  IN_REPAIR: "In repair",
-  RETIRED: "Retired",
-  MISSING: "Missing",
+  AVAILABLE: "Available",
+  ALLOCATED: "Allocated",
 };
 
 const statusBadgeStyles: Record<ItemStatus, string> = {
-  IN_STORAGE: "bg-gray-700 text-gray-200",
-  RESERVED: "bg-yellow-900 text-yellow-200",
-  CHECKED_OUT: "bg-blue-900 text-blue-200",
-  IN_REPAIR: "bg-orange-900 text-orange-200",
-  RETIRED: "bg-gray-800 text-gray-500",
-  MISSING: "bg-red-900 text-red-200",
-};
-
-const conditionLabels: Record<ConditionGrade, string> = {
-  A: "A",
-  B: "B",
-  C: "C",
-  RETIRED: "—",
+  AVAILABLE: "bg-green-900 text-green-200",
+  ALLOCATED: "bg-blue-900 text-blue-200",
 };
 
 export default async function ItemsPage({
@@ -55,7 +40,7 @@ export default async function ItemsPage({
       : undefined,
     orderBy: [{ name: "asc" }],
     include: {
-      category: { select: { name: true } },
+      description: { select: { name: true } },
       currentLocation: { select: { name: true } },
     },
     take: 200,
@@ -96,9 +81,9 @@ export default async function ItemsPage({
             <tr>
               <th className="px-4 py-3">SKU</th>
               <th className="px-4 py-3">Name</th>
-              <th className="px-4 py-3">Category</th>
+              <th className="px-4 py-3">Description</th>
               <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Cond.</th>
+              <th className="px-4 py-3 text-right">Qty</th>
               <th className="px-4 py-3">Current location</th>
               <th className="px-4 py-3 text-right" />
             </tr>
@@ -133,7 +118,7 @@ export default async function ItemsPage({
                   <td className="px-4 py-3 font-mono text-xs">{i.sku}</td>
                   <td className="px-4 py-3 font-medium">{i.name}</td>
                   <td className="px-4 py-3 text-gray-400">
-                    {i.category?.name ?? "—"}
+                    {i.description?.name ?? "—"}
                   </td>
                   <td className="px-4 py-3">
                     <span
@@ -142,8 +127,8 @@ export default async function ItemsPage({
                       {statusLabels[i.status]}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-gray-400">
-                    {conditionLabels[i.conditionGrade]}
+                  <td className="px-4 py-3 text-right tabular-nums">
+                    {i.quantity}
                   </td>
                   <td className="px-4 py-3 text-gray-400">
                     {i.currentLocation?.name ?? "—"}

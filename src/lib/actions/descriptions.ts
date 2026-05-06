@@ -23,7 +23,7 @@ const optionalString = z.preprocess(
   z.string().nullable(),
 );
 
-const CategorySchema = z.object({
+const DescriptionSchema = z.object({
   name: z.string().min(1, "Name is required.").max(120),
   parentId: optionalString,
   defaultRetirementMaxSeasons: optionalInt,
@@ -32,7 +32,7 @@ const CategorySchema = z.object({
 });
 
 function readForm(formData: FormData) {
-  return CategorySchema.safeParse({
+  return DescriptionSchema.safeParse({
     name: formData.get("name"),
     parentId: formData.get("parentId"),
     defaultRetirementMaxSeasons: formData.get("defaultRetirementMaxSeasons"),
@@ -41,7 +41,7 @@ function readForm(formData: FormData) {
   });
 }
 
-export async function createCategory(
+export async function createDescription(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
@@ -53,22 +53,22 @@ export async function createCategory(
   }
 
   try {
-    await prisma.category.create({ data: parsed.data });
+    await prisma.description.create({ data: parsed.data });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
       return {
-        errors: { name: ["A category with this name already exists at this level."] },
+        errors: { name: ["A description with this name already exists at this level."] },
         message: null,
       };
     }
     throw err;
   }
 
-  revalidatePath("/categories");
-  redirect("/categories");
+  revalidatePath("/descriptions");
+  redirect("/descriptions");
 }
 
-export async function updateCategory(
+export async function updateDescription(
   id: string,
   _prev: FormState,
   formData: FormData,
@@ -81,36 +81,41 @@ export async function updateCategory(
   }
 
   if (parsed.data.parentId === id) {
-    return { errors: { parentId: ["A category cannot be its own parent."] }, message: null };
+    return {
+      errors: { parentId: ["A description cannot be its own parent."] },
+      message: null,
+    };
   }
 
   try {
-    await prisma.category.update({ where: { id }, data: parsed.data });
+    await prisma.description.update({ where: { id }, data: parsed.data });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
       return {
-        errors: { name: ["A category with this name already exists at this level."] },
+        errors: { name: ["A description with this name already exists at this level."] },
         message: null,
       };
     }
     throw err;
   }
 
-  revalidatePath("/categories");
-  redirect("/categories");
+  revalidatePath("/descriptions");
+  redirect("/descriptions");
 }
 
-export async function deleteCategory(id: string) {
+export async function deleteDescription(id: string) {
   await assertRoleForAction(WRITE_ROLES);
 
   try {
-    await prisma.category.delete({ where: { id } });
+    await prisma.description.delete({ where: { id } });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2003") {
-      throw new Error("Cannot delete a category that has items or sub-categories.");
+      throw new Error(
+        "Cannot delete a description that has items or sub-descriptions.",
+      );
     }
     throw err;
   }
 
-  revalidatePath("/categories");
+  revalidatePath("/descriptions");
 }

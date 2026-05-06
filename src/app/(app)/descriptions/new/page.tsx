@@ -1,13 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
-import { CategoryForm } from "@/components/category-form";
+import { DescriptionForm } from "@/components/description-form";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewCategoryPage() {
+export default async function NewDescriptionPage() {
   await requireRole(["ADMIN", "MANAGER"]);
 
-  const parents = await prisma.category.findMany({
+  const parents = await prisma.description.findMany({
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });
@@ -15,9 +15,9 @@ export default async function NewCategoryPage() {
   return (
     <>
       <header>
-        <h1 className="text-3xl font-bold text-white">New category</h1>
+        <h1 className="text-3xl font-bold text-white">New description</h1>
       </header>
-      <CategoryForm parents={parents} />
+      <DescriptionForm parents={parents} />
     </>
   );
 }

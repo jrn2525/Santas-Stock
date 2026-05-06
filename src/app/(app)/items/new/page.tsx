@@ -7,8 +7,8 @@ export const dynamic = "force-dynamic";
 export default async function NewItemPage() {
   await requireRole(["ADMIN", "MANAGER"]);
 
-  const [categories, locations] = await Promise.all([
-    prisma.category.findMany({
+  const [descriptions, locations] = await Promise.all([
+    prisma.description.findMany({
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
@@ -23,7 +23,7 @@ export default async function NewItemPage() {
       <header>
         <h1 className="text-3xl font-bold text-white">New item</h1>
       </header>
-      <ItemForm categories={categories} locations={locations} />
+      <ItemForm descriptions={descriptions} locations={locations} />
     </>
   );
 }
