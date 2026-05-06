@@ -118,7 +118,7 @@ src/
     next-auth.d.ts   ← Session/JWT type augmentation (id, role)
   auth.config.ts     ← edge-safe NextAuth config (used by middleware)
   auth.ts            ← full NextAuth config (Credentials + bcrypt)
-  proxy.ts           ← redirects unauthenticated users to /sign-in
+  middleware.ts      ← redirects unauthenticated users to /sign-in
 .env.example         ← template for .env
 .gitignore
 package.json
