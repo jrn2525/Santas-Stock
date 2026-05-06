@@ -1,0 +1,1 @@
+postgresql://postgres:edJFEgRQKnXcuFBdmjLxvOydTYsEZfkD@trolley.proxy.rlwy.net:47804/railway
