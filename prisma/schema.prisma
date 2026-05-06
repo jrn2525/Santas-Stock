@@ -1,0 +1,438 @@
+// Santa's Stock — Prisma schema
+// Based on §5 of inventory-app-feature-research.pdf
+//
+// Phase 1 includes the core tables; Phase 2+ adds kits, allocations,
+// vehicles, maintenance, etc. They're all defined here so migrations
+// stay coherent, but only a subset is wired into the UI in Phase 1.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Enums ----------
+
+enum Role {
+  ADMIN
+  MANAGER
+  USER
+}
+
+enum ClientSegment {
+  RESIDENTIAL
+  COMMERCIAL
+  MUNICIPAL
+}
+
+enum LifecycleType {
+  RENTAL_SEASONAL
+  SOLD_PERMANENT
+  INSTALLED_YEAR_ROUND
+}
+
+enum ConditionGrade {
+  A
+  B
+  C
+  RETIRED
+}
+
+enum LocationType {
+  WAREHOUSE
+  AISLE
+  RACK
+  BIN
+  VEHICLE
+}
+
+enum ItemStatus {
+  IN_STORAGE
+  RESERVED
+  CHECKED_OUT
+  IN_REPAIR
+  RETIRED
+  MISSING
+}
+
+enum KitType {
+  TEMPLATE
+  CUSTOMER
+}
+
+enum KitStatus {
+  DRAFT
+  READY
+  DEPLOYED
+  RETIRED
+}
+
+enum AllocationStatus {
+  RESERVED_ON_SALE
+  RESERVED
+  OUT
+  RETURNED
+  SHORT
+  MISSING
+}
+
+enum ReplacementResolution {
+  REPAIR
+  REPLACE_FROM_STOCK
+  PURCHASE_ORDER
+}
+
+enum MaintenanceStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  RETIRED
+}
+
+enum SyncStatus {
+  PENDING
+  PROCESSED
+  FAILED
+}
+
+// ---------- Core ----------
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String
+  role          Role     @default(USER)
+  jobberUserId  String?  @unique
+  active        Boolean  @default(true)
+  passwordHash  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  allocations          Allocation[]         @relation("AllocatedBy")
+  flaggedReplacements  ReplacementQueue[]   @relation("FlaggedBy")
+  resolvedReplacements ReplacementQueue[]   @relation("ResolvedBy")
+  openedTickets        MaintenanceTicket[]  @relation("OpenedBy")
+  auditEntries         AuditLog[]
+}
+
+model Category {
+  id                          String   @id @default(cuid())
+  name                        String
+  parentId                    String?
+  parent                      Category? @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children                    Category[] @relation("CategoryHierarchy")
+
+  // Default retirement profile, inherited by items unless overridden.
+  defaultRetirementMaxSeasons Int?
+  defaultRetirementMaxRepairs Int?
+  defaultRetirementConditionFloor ConditionGrade?
+
+  items                       Item[]
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  @@unique([name, parentId])
+}
+
+model Location {
+  id          String       @id @default(cuid())
+  name        String
+  type        LocationType
+  parentId    String?
+  parent      Location?    @relation("LocationHierarchy", fields: [parentId], references: [id])
+  children    Location[]   @relation("LocationHierarchy")
+  barcode     String?      @unique
+
+  itemsHere   Item[]       @relation("CurrentLocation")
+  itemsHome   Item[]       @relation("HomeLocation")
+  kitsHome    Kit[]        @relation("KitHomeLocation")
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Item {
+  id                       String         @id @default(cuid())
+  sku                      String         @unique
+  name                     String
+  description              String?
+  manufacturer             String?
+  model                    String?
+  serial                   String?        @unique
+  barcode                  String?        @unique
+
+  categoryId               String?
+  category                 Category?      @relation(fields: [categoryId], references: [id])
+
+  status                   ItemStatus     @default(IN_STORAGE)
+  conditionGrade           ConditionGrade @default(A)
+  lifecycleType            LifecycleType  @default(RENTAL_SEASONAL)
+
+  purchaseDate             DateTime?
+  purchaseCost             Decimal?       @db.Decimal(12, 2)
+  replacementCost          Decimal?       @db.Decimal(12, 2)
+
+  currentLocationId        String?
+  currentLocation          Location?      @relation("CurrentLocation", fields: [currentLocationId], references: [id])
+  homeLocationId           String?
+  homeLocation             Location?      @relation("HomeLocation", fields: [homeLocationId], references: [id])
+
+  // Per-item retirement profile (overrides category defaults when set).
+  retirementMaxSeasons     Int?
+  retirementMaxRepairs     Int?
+  retirementConditionFloor ConditionGrade?
+
+  seasonsDeployed          Int            @default(0)
+  repairCount              Int            @default(0)
+  retirementStatus         String?
+
+  photos                   String[]       @default([])
+  customFields             Json?
+
+  kitMemberships           KitItem[]
+  allocations              Allocation[]
+  replacementEntries       ReplacementQueue[]
+  maintenanceTickets       MaintenanceTicket[]
+
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
+}
+
+model Kit {
+  id              String     @id @default(cuid())
+  name            String
+  kitType         KitType
+  status          KitStatus  @default(DRAFT)
+
+  clientId        String?
+  client          Client?    @relation(fields: [clientId], references: [id])
+  propertyId      String?
+  property        Property?  @relation(fields: [propertyId], references: [id])
+
+  homeLocationId  String?
+  homeLocation    Location?  @relation("KitHomeLocation", fields: [homeLocationId], references: [id])
+
+  photos          String[]   @default([])
+
+  items           KitItem[]
+  allocations     Allocation[]
+
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+}
+
+model KitItem {
+  kitId    String
+  itemId   String
+  quantity Int    @default(1)
+
+  kit      Kit    @relation(fields: [kitId], references: [id], onDelete: Cascade)
+  item     Item   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@id([kitId, itemId])
+}
+
+// ---------- Jobber-mirrored ----------
+
+model Client {
+  id              String         @id @default(cuid())
+  jobberClientId  String         @unique
+  name            String
+  email           String?
+  segment         ClientSegment?
+
+  properties      Property[]
+  jobs            JobberJob[]
+  kits            Kit[]
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model Property {
+  id                String      @id @default(cuid())
+  jobberPropertyId  String      @unique
+  clientId          String
+  client            Client      @relation(fields: [clientId], references: [id])
+  address           String
+
+  jobs              JobberJob[]
+  kits              Kit[]
+
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+}
+
+model JobberJob {
+  id            String         @id @default(cuid())
+  jobberJobId   String         @unique
+  clientId      String
+  client        Client         @relation(fields: [clientId], references: [id])
+  propertyId    String?
+  property      Property?      @relation(fields: [propertyId], references: [id])
+  status        String
+
+  visits        JobberVisit[]
+
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model JobberVisit {
+  id            String       @id @default(cuid())
+  jobberVisitId String       @unique
+  jobId         String
+  job           JobberJob    @relation(fields: [jobId], references: [id])
+  startAt       DateTime?
+  endAt         DateTime?
+  status        String
+
+  allocations   Allocation[]
+
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
+
+// ---------- Vehicles, allocations, maintenance ----------
+
+model Vehicle {
+  id                 String        @id @default(cuid())
+  name               String
+  plate              String?
+  vin                String?       @unique
+  make               String?
+  model              String?
+  year               Int?
+  capacity           String?
+  registrationExp    DateTime?
+  insuranceExp       DateTime?
+  odometer           Int?
+  status             String?
+  photos             String[]      @default([])
+
+  allocations        Allocation[]
+
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+}
+
+model Allocation {
+  id                 String           @id @default(cuid())
+  kitId              String?
+  kit                Kit?             @relation(fields: [kitId], references: [id])
+  itemId             String?
+  item               Item?            @relation(fields: [itemId], references: [id])
+  jobberVisitId      String?
+  jobberVisit        JobberVisit?     @relation(fields: [jobberVisitId], references: [id])
+  vehicleId          String?
+  vehicle            Vehicle?         @relation(fields: [vehicleId], references: [id])
+
+  allocatedAt        DateTime         @default(now())
+  checkedOutAt       DateTime?
+  checkedInAt        DateTime?
+  allocatedByUserId  String?
+  allocatedBy        User?            @relation("AllocatedBy", fields: [allocatedByUserId], references: [id])
+
+  seasonId           String?
+  season             Season?          @relation(fields: [seasonId], references: [id])
+
+  status             AllocationStatus @default(RESERVED)
+
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+}
+
+model Season {
+  id          String        @id @default(cuid())
+  name        String        @unique
+  startDate   DateTime
+  endDate     DateTime
+  allocations Allocation[]
+}
+
+model ReplacementQueue {
+  id                 String                 @id @default(cuid())
+  itemId             String
+  item               Item                   @relation(fields: [itemId], references: [id])
+  reason             String
+  flaggedAt          DateTime               @default(now())
+  flaggedByUserId    String?
+  flaggedBy          User?                  @relation("FlaggedBy", fields: [flaggedByUserId], references: [id])
+  resolution         ReplacementResolution?
+  poId               String?
+  resolvedAt         DateTime?
+  resolvedByUserId   String?
+  resolvedBy         User?                  @relation("ResolvedBy", fields: [resolvedByUserId], references: [id])
+}
+
+model MaintenanceTicket {
+  id            String            @id @default(cuid())
+  itemId        String
+  item          Item              @relation(fields: [itemId], references: [id])
+  openedAt      DateTime          @default(now())
+  openedByUserId String?
+  openedBy      User?             @relation("OpenedBy", fields: [openedByUserId], references: [id])
+  status        MaintenanceStatus @default(OPEN)
+  description   String
+  photos        String[]          @default([])
+  partsUsed     Json?
+  laborMinutes  Int?
+  closedAt      DateTime?
+}
+
+// ---------- Audit + sync + custom fields ----------
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  action      String
+  entityType  String
+  entityId    String
+  beforeJson  Json?
+  afterJson   Json?
+  ip          String?
+  userAgent   String?
+  occurredAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([occurredAt])
+}
+
+model SyncEvent {
+  id           String     @id @default(cuid())
+  source       String     @default("jobber")
+  eventType    String
+  payload      Json
+  processedAt  DateTime?
+  status       SyncStatus @default(PENDING)
+  error        String?
+  createdAt    DateTime   @default(now())
+
+  @@index([status, createdAt])
+}
+
+model CustomFieldDef {
+  id         String                @id @default(cuid())
+  appliesTo  String
+  name       String
+  type       String
+  options    Json?
+  values     CustomFieldValue[]
+
+  @@unique([appliesTo, name])
+}
+
+model CustomFieldValue {
+  entityType  String
+  entityId    String
+  fieldDefId  String
+  fieldDef    CustomFieldDef @relation(fields: [fieldDefId], references: [id], onDelete: Cascade)
+  value       Json
+
+  @@id([entityType, entityId, fieldDefId])
+  @@index([entityType, entityId])
+}
