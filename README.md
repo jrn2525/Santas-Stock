@@ -131,11 +131,12 @@ Done so far:
 - ✅ Pass 1 — scaffold, Prisma schema, Postgres connectivity check
 - ✅ Pass 2 — NextAuth (email/password, JWT sessions, bcrypt), 3 roles,
   protected routes, admin seed script, sign-in/sign-out, basic dashboard
+- ✅ Pass 3 — Items + Categories + Locations CRUD with role-gated controls,
+  searchable item list, sidebar nav, dashboard counts
 
 Next planned passes:
 
-3. Items + Categories + Locations CRUD with the basic admin UI
 4. CSV import/export
 5. Jobber OAuth + read-only client/property/job sync
-6. Admin dashboard with item counts and sync health
+6. Admin dashboard with deeper KPIs and sync health
 7. Optional later: TOTP 2FA for admins (NextAuth WebAuthn or otp library)
