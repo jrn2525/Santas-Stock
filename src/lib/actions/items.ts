@@ -3,13 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { ItemStatus, LifecycleType, Prisma } from "@prisma/client";
+import { ItemStatus, Prisma, ProductType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { assertRoleForAction, WRITE_ROLES } from "@/lib/auth-helpers";
 import type { FormState } from "./state";
 
 const optionalString = z.preprocess(
-  (v) => (v === "" || v === null || v === undefined ? null : v),
+  (v) => (v === "" || v === null || v === undefined ? null : String(v).trim() || null),
   z.string().nullable(),
 );
 
@@ -24,57 +24,59 @@ const optionalDecimal = z.preprocess(
     ),
 );
 
+const optionalProductType = z.preprocess(
+  (v) => (v === "" || v === null || v === undefined ? null : v),
+  z.nativeEnum(ProductType).nullable(),
+);
+
 const ItemSchema = z.object({
-  sku: z.string().min(1, "SKU is required.").max(64),
+  // Required fields
   name: z.string().min(1, "Name is required.").max(160),
-  manufacturer: optionalString,
-  model: optionalString,
-  serial: optionalString,
-  barcode: optionalString,
-  descriptionId: optionalString,
+  description: z.string().min(1, "Description is required.").max(500),
   status: z.nativeEnum(ItemStatus),
-  lifecycleType: z.nativeEnum(LifecycleType),
   quantity: z.preprocess(
     (v) => (v === "" || v === null || v === undefined ? 0 : Number(v)),
     z.number().int().min(0, "Quantity must be 0 or more."),
   ),
-  currentLocationId: optionalString,
-  homeLocationId: optionalString,
+
+  // Optional fields
+  sku: optionalString,
+  manufacturer: optionalString,
+  model: optionalString,
+  productType: optionalProductType,
+  homeLocation: optionalString,
+  currentLocation: optionalString,
   unitCost: optionalDecimal,
 });
 
 function readForm(formData: FormData) {
   return ItemSchema.safeParse({
-    sku: formData.get("sku"),
     name: formData.get("name"),
+    description: formData.get("description"),
+    status: formData.get("status"),
+    quantity: formData.get("quantity"),
+    sku: formData.get("sku"),
     manufacturer: formData.get("manufacturer"),
     model: formData.get("model"),
-    serial: formData.get("serial"),
-    barcode: formData.get("barcode"),
-    descriptionId: formData.get("descriptionId"),
-    status: formData.get("status"),
-    lifecycleType: formData.get("lifecycleType"),
-    quantity: formData.get("quantity"),
-    currentLocationId: formData.get("currentLocationId"),
-    homeLocationId: formData.get("homeLocationId"),
+    productType: formData.get("productType"),
+    homeLocation: formData.get("homeLocation"),
+    currentLocation: formData.get("currentLocation"),
     unitCost: formData.get("unitCost"),
   });
 }
 
 function buildData(parsed: z.infer<typeof ItemSchema>) {
   return {
-    sku: parsed.sku,
     name: parsed.name,
+    description: parsed.description,
+    status: parsed.status,
+    quantity: parsed.quantity,
+    sku: parsed.sku,
     manufacturer: parsed.manufacturer,
     model: parsed.model,
-    serial: parsed.serial,
-    barcode: parsed.barcode,
-    descriptionId: parsed.descriptionId,
-    status: parsed.status,
-    lifecycleType: parsed.lifecycleType,
-    quantity: parsed.quantity,
-    currentLocationId: parsed.currentLocationId,
-    homeLocationId: parsed.homeLocationId,
+    productType: parsed.productType,
+    homeLocation: parsed.homeLocation,
+    currentLocation: parsed.currentLocation,
     unitCost: parsed.unitCost === null ? null : new Prisma.Decimal(parsed.unitCost),
   };
 }

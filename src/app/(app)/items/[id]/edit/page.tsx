@@ -13,29 +13,16 @@ export default async function EditItemPage({
   await requireRole(["ADMIN", "MANAGER"]);
   const { id } = await params;
 
-  const [item, descriptions, locations] = await Promise.all([
-    prisma.item.findUnique({ where: { id } }),
-    prisma.description.findMany({
-      select: { id: true, name: true },
-      orderBy: { name: "asc" },
-    }),
-    prisma.location.findMany({
-      select: { id: true, name: true, type: true },
-      orderBy: [{ type: "asc" }, { name: "asc" }],
-    }),
-  ]);
-
+  const item = await prisma.item.findUnique({ where: { id } });
   if (!item) notFound();
 
   return (
     <>
       <header>
         <h1 className="text-3xl font-bold text-white">Edit item</h1>
-        <p className="mt-1 text-sm text-gray-400">
-          {item.name} · <span className="font-mono">{item.sku}</span>
-        </p>
+        <p className="mt-1 text-sm text-gray-400">{item.name}</p>
       </header>
-      <ItemForm item={item} descriptions={descriptions} locations={locations} />
+      <ItemForm item={item} />
     </>
   );
 }

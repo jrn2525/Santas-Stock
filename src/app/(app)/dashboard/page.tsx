@@ -4,18 +4,14 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 async function getCounts() {
-  const [items, descriptions, locations, available, allocated, totalQty] = await Promise.all([
+  const [items, available, allocated, totalQty] = await Promise.all([
     prisma.item.count(),
-    prisma.description.count(),
-    prisma.location.count(),
     prisma.item.count({ where: { status: "AVAILABLE" } }),
     prisma.item.count({ where: { status: "ALLOCATED" } }),
     prisma.item.aggregate({ _sum: { quantity: true } }),
   ]);
   return {
     items,
-    descriptions,
-    locations,
     available,
     allocated,
     totalQty: totalQty._sum.quantity ?? 0,
@@ -70,11 +66,6 @@ export default async function DashboardPage() {
       <section className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Items" value={counts.items} href="/items" />
         <StatCard label="Total stock qty" value={counts.totalQty} href="/items" />
-        <StatCard label="Descriptions" value={counts.descriptions} href="/descriptions" />
-        <StatCard label="Locations" value={counts.locations} href="/locations" />
-      </section>
-
-      <section className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <StatCard label="Available items" value={counts.available} />
         <StatCard label="Allocated items" value={counts.allocated} />
       </section>

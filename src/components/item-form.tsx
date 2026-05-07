@@ -2,58 +2,37 @@
 
 import Link from "next/link";
 import { useActionState } from "react";
-import { ItemStatus, LifecycleType, type LocationType } from "@prisma/client";
+import { ItemStatus, ProductType } from "@prisma/client";
 import { createItem, updateItem } from "@/lib/actions/items";
 import { emptyFormState, type FormState } from "@/lib/actions/state";
 
 type Item = {
   id: string;
-  sku: string;
+  sku: string | null;
   name: string;
+  description: string;
   manufacturer: string | null;
   model: string | null;
-  serial: string | null;
-  barcode: string | null;
-  descriptionId: string | null;
+  productType: ProductType | null;
   status: ItemStatus;
-  lifecycleType: LifecycleType;
   quantity: number;
-  currentLocationId: string | null;
-  homeLocationId: string | null;
+  homeLocation: string | null;
+  currentLocation: string | null;
   unitCost: { toString(): string } | null;
 };
-
-type DescriptionOption = { id: string; name: string };
-type LocationOption = { id: string; name: string; type: LocationType };
 
 const statusLabels: Record<ItemStatus, string> = {
   AVAILABLE: "Available",
   ALLOCATED: "Allocated",
 };
 
-const lifecycleLabels: Record<LifecycleType, string> = {
-  RENTAL_SEASONAL: "Rental (seasonal)",
-  SOLD_PERMANENT: "Sold (permanent)",
-  INSTALLED_YEAR_ROUND: "Installed year-round",
+const productTypeLabels: Record<ProductType, string> = {
+  CHRISTMAS: "Christmas",
+  LANDSCAPE: "Landscape",
+  PERMANENT: "Permanent",
 };
 
-const locationTypeLabels: Record<LocationType, string> = {
-  WAREHOUSE: "Warehouse",
-  AISLE: "Aisle",
-  RACK: "Rack",
-  BIN: "Bin",
-  VEHICLE: "Vehicle",
-};
-
-export function ItemForm({
-  item,
-  descriptions,
-  locations,
-}: {
-  item?: Item;
-  descriptions: DescriptionOption[];
-  locations: LocationOption[];
-}) {
+export function ItemForm({ item }: { item?: Item }) {
   const action = item ? updateItem.bind(null, item.id) : createItem;
 
   const [state, formAction, pending] = useActionState<FormState, FormData>(
@@ -64,14 +43,7 @@ export function ItemForm({
   return (
     <form action={formAction} className="mt-6 max-w-3xl space-y-6">
       <Section title="Identity">
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-          <Field
-            label="SKU"
-            name="sku"
-            defaultValue={item?.sku ?? ""}
-            errors={state.errors.sku}
-            required
-          />
+        <div className="grid grid-cols-1 gap-5">
           <Field
             label="Name"
             name="name"
@@ -80,58 +52,47 @@ export function ItemForm({
             required
           />
           <Field
-            label="Manufacturer"
-            name="manufacturer"
-            defaultValue={item?.manufacturer ?? ""}
-            errors={state.errors.manufacturer}
+            label="Description"
+            name="description"
+            defaultValue={item?.description ?? ""}
+            errors={state.errors.description}
+            required
           />
-          <Field
-            label="Model"
-            name="model"
-            defaultValue={item?.model ?? ""}
-            errors={state.errors.model}
-          />
-          <Field
-            label="Serial #"
-            name="serial"
-            defaultValue={item?.serial ?? ""}
-            errors={state.errors.serial}
-          />
-          <Field
-            label="Barcode"
-            name="barcode"
-            defaultValue={item?.barcode ?? ""}
-            errors={state.errors.barcode}
-          />
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+            <Field
+              label="SKU"
+              name="sku"
+              defaultValue={item?.sku ?? ""}
+              errors={state.errors.sku}
+            />
+            <Field
+              label="Manufacturer"
+              name="manufacturer"
+              defaultValue={item?.manufacturer ?? ""}
+              errors={state.errors.manufacturer}
+            />
+            <Field
+              label="Model"
+              name="model"
+              defaultValue={item?.model ?? ""}
+              errors={state.errors.model}
+            />
+          </div>
         </div>
       </Section>
 
       <Section title="Classification">
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
           <SelectField
-            label="Description"
-            name="descriptionId"
-            defaultValue={item?.descriptionId ?? ""}
-            errors={state.errors.descriptionId}
+            label="Product type"
+            name="productType"
+            defaultValue={item?.productType ?? ""}
+            errors={state.errors.productType}
           >
             <option value="">— Unassigned —</option>
-            {descriptions.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </SelectField>
-
-          <SelectField
-            label="Lifecycle"
-            name="lifecycleType"
-            defaultValue={item?.lifecycleType ?? "RENTAL_SEASONAL"}
-            errors={state.errors.lifecycleType}
-            required
-          >
-            {(Object.keys(lifecycleLabels) as LifecycleType[]).map((l) => (
-              <option key={l} value={l}>
-                {lifecycleLabels[l]}
+            {(Object.keys(productTypeLabels) as ProductType[]).map((p) => (
+              <option key={p} value={p}>
+                {productTypeLabels[p]}
               </option>
             ))}
           </SelectField>
@@ -158,42 +119,26 @@ export function ItemForm({
             defaultValue={item?.quantity ?? 0}
             errors={state.errors.quantity}
             required
-            help="How many of this item we have in stock."
           />
         </div>
       </Section>
 
       <Section title="Location">
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-          <SelectField
+          <Field
             label="Home location"
-            name="homeLocationId"
-            defaultValue={item?.homeLocationId ?? ""}
-            errors={state.errors.homeLocationId}
-            help="Where it lives in the off-season."
-          >
-            <option value="">— None —</option>
-            {locations.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name} ({locationTypeLabels[l.type]})
-              </option>
-            ))}
-          </SelectField>
-
-          <SelectField
+            name="homeLocation"
+            defaultValue={item?.homeLocation ?? ""}
+            errors={state.errors.homeLocation}
+            help='Where it lives in the off-season. Example: "Aisle 1, Rack 2B, Shelf 3C".'
+          />
+          <Field
             label="Current location"
-            name="currentLocationId"
-            defaultValue={item?.currentLocationId ?? ""}
-            errors={state.errors.currentLocationId}
+            name="currentLocation"
+            defaultValue={item?.currentLocation ?? ""}
+            errors={state.errors.currentLocation}
             help="Where it is right now."
-          >
-            <option value="">— None —</option>
-            {locations.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name} ({locationTypeLabels[l.type]})
-              </option>
-            ))}
-          </SelectField>
+          />
         </div>
       </Section>
 

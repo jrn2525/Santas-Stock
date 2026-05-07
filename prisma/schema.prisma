@@ -34,6 +34,14 @@ enum LifecycleType {
   INSTALLED_YEAR_ROUND
 }
 
+// Product type for Item — Christmas decor, landscape lighting, or
+// permanent year-round lighting/fixtures.
+enum ProductType {
+  CHRISTMAS
+  LANDSCAPE
+  PERMANENT
+}
+
 // ConditionGrade is kept in the schema (used by ReplacementQueue and other
 // models) but no longer surfaced on Item — re-introduced in a later phase.
 enum ConditionGrade {
@@ -43,6 +51,8 @@ enum ConditionGrade {
   RETIRED
 }
 
+// LocationType is kept in the schema for future planning — it's no longer
+// surfaced anywhere because Item now stores its locations as free text.
 enum LocationType {
   WAREHOUSE
   AISLE
@@ -116,74 +126,35 @@ model User {
   auditEntries         AuditLog[]
 }
 
-// Renamed from "Category" — for Christmas Decor's Jobber-driven workflow,
-// items are grouped by product description (e.g., "C9 Warm White 50ft Strand")
-// rather than abstract categories. The Postgres table is still named
-// "Category" via @@map so existing rows survive the rename.
-model Description {
-  id                          String   @id @default(cuid())
-  name                        String
-  parentId                    String?
-  parent                      Description?  @relation("DescriptionHierarchy", fields: [parentId], references: [id])
-  children                    Description[] @relation("DescriptionHierarchy")
-
-  // Default retirement profile, inherited by items unless overridden.
-  defaultRetirementMaxSeasons Int?
-  defaultRetirementMaxRepairs Int?
-  defaultRetirementConditionFloor ConditionGrade?
-
-  items                       Item[]
-  createdAt                   DateTime @default(now())
-  updatedAt                   DateTime @updatedAt
-
-  @@unique([name, parentId])
-  @@map("Category")
-}
-
-model Location {
-  id          String       @id @default(cuid())
-  name        String
-  type        LocationType
-  parentId    String?
-  parent      Location?    @relation("LocationHierarchy", fields: [parentId], references: [id])
-  children    Location[]   @relation("LocationHierarchy")
-  barcode     String?      @unique
-
-  itemsHere   Item[]       @relation("CurrentLocation")
-  itemsHome   Item[]       @relation("HomeLocation")
-  kitsHome    Kit[]        @relation("KitHomeLocation")
-
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-}
-
+// Item is the master inventory record. As of the latest revision it's
+// flat — description, product type, and locations are stored inline as
+// text/enums rather than as relations. Per-unit serial tracking, kits,
+// and a structured Location catalog will return in later phases.
 model Item {
   id                       String         @id @default(cuid())
-  sku                      String         @unique
+  sku                      String?
+
   name                     String
+  description              String
+
   manufacturer             String?
   model                    String?
-  serial                   String?        @unique
-  barcode                  String?        @unique
 
-  descriptionId            String?        @map("categoryId")
-  description              Description?   @relation(fields: [descriptionId], references: [id])
+  productType              ProductType?
 
   status                   ItemStatus     @default(AVAILABLE)
-  lifecycleType            LifecycleType  @default(RENTAL_SEASONAL)
-
-  // Stock-level fields (one row per SKU; per-unit serial tracking comes later).
   quantity                 Int            @default(0)
   unitCost                 Decimal?       @db.Decimal(12, 2) @map("purchaseCost")
 
+  homeLocation             String?
+  currentLocation          String?
+
   purchaseDate             DateTime?
 
-  currentLocationId        String?
-  currentLocation          Location?      @relation("CurrentLocation", fields: [currentLocationId], references: [id])
-  homeLocationId           String?
-  homeLocation             Location?      @relation("HomeLocation", fields: [homeLocationId], references: [id])
-
-  // Per-item retirement profile (overrides description defaults when set).
+  // Lifecycle, retirement, photos, and custom fields are kept in the
+  // schema so later phases can light them up without another migration,
+  // but they're not on the form right now.
+  lifecycleType            LifecycleType?
   retirementMaxSeasons     Int?
   retirementMaxRepairs     Int?
   retirementConditionFloor ConditionGrade?
@@ -215,8 +186,9 @@ model Kit {
   propertyId      String?
   property        Property?  @relation(fields: [propertyId], references: [id])
 
-  homeLocationId  String?
-  homeLocation    Location?  @relation("KitHomeLocation", fields: [homeLocationId], references: [id])
+  // Home location is now free text, matching Item. Was a relation to the
+  // dropped Location model.
+  homeLocation    String?
 
   photos          String[]   @default([])
 

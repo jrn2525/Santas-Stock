@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ItemStatus } from "@prisma/client";
+import { ItemStatus, ProductType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { deleteItem } from "@/lib/actions/items";
@@ -17,6 +17,12 @@ const statusBadgeStyles: Record<ItemStatus, string> = {
   ALLOCATED: "bg-blue-900 text-blue-200",
 };
 
+const productTypeLabels: Record<ProductType, string> = {
+  CHRISTMAS: "Christmas",
+  LANDSCAPE: "Landscape",
+  PERMANENT: "Permanent",
+};
+
 export default async function ItemsPage({
   searchParams,
 }: {
@@ -31,18 +37,15 @@ export default async function ItemsPage({
     where: query
       ? {
           OR: [
-            { sku: { contains: query, mode: "insensitive" } },
             { name: { contains: query, mode: "insensitive" } },
-            { serial: { contains: query, mode: "insensitive" } },
-            { barcode: { contains: query, mode: "insensitive" } },
+            { description: { contains: query, mode: "insensitive" } },
+            { sku: { contains: query, mode: "insensitive" } },
+            { homeLocation: { contains: query, mode: "insensitive" } },
+            { currentLocation: { contains: query, mode: "insensitive" } },
           ],
         }
       : undefined,
     orderBy: [{ name: "asc" }],
-    include: {
-      description: { select: { name: true } },
-      currentLocation: { select: { name: true } },
-    },
     take: 200,
   });
 
@@ -70,7 +73,7 @@ export default async function ItemsPage({
           type="search"
           name="q"
           defaultValue={query}
-          placeholder="Search by SKU, name, serial, or barcode..."
+          placeholder="Search by name, description, SKU, or location..."
           className="w-full rounded-md border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white focus:border-santa-red focus:outline-none focus:ring-1 focus:ring-santa-red"
         />
       </form>
@@ -79,12 +82,12 @@ export default async function ItemsPage({
         <table className="w-full text-sm">
           <thead className="bg-gray-900 text-left text-xs uppercase tracking-wider text-gray-400">
             <tr>
-              <th className="px-4 py-3">SKU</th>
               <th className="px-4 py-3">Name</th>
               <th className="px-4 py-3">Description</th>
+              <th className="px-4 py-3">Product type</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3 text-right">Qty</th>
-              <th className="px-4 py-3">Current location</th>
+              <th className="px-4 py-3">Home location</th>
               <th className="px-4 py-3 text-right" />
             </tr>
           </thead>
@@ -115,10 +118,10 @@ export default async function ItemsPage({
             ) : (
               items.map((i) => (
                 <tr key={i.id} className="text-gray-200">
-                  <td className="px-4 py-3 font-mono text-xs">{i.sku}</td>
                   <td className="px-4 py-3 font-medium">{i.name}</td>
+                  <td className="px-4 py-3 text-gray-400">{i.description}</td>
                   <td className="px-4 py-3 text-gray-400">
-                    {i.description?.name ?? "—"}
+                    {i.productType ? productTypeLabels[i.productType] : "—"}
                   </td>
                   <td className="px-4 py-3">
                     <span
@@ -127,12 +130,8 @@ export default async function ItemsPage({
                       {statusLabels[i.status]}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums">
-                    {i.quantity}
-                  </td>
-                  <td className="px-4 py-3 text-gray-400">
-                    {i.currentLocation?.name ?? "—"}
-                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums">{i.quantity}</td>
+                  <td className="px-4 py-3 text-gray-400">{i.homeLocation ?? "—"}</td>
                   <td className="px-4 py-3 text-right">
                     {canWrite && (
                       <div className="flex justify-end gap-3">
