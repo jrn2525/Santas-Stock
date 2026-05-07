@@ -143,16 +143,33 @@ export function ItemForm({ item }: { item?: Item }) {
       </Section>
 
       <Section title="Cost">
-        <Field
-          label="Unit cost"
-          name="unitCost"
-          type="number"
-          step="0.01"
-          min={0}
-          defaultValue={item?.unitCost?.toString() ?? ""}
-          errors={state.errors.unitCost}
-          help="What we paid per unit."
-        />
+        <div>
+          <label htmlFor="unitCost" className="block text-sm font-medium text-gray-300">
+            Unit cost
+          </label>
+          <div className="relative mt-1">
+            <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+              $
+            </span>
+            <input
+              id="unitCost"
+              name="unitCost"
+              type="number"
+              inputMode="decimal"
+              step="0.01"
+              min={0}
+              defaultValue={item?.unitCost?.toString() ?? ""}
+              placeholder="0.00"
+              className="block w-full rounded-md border border-gray-600 bg-gray-900 py-2 pl-7 pr-3 text-white focus:border-santa-red focus:outline-none focus:ring-1 focus:ring-santa-red"
+            />
+          </div>
+          <p className="mt-1 text-xs text-gray-500">What we paid per unit.</p>
+          {state.errors.unitCost?.map((e) => (
+            <p key={e} className="mt-1 text-xs text-red-400">
+              {e}
+            </p>
+          ))}
+        </div>
       </Section>
 
       {state.message && <p className="text-sm text-red-400">{state.message}</p>}

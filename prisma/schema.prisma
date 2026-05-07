@@ -178,7 +178,7 @@ model Item {
 model Kit {
   id              String     @id @default(cuid())
   name            String
-  kitType         KitType
+  kitType         KitType?
   status          KitStatus  @default(DRAFT)
 
   clientId        String?

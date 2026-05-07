@@ -135,6 +135,9 @@ Done so far:
   sidebar nav, dashboard counts. Description and Location have collapsed
   into inline text fields on Item; ProductType enum (Christmas / Landscape
   / Permanent) replaces the structured Description model
+- ✅ Pass 3.1 — Kits (bills of materials): a Kit row plus a KitItem
+  junction table linking each kit to one-or-more Items with quantities.
+  Form has dynamic add/remove rows. Unit cost on Item is currency-formatted
 
 Next planned passes:
 
