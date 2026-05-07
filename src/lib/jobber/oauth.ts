@@ -20,6 +20,29 @@ function requireEnv(key: string): string {
   return v;
 }
 
+// Returns the public origin for this app, honoring forwarded headers when
+// running behind a proxy (Railway, Fly, etc.). Without this, req.url inside
+// a containerized Next.js app reports the internal hostname (localhost:8080),
+// which would break OAuth round trips.
+export function getPublicOrigin(req: { headers: Headers; url: string }): string {
+  if (process.env.PUBLIC_APP_URL) {
+    return process.env.PUBLIC_APP_URL.replace(/\/+$/, "");
+  }
+
+  const forwardedHost = req.headers.get("x-forwarded-host");
+  const host = forwardedHost ?? req.headers.get("host");
+  if (host) {
+    const proto = req.headers.get("x-forwarded-proto") ?? "https";
+    return `${proto}://${host}`;
+  }
+
+  return new URL(req.url).origin;
+}
+
+export function callbackUrlFor(origin: string): string {
+  return `${origin}/api/jobber/callback`;
+}
+
 export function buildAuthorizeUrl(state: string, redirectUri: string): string {
   const params = new URLSearchParams({
     client_id: requireEnv("JOBBER_CLIENT_ID"),
@@ -78,8 +101,4 @@ export async function refreshAccessToken(
   }
 
   return (await res.json()) as JobberTokenResponse;
-}
-
-export function callbackUrlFor(origin: string): string {
-  return `${origin}/api/jobber/callback`;
 }

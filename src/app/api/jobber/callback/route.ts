@@ -1,17 +1,23 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { callbackUrlFor, exchangeCodeForTokens } from "@/lib/jobber/oauth";
+import {
+  callbackUrlFor,
+  exchangeCodeForTokens,
+  getPublicOrigin,
+} from "@/lib/jobber/oauth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
+  const origin = getPublicOrigin(req);
+
   const session = await auth();
   if (!session?.user) {
-    return NextResponse.redirect(new URL("/sign-in", req.url));
+    return NextResponse.redirect(new URL("/sign-in", origin));
   }
   if (session.user.role !== "ADMIN") {
-    return NextResponse.redirect(new URL("/unauthorized", req.url));
+    return NextResponse.redirect(new URL("/unauthorized", origin));
   }
 
   const url = new URL(req.url);
@@ -20,30 +26,29 @@ export async function GET(req: NextRequest) {
   const error = url.searchParams.get("error");
 
   if (error) {
-    return redirectToJobberPage(req, `error=${encodeURIComponent(error)}`);
+    return redirectToJobberPage(origin, `error=${encodeURIComponent(error)}`);
   }
 
   if (!code || !state) {
-    return redirectToJobberPage(req, "error=missing_code");
+    return redirectToJobberPage(origin, "error=missing_code");
   }
 
   const expectedState = req.cookies.get("jobber_oauth_state")?.value;
   if (!expectedState || expectedState !== state) {
-    return redirectToJobberPage(req, "error=invalid_state");
+    return redirectToJobberPage(origin, "error=invalid_state");
   }
 
   let tokens;
   try {
-    tokens = await exchangeCodeForTokens(code, callbackUrlFor(url.origin));
+    tokens = await exchangeCodeForTokens(code, callbackUrlFor(origin));
   } catch (err) {
     console.error("Jobber token exchange failed:", err);
-    return redirectToJobberPage(req, "error=token_exchange");
+    return redirectToJobberPage(origin, "error=token_exchange");
   }
 
   const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
   const scopes = tokens.scope ? tokens.scope.split(/[\s,]+/).filter(Boolean) : [];
 
-  // Single-tenant: replace any existing connection.
   await prisma.$transaction([
     prisma.jobberConnection.deleteMany({}),
     prisma.jobberConnection.create({
@@ -57,11 +62,11 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
-  const response = redirectToJobberPage(req, "connected=1");
+  const response = redirectToJobberPage(origin, "connected=1");
   response.cookies.delete("jobber_oauth_state");
   return response;
 }
 
-function redirectToJobberPage(req: NextRequest, qs: string) {
-  return NextResponse.redirect(new URL(`/jobber?${qs}`, req.url));
+function redirectToJobberPage(origin: string, qs: string) {
+  return NextResponse.redirect(new URL(`/jobber?${qs}`, origin));
 }
