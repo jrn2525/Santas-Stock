@@ -235,13 +235,16 @@ model Client {
   id              String         @id @default(cuid())
   jobberClientId  String         @unique
   name            String
+  companyName     String?
   email           String?
+  phone           String?
   segment         ClientSegment?
 
   properties      Property[]
   jobs            JobberJob[]
   kits            Kit[]
 
+  syncedAt        DateTime?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 }
@@ -256,6 +259,7 @@ model Property {
   jobs              JobberJob[]
   kits              Kit[]
 
+  syncedAt          DateTime?
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 }

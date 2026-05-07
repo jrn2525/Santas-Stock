@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { disconnectJobber } from "@/lib/actions/jobber";
+import { JobberSyncButton } from "@/components/jobber-sync-button";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,13 @@ export default async function JobberPage({
   const params = await searchParams;
   const connection = await prisma.jobberConnection.findFirst({
     include: { connectedBy: { select: { name: true, email: true } } },
+  });
+  const customerCount = await prisma.client.count();
+  const propertyCount = await prisma.property.count();
+  const lastSync = await prisma.client.findFirst({
+    where: { syncedAt: { not: null } },
+    orderBy: { syncedAt: "desc" },
+    select: { syncedAt: true },
   });
 
   const errorMsg = params.error ? errorMessages[params.error] ?? params.error : null;
@@ -120,6 +128,32 @@ export default async function JobberPage({
           </div>
         )}
       </section>
+
+      {connection && (
+        <section className="mt-6 rounded-lg border border-rule bg-card p-6">
+          <h2 className="text-lg font-semibold text-ink">Customer sync</h2>
+          <p className="mt-1 text-sm text-ink-dim">
+            Pulls all clients and their properties from Jobber into Santa&apos;s
+            Stock. Run this once to seed; we&apos;ll wire up real-time webhook
+            sync in a later pass.
+          </p>
+
+          <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
+            <Pair label="Customers in DB" value={String(customerCount)} />
+            <Pair label="Properties in DB" value={String(propertyCount)} />
+            <Pair
+              label="Last sync"
+              value={
+                lastSync?.syncedAt ? dateFormatter.format(lastSync.syncedAt) : "—"
+              }
+            />
+          </dl>
+
+          <div className="mt-6 border-t border-rule pt-6">
+            <JobberSyncButton />
+          </div>
+        </section>
+      )}
 
       <section className="mt-6 text-xs text-ink-dim">
         <p>
