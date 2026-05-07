@@ -4,6 +4,10 @@ import type { NextAuthConfig } from "next-auth";
 // modules (like bcryptjs or @prisma/client). The full config in src/auth.ts
 // extends this with the Credentials provider.
 export const authConfig: NextAuthConfig = {
+  // Required when running behind a reverse proxy (Railway, Fly, custom).
+  // Without this, NextAuth v5 returns "There was a problem with the server
+  // configuration" because it can't verify the request host.
+  trustHost: true,
   pages: {
     signIn: "/sign-in",
   },
