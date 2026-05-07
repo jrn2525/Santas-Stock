@@ -38,7 +38,7 @@ export default async function AppLayout({
           </Link>
         </div>
 
-        <Sidebar />
+        <Sidebar role={user.role} />
 
         <div className="mt-auto border-t border-rule p-4 text-xs">
           <div className="text-ink">{user.name}</div>

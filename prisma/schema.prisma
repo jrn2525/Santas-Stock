@@ -124,6 +124,25 @@ model User {
   resolvedReplacements ReplacementQueue[]   @relation("ResolvedBy")
   openedTickets        MaintenanceTicket[]  @relation("OpenedBy")
   auditEntries         AuditLog[]
+  jobberConnections    JobberConnection[]
+}
+
+// Single-tenant Jobber OAuth connection. There should only be zero or one
+// row in this table at any time — the admin disconnects to wipe and
+// reconnect. Tokens are stored in plain text; acceptable for the trust
+// model of an internal single-franchise app, revisit before multi-tenant.
+model JobberConnection {
+  id              String   @id @default(cuid())
+  jobberAccountId String?
+  accountName     String?
+  accessToken     String
+  refreshToken    String
+  expiresAt       DateTime
+  scopes          String[] @default([])
+  connectedById   String?
+  connectedBy     User?    @relation(fields: [connectedById], references: [id])
+  connectedAt     DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 // Item is the master inventory record. As of the latest revision it's
