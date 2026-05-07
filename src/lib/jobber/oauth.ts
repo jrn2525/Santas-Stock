@@ -43,6 +43,63 @@ export function callbackUrlFor(origin: string): string {
   return `${origin}/api/jobber/callback`;
 }
 
+// Jobber's access tokens are JWTs whose `exp` and `scope` claims are
+// authoritative — the OAuth response doesn't always include those at the
+// top level. Decode the payload (no signature check; we trust the issuer
+// because the token came from Jobber over HTTPS).
+type JobberAccessTokenPayload = {
+  exp?: number;
+  scope?: string;
+  account_id?: number | string;
+  user_id?: number | string;
+};
+
+function decodeAccessToken(token: string): JobberAccessTokenPayload | null {
+  const parts = token.split(".");
+  if (parts.length < 2) return null;
+  try {
+    const padded = parts[1] + "=".repeat((4 - (parts[1].length % 4)) % 4);
+    const json = Buffer.from(
+      padded.replace(/-/g, "+").replace(/_/g, "/"),
+      "base64",
+    ).toString("utf-8");
+    return JSON.parse(json) as JobberAccessTokenPayload;
+  } catch {
+    return null;
+  }
+}
+
+export function computeTokenExpiry(tokens: JobberTokenResponse): Date {
+  if (typeof tokens.expires_in === "number" && tokens.expires_in > 0) {
+    return new Date(Date.now() + tokens.expires_in * 1000);
+  }
+  const claims = decodeAccessToken(tokens.access_token);
+  if (claims?.exp && Number.isFinite(claims.exp)) {
+    return new Date(claims.exp * 1000);
+  }
+  // Last-resort fallback: refresh in an hour. Better than crashing.
+  return new Date(Date.now() + 60 * 60 * 1000);
+}
+
+export function extractScopes(tokens: JobberTokenResponse): string[] {
+  if (tokens.scope) {
+    return tokens.scope.split(/[\s,]+/).filter(Boolean);
+  }
+  const claims = decodeAccessToken(tokens.access_token);
+  if (claims?.scope) {
+    return claims.scope.split(/[\s,]+/).filter(Boolean);
+  }
+  return [];
+}
+
+export function extractAccountId(tokens: JobberTokenResponse): string | null {
+  const claims = decodeAccessToken(tokens.access_token);
+  if (claims?.account_id !== undefined && claims.account_id !== null) {
+    return String(claims.account_id);
+  }
+  return null;
+}
+
 export function buildAuthorizeUrl(state: string, redirectUri: string): string {
   const params = new URLSearchParams({
     client_id: requireEnv("JOBBER_CLIENT_ID"),

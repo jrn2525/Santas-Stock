@@ -3,7 +3,10 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import {
   callbackUrlFor,
+  computeTokenExpiry,
   exchangeCodeForTokens,
+  extractAccountId,
+  extractScopes,
   getPublicOrigin,
 } from "@/lib/jobber/oauth";
 
@@ -46,8 +49,9 @@ export async function GET(req: NextRequest) {
     return redirectToJobberPage(origin, "error=token_exchange");
   }
 
-  const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
-  const scopes = tokens.scope ? tokens.scope.split(/[\s,]+/).filter(Boolean) : [];
+  const expiresAt = computeTokenExpiry(tokens);
+  const scopes = extractScopes(tokens);
+  const jobberAccountId = extractAccountId(tokens);
 
   await prisma.$transaction([
     prisma.jobberConnection.deleteMany({}),
@@ -57,6 +61,7 @@ export async function GET(req: NextRequest) {
         refreshToken: tokens.refresh_token,
         expiresAt,
         scopes,
+        jobberAccountId,
         connectedById: session.user.id,
       },
     }),
