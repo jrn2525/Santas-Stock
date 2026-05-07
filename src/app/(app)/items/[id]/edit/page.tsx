@@ -19,8 +19,8 @@ export default async function EditItemPage({
   return (
     <>
       <header>
-        <h1 className="text-3xl font-bold text-white">Edit item</h1>
-        <p className="mt-1 text-sm text-gray-400">{item.name}</p>
+        <h1 className="text-3xl font-bold text-ink">Edit item</h1>
+        <p className="mt-1 text-sm text-ink-dim">{item.name}</p>
       </header>
       <ItemForm item={item} />
     </>

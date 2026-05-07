@@ -37,9 +37,9 @@ function StatCard({
   href?: string;
 }) {
   const inner = (
-    <div className="rounded-lg border border-gray-700 bg-gray-900/50 p-6 transition hover:border-gray-600">
-      <div className="text-sm text-gray-400">{label}</div>
-      <div className="mt-2 text-3xl font-bold text-white">{value}</div>
+    <div className="rounded-lg border border-rule bg-card p-6 transition hover:border-brand">
+      <div className="text-sm text-ink-dim">{label}</div>
+      <div className="mt-2 text-3xl font-bold text-ink">{value}</div>
     </div>
   );
   return href ? (
@@ -57,8 +57,8 @@ export default async function DashboardPage() {
   return (
     <>
       <header>
-        <h1 className="text-3xl font-bold text-white">Dashboard</h1>
-        <p className="mt-1 text-sm text-gray-400">
+        <h1 className="text-3xl font-bold text-ink">Dashboard</h1>
+        <p className="mt-1 text-sm text-ink-dim">
           Operational overview of your inventory.
         </p>
       </header>
@@ -70,14 +70,14 @@ export default async function DashboardPage() {
         <StatCard label="Allocated items" value={counts.allocated} />
       </section>
 
-      <section className="mt-10 rounded-lg border border-gray-700 bg-gray-900/50 p-6">
-        <h2 className="text-lg font-semibold">Database connection</h2>
+      <section className="mt-10 rounded-lg border border-rule bg-card p-6">
+        <h2 className="text-lg font-semibold text-ink">Database connection</h2>
         {status.ok ? (
-          <p className="mt-2 text-sm text-santa-green">
-            ✓ Connected. Postgres time: <code>{status.now}</code>
+          <p className="mt-2 text-sm text-ink">
+            ✓ Connected. Postgres time: <code className="text-ink-dim">{status.now}</code>
           </p>
         ) : (
-          <p className="mt-2 text-sm text-red-400">
+          <p className="mt-2 text-sm text-brand">
             ✗ Failed: <code>{status.error}</code>
           </p>
         )}

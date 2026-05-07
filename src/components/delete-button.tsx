@@ -29,7 +29,7 @@ export function DeleteButton({
       <button
         type="submit"
         disabled={pending}
-        className="text-xs font-medium text-red-400 hover:text-red-300 disabled:opacity-50"
+        className="text-xs font-medium text-brand hover:text-brand-hover disabled:opacity-50"
       >
         {pending ? "Deleting..." : children}
       </button>

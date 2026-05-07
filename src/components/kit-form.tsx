@@ -72,7 +72,7 @@ export function KitForm({ kit, items }: { kit?: Kit; items: ItemOption[] }) {
       </Section>
 
       <Section title="Items in this kit">
-        <p className="mb-4 text-xs text-gray-500">
+        <p className="mb-4 text-xs text-ink-dim">
           Build the recipe: pick each ingredient and how many of it the kit needs.
         </p>
 
@@ -80,12 +80,12 @@ export function KitForm({ kit, items }: { kit?: Kit; items: ItemOption[] }) {
           {rows.map((row, idx) => (
             <div
               key={row.key}
-              className="grid grid-cols-[1fr_120px_auto] gap-3 rounded-md border border-gray-700 bg-gray-900/40 p-3"
+              className="grid grid-cols-[1fr_120px_auto] gap-3 rounded-md border border-rule bg-canvas p-3"
             >
               <div>
                 <label
                   htmlFor={`item-${row.key}`}
-                  className="block text-xs font-medium text-gray-400"
+                  className="block text-xs font-medium text-ink-dim"
                 >
                   Item {idx + 1}
                 </label>
@@ -93,7 +93,7 @@ export function KitForm({ kit, items }: { kit?: Kit; items: ItemOption[] }) {
                   id={`item-${row.key}`}
                   value={row.itemId}
                   onChange={(e) => updateRow(row.key, { itemId: e.target.value })}
-                  className="mt-1 block w-full rounded-md border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white focus:border-santa-red focus:outline-none focus:ring-1 focus:ring-santa-red"
+                  className="mt-1 block w-full rounded-md border border-rule bg-canvas px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                   required
                 >
                   <option value="">— Select item —</option>
@@ -108,7 +108,7 @@ export function KitForm({ kit, items }: { kit?: Kit; items: ItemOption[] }) {
               <div>
                 <label
                   htmlFor={`qty-${row.key}`}
-                  className="block text-xs font-medium text-gray-400"
+                  className="block text-xs font-medium text-ink-dim"
                 >
                   Quantity
                 </label>
@@ -120,7 +120,7 @@ export function KitForm({ kit, items }: { kit?: Kit; items: ItemOption[] }) {
                   onChange={(e) =>
                     updateRow(row.key, { quantity: Number(e.target.value) || 1 })
                   }
-                  className="mt-1 block w-full rounded-md border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white focus:border-santa-red focus:outline-none focus:ring-1 focus:ring-santa-red"
+                  className="mt-1 block w-full rounded-md border border-rule bg-canvas px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                   required
                 />
               </div>
@@ -130,7 +130,7 @@ export function KitForm({ kit, items }: { kit?: Kit; items: ItemOption[] }) {
                   type="button"
                   onClick={() => removeRow(row.key)}
                   disabled={rows.length === 1}
-                  className="text-xs text-red-400 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-30"
+                  className="text-xs text-brand hover:text-brand-hover disabled:cursor-not-allowed disabled:opacity-30"
                   title={rows.length === 1 ? "A kit must have at least one item." : "Remove"}
                 >
                   Remove
@@ -144,35 +144,35 @@ export function KitForm({ kit, items }: { kit?: Kit; items: ItemOption[] }) {
           <button
             type="button"
             onClick={addRow}
-            className="rounded-md border border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-200 hover:bg-gray-800"
+            className="rounded-md border border-rule bg-canvas px-3 py-1.5 text-sm font-medium text-ink hover:border-brand hover:text-brand"
           >
             + Add item
           </button>
         </div>
 
         {state.errors.kitItems?.map((e) => (
-          <p key={e} className="mt-2 text-xs text-red-400">
+          <p key={e} className="mt-2 text-xs text-brand">
             {e}
           </p>
         ))}
         {state.errors._form?.map((e) => (
-          <p key={e} className="mt-2 text-xs text-red-400">
+          <p key={e} className="mt-2 text-xs text-brand">
             {e}
           </p>
         ))}
       </Section>
 
-      {state.message && <p className="text-sm text-red-400">{state.message}</p>}
+      {state.message && <p className="text-sm text-brand">{state.message}</p>}
 
       <div className="flex items-center gap-3">
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md bg-santa-red px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+          className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-ink hover:bg-brand-hover disabled:opacity-50"
         >
           {pending ? "Saving..." : kit ? "Save changes" : "Create kit"}
         </button>
-        <Link href="/kits" className="text-sm text-gray-400 underline hover:text-white">
+        <Link href="/kits" className="text-sm text-ink-dim underline hover:text-ink">
           Cancel
         </Link>
       </div>
@@ -182,8 +182,8 @@ export function KitForm({ kit, items }: { kit?: Kit; items: ItemOption[] }) {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <fieldset className="rounded-md border border-gray-700 p-5">
-      <legend className="px-1 text-sm font-medium text-gray-300">{title}</legend>
+    <fieldset className="rounded-md border border-rule bg-card p-5">
+      <legend className="px-1 text-sm font-medium text-ink">{title}</legend>
       {children}
     </fieldset>
   );
@@ -206,9 +206,9 @@ function Field({
 }) {
   return (
     <div>
-      <label htmlFor={name} className="block text-sm font-medium text-gray-300">
+      <label htmlFor={name} className="block text-sm font-medium text-ink">
         {label}
-        {required && <span className="ml-0.5 text-santa-red">*</span>}
+        {required && <span className="ml-0.5 text-brand">*</span>}
       </label>
       <input
         id={name}
@@ -216,10 +216,10 @@ function Field({
         defaultValue={defaultValue}
         required={required}
         placeholder={placeholder}
-        className="mt-1 block w-full rounded-md border border-gray-600 bg-gray-900 px-3 py-2 text-white focus:border-santa-red focus:outline-none focus:ring-1 focus:ring-santa-red"
+        className="mt-1 block w-full rounded-md border border-rule bg-canvas px-3 py-2 text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
       />
       {errors?.map((e) => (
-        <p key={e} className="mt-1 text-xs text-red-400">
+        <p key={e} className="mt-1 text-xs text-brand">
           {e}
         </p>
       ))}

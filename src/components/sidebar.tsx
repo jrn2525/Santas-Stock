@@ -23,8 +23,8 @@ export function Sidebar() {
             href={item.href}
             className={`rounded-md px-3 py-2 text-sm font-medium ${
               active
-                ? "bg-santa-red/20 text-santa-red"
-                : "text-gray-300 hover:bg-gray-800 hover:text-white"
+                ? "bg-brand/15 text-brand"
+                : "text-ink-dim hover:bg-card/40 hover:text-ink"
             }`}
           >
             {item.label}

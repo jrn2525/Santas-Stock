@@ -13,8 +13,8 @@ const statusLabels: Record<ItemStatus, string> = {
 };
 
 const statusBadgeStyles: Record<ItemStatus, string> = {
-  AVAILABLE: "bg-green-900 text-green-200",
-  ALLOCATED: "bg-blue-900 text-blue-200",
+  AVAILABLE: "bg-card text-ink",
+  ALLOCATED: "bg-brand text-ink",
 };
 
 const productTypeLabels: Record<ProductType, string> = {
@@ -53,15 +53,15 @@ export default async function ItemsPage({
     <>
       <header className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white">Items</h1>
-          <p className="mt-1 text-sm text-gray-400">
+          <h1 className="text-3xl font-bold text-ink">Items</h1>
+          <p className="mt-1 text-sm text-ink-dim">
             Master inventory. Showing up to 200 results.
           </p>
         </div>
         {canWrite && (
           <Link
             href="/items/new"
-            className="rounded-md bg-santa-red px-3 py-2 text-sm font-medium text-white hover:bg-red-700"
+            className="rounded-md bg-brand px-3 py-2 text-sm font-medium text-ink hover:bg-brand-hover"
           >
             + New item
           </Link>
@@ -74,13 +74,13 @@ export default async function ItemsPage({
           name="q"
           defaultValue={query}
           placeholder="Search by name, description, SKU, or location..."
-          className="w-full rounded-md border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-white focus:border-santa-red focus:outline-none focus:ring-1 focus:ring-santa-red"
+          className="w-full rounded-md border border-rule bg-card px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
         />
       </form>
 
-      <div className="mt-4 overflow-hidden rounded-lg border border-gray-800">
+      <div className="mt-4 overflow-hidden rounded-lg border border-rule">
         <table className="w-full text-sm">
-          <thead className="bg-gray-900 text-left text-xs uppercase tracking-wider text-gray-400">
+          <thead className="bg-card text-left text-xs uppercase tracking-wider text-ink-dim">
             <tr>
               <th className="px-4 py-3">Name</th>
               <th className="px-4 py-3">Description</th>
@@ -91,10 +91,10 @@ export default async function ItemsPage({
               <th className="px-4 py-3 text-right" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-800 bg-gray-950">
+          <tbody className="divide-y divide-rule bg-canvas">
             {items.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-12 text-center text-gray-500">
+                <td colSpan={7} className="px-4 py-12 text-center text-ink-dim">
                   {query ? (
                     <>No items matched &ldquo;{query}&rdquo;.</>
                   ) : (
@@ -105,7 +105,7 @@ export default async function ItemsPage({
                           {" "}
                           <Link
                             href="/items/new"
-                            className="text-santa-red underline"
+                            className="text-brand underline"
                           >
                             Add the first one.
                           </Link>
@@ -117,10 +117,10 @@ export default async function ItemsPage({
               </tr>
             ) : (
               items.map((i) => (
-                <tr key={i.id} className="text-gray-200">
+                <tr key={i.id} className="text-ink">
                   <td className="px-4 py-3 font-medium">{i.name}</td>
-                  <td className="px-4 py-3 text-gray-400">{i.description}</td>
-                  <td className="px-4 py-3 text-gray-400">
+                  <td className="px-4 py-3 text-ink-dim">{i.description}</td>
+                  <td className="px-4 py-3 text-ink-dim">
                     {i.productType ? productTypeLabels[i.productType] : "—"}
                   </td>
                   <td className="px-4 py-3">
@@ -131,13 +131,13 @@ export default async function ItemsPage({
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">{i.quantity}</td>
-                  <td className="px-4 py-3 text-gray-400">{i.homeLocation ?? "—"}</td>
+                  <td className="px-4 py-3 text-ink-dim">{i.homeLocation ?? "—"}</td>
                   <td className="px-4 py-3 text-right">
                     {canWrite && (
                       <div className="flex justify-end gap-3">
                         <Link
                           href={`/items/${i.id}/edit`}
-                          className="text-xs font-medium text-santa-red hover:text-red-300"
+                          className="text-xs font-medium text-brand hover:text-brand-hover"
                         >
                           Edit
                         </Link>

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { signOut } from "@/auth";
 import { requireUser } from "@/lib/auth-helpers";
@@ -23,23 +24,29 @@ export default async function AppLayout({
 
   return (
     <div className="flex min-h-screen">
-      <aside className="flex w-56 shrink-0 flex-col border-r border-gray-800 bg-gray-950">
-        <div className="border-b border-gray-800 px-4 py-4">
+      <aside className="flex w-56 shrink-0 flex-col border-r border-rule bg-sidebar">
+        <div className="flex items-center justify-center px-4 py-6">
           <Link href="/dashboard" className="block">
-            <div className="text-lg font-bold text-santa-red">Santa&apos;s Stock</div>
-            <div className="text-xs text-gray-500">Inventory</div>
+            <Image
+              src="/logo.png"
+              alt="Santa's Stock"
+              width={160}
+              height={160}
+              priority
+              className="h-auto w-32"
+            />
           </Link>
         </div>
 
         <Sidebar />
 
-        <div className="mt-auto border-t border-gray-800 p-4 text-xs">
-          <div className="text-gray-300">{user.name}</div>
-          <div className="text-gray-500">{roleLabels[user.role] ?? user.role}</div>
+        <div className="mt-auto border-t border-rule p-4 text-xs">
+          <div className="text-ink">{user.name}</div>
+          <div className="text-ink-dim">{roleLabels[user.role] ?? user.role}</div>
           <form action={signOutAction} className="mt-2">
             <button
               type="submit"
-              className="text-gray-400 underline hover:text-white"
+              className="text-ink-dim underline hover:text-ink"
             >
               Sign out
             </button>
