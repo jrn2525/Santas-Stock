@@ -3,7 +3,7 @@ import Link from "next/link";
 export default function UnauthorizedPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 text-center">
-      <h1 className="text-3xl font-bold text-brand">Not authorized</h1>
+      <h1 className="text-3xl font-bold text-brand-hover">Not authorized</h1>
       <p className="mt-2 text-ink-dim">
         Your account doesn&apos;t have permission to view that page.
       </p>

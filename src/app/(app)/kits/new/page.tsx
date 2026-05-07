@@ -15,7 +15,7 @@ export default async function NewKitPage() {
   return (
     <>
       <header>
-        <h1 className="text-3xl font-bold text-ink">New kit</h1>
+        <h1 className="text-3xl font-bold text-brand-hover">New kit</h1>
         <p className="mt-1 text-sm text-ink-dim">
           Pick the items that go into this kit and how many of each.
         </p>

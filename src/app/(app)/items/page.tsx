@@ -53,7 +53,7 @@ export default async function ItemsPage({
     <>
       <header className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-ink">Items</h1>
+          <h1 className="text-3xl font-bold text-brand-hover">Items</h1>
           <p className="mt-1 text-sm text-ink-dim">
             Master inventory. Showing up to 200 results.
           </p>

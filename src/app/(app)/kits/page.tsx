@@ -24,7 +24,7 @@ export default async function KitsPage() {
     <>
       <header className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-ink">Kits</h1>
+          <h1 className="text-3xl font-bold text-brand-hover">Kits</h1>
           <p className="mt-1 text-sm text-ink-dim">
             Bundles of items — like recipes, where each kit lists the items and
             quantities it needs.

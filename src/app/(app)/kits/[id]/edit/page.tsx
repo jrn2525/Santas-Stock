@@ -31,7 +31,7 @@ export default async function EditKitPage({
   return (
     <>
       <header>
-        <h1 className="text-3xl font-bold text-ink">Edit kit</h1>
+        <h1 className="text-3xl font-bold text-brand-hover">Edit kit</h1>
         <p className="mt-1 text-sm text-ink-dim">{kit.name}</p>
       </header>
       <KitForm kit={kit} items={items} />

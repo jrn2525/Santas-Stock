@@ -9,7 +9,7 @@ export default async function NewItemPage() {
   return (
     <>
       <header>
-        <h1 className="text-3xl font-bold text-ink">New item</h1>
+        <h1 className="text-3xl font-bold text-brand-hover">New item</h1>
       </header>
       <ItemForm />
     </>
