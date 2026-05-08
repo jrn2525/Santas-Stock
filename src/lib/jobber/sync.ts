@@ -3,7 +3,7 @@ import { jobberQuery } from "./client";
 
 const CLIENTS_QUERY = /* GraphQL */ `
   query SyncClients($cursor: String) {
-    clients(first: 100, after: $cursor) {
+    clients(first: 25, after: $cursor) {
       nodes {
         id
         firstName
