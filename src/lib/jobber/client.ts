@@ -9,7 +9,7 @@ const JOBBER_API_URL = "https://api.getjobber.com/api/graphql";
 
 // Pin a specific API version. Update when we want new fields.
 // See: https://developer.getjobber.com/docs/changelog/
-const JOBBER_API_VERSION = "2024-01-15";
+const JOBBER_API_VERSION = "2025-04-16";
 
 const REFRESH_THRESHOLD_MS = 5 * 60 * 1000; // refresh if <5 min to expiry
 
