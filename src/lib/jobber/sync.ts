@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+﻿import { prisma } from "@/lib/prisma";
 import { jobberQuery } from "./client";
 
 const CLIENTS_QUERY = /* GraphQL */ `
@@ -9,23 +9,25 @@ const CLIENTS_QUERY = /* GraphQL */ `
         firstName
         lastName
         companyName
-        tags
+        tags {
+          nodes {
+            label
+          }
+        }
         emails {
           address
         }
         phones {
           number
         }
-        properties(first: 1) {
-          nodes {
-            id
-            address {
-              street
-              city
-              province
-              postalCode
-              country
-            }
+        properties {
+          id
+          address {
+            street
+            city
+            province
+            postalCode
+            country
           }
         }
       }
@@ -50,12 +52,10 @@ type JobberClientNode = {
   firstName: string | null;
   lastName: string | null;
   companyName: string | null;
-  tags: string[] | null;
+  tags: { nodes: Array<{ label: string | null }> } | null;
   emails: Array<{ address: string }> | null;
   phones: Array<{ number: string }> | null;
-  properties: {
-    nodes: Array<{ id: string; address: JobberAddress | null }>;
-  } | null;
+  properties: Array<{ id: string; address: JobberAddress | null }> | null;
 };
 
 type ClientsResponse = {
@@ -101,8 +101,8 @@ export async function syncClientsAndProperties(): Promise<SyncResult> {
     for (const node of data.clients.nodes) {
       const emails = compactStrings(node.emails?.map((e) => e.address) ?? []);
       const phones = compactStrings(node.phones?.map((p) => p.number) ?? []);
-      const tags = compactStrings(node.tags ?? []);
-      const property = node.properties?.nodes?.[0];
+      const tags = compactStrings(node.tags?.nodes?.map((t) => t.label) ?? []);
+      const property = node.properties?.[0];
       const addr = property?.address ?? null;
 
       await prisma.client.upsert({
