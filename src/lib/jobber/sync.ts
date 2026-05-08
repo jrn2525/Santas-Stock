@@ -9,15 +9,14 @@ const CLIENTS_QUERY = /* GraphQL */ `
         firstName
         lastName
         companyName
+        tags
         emails {
-          primary
           address
         }
         phones {
-          primary
           number
         }
-        properties(first: 50) {
+        properties(first: 1) {
           nodes {
             id
             address {
@@ -51,8 +50,9 @@ type JobberClientNode = {
   firstName: string | null;
   lastName: string | null;
   companyName: string | null;
-  emails: Array<{ primary: boolean; address: string }> | null;
-  phones: Array<{ primary: boolean; number: string }> | null;
+  tags: string[] | null;
+  emails: Array<{ address: string }> | null;
+  phones: Array<{ number: string }> | null;
   properties: {
     nodes: Array<{ id: string; address: JobberAddress | null }>;
   } | null;
@@ -66,43 +66,31 @@ type ClientsResponse = {
 };
 
 function deriveName(node: JobberClientNode): string {
-  if (node.companyName) return node.companyName;
-  const personal = [node.firstName, node.lastName].filter(Boolean).join(" ").trim();
+  if (node.companyName && node.companyName.trim()) return node.companyName.trim();
+  const personal = [node.firstName, node.lastName]
+    .filter((p) => p && p.trim().length > 0)
+    .join(" ")
+    .trim();
   if (personal) return personal;
   return "(unnamed)";
 }
 
-function pickPrimaryEmail(
-  list: JobberClientNode["emails"],
-): { primary: boolean; address: string } | null {
-  if (!list || list.length === 0) return null;
-  return list.find((entry) => entry.primary) ?? list[0];
-}
-
-function pickPrimaryPhone(
-  list: JobberClientNode["phones"],
-): { primary: boolean; number: string } | null {
-  if (!list || list.length === 0) return null;
-  return list.find((entry) => entry.primary) ?? list[0];
-}
-
-function formatAddress(addr: JobberAddress | null): string {
-  if (!addr) return "";
-  const line = [addr.street, addr.city, addr.province, addr.postalCode, addr.country]
-    .filter((p) => p && p.trim().length > 0)
-    .join(", ");
-  return line;
+function compactStrings(values: Array<string | null | undefined>): string[] {
+  const out: string[] = [];
+  for (const v of values) {
+    const trimmed = v?.trim();
+    if (trimmed) out.push(trimmed);
+  }
+  return out;
 }
 
 export type SyncResult = {
   clientsUpserted: number;
-  propertiesUpserted: number;
 };
 
 export async function syncClientsAndProperties(): Promise<SyncResult> {
   let cursor: string | null = null;
   let clientsUpserted = 0;
-  let propertiesUpserted = 0;
   const now = new Date();
 
   do {
@@ -111,50 +99,50 @@ export async function syncClientsAndProperties(): Promise<SyncResult> {
       { cursor },
     );
     for (const node of data.clients.nodes) {
-      const primaryEmail = pickPrimaryEmail(node.emails)?.address ?? null;
-      const primaryPhone = pickPrimaryPhone(node.phones)?.number ?? null;
+      const emails = compactStrings(node.emails?.map((e) => e.address) ?? []);
+      const phones = compactStrings(node.phones?.map((p) => p.number) ?? []);
+      const tags = compactStrings(node.tags ?? []);
+      const property = node.properties?.nodes?.[0];
+      const addr = property?.address ?? null;
 
-      const client = await prisma.client.upsert({
+      await prisma.client.upsert({
         where: { jobberClientId: node.id },
         update: {
           name: deriveName(node),
+          firstName: node.firstName,
+          lastName: node.lastName,
           companyName: node.companyName,
-          email: primaryEmail,
-          phone: primaryPhone,
+          emails,
+          phones,
+          tags,
+          serviceStreet1: addr?.street ?? null,
+          serviceCity: addr?.city ?? null,
+          serviceState: addr?.province ?? null,
+          serviceCountry: addr?.country ?? null,
+          serviceZip: addr?.postalCode ?? null,
           syncedAt: now,
         },
         create: {
           jobberClientId: node.id,
           name: deriveName(node),
+          firstName: node.firstName,
+          lastName: node.lastName,
           companyName: node.companyName,
-          email: primaryEmail,
-          phone: primaryPhone,
+          emails,
+          phones,
+          tags,
+          serviceStreet1: addr?.street ?? null,
+          serviceCity: addr?.city ?? null,
+          serviceState: addr?.province ?? null,
+          serviceCountry: addr?.country ?? null,
+          serviceZip: addr?.postalCode ?? null,
           syncedAt: now,
         },
       });
       clientsUpserted++;
-
-      const propertyNodes = node.properties?.nodes ?? [];
-      for (const prop of propertyNodes) {
-        await prisma.property.upsert({
-          where: { jobberPropertyId: prop.id },
-          update: {
-            address: formatAddress(prop.address),
-            clientId: client.id,
-            syncedAt: now,
-          },
-          create: {
-            jobberPropertyId: prop.id,
-            address: formatAddress(prop.address),
-            clientId: client.id,
-            syncedAt: now,
-          },
-        });
-        propertiesUpserted++;
-      }
     }
     cursor = data.clients.pageInfo.hasNextPage ? data.clients.pageInfo.endCursor : null;
   } while (cursor);
 
-  return { clientsUpserted, propertiesUpserted };
+  return { clientsUpserted };
 }

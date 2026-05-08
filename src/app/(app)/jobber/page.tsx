@@ -35,7 +35,6 @@ export default async function JobberPage({
     include: { connectedBy: { select: { name: true, email: true } } },
   });
   const customerCount = await prisma.client.count();
-  const propertyCount = await prisma.property.count();
   const lastSync = await prisma.client.findFirst({
     where: { syncedAt: { not: null } },
     orderBy: { syncedAt: "desc" },
@@ -138,9 +137,8 @@ export default async function JobberPage({
             sync in a later pass.
           </p>
 
-          <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
+          <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
             <Pair label="Customers in DB" value={String(customerCount)} />
-            <Pair label="Properties in DB" value={String(propertyCount)} />
             <Pair
               label="Last sync"
               value={

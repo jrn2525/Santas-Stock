@@ -26,8 +26,7 @@ export function JobberSyncButton() {
 
       {state.result && (
         <p className="text-xs text-ink-dim">
-          ✓ Synced {state.result.clientsUpserted} customers and{" "}
-          {state.result.propertiesUpserted} properties.
+          ✓ Synced {state.result.clientsUpserted} customers.
         </p>
       )}
       {state.message && <p className="text-xs text-brand">{state.message}</p>}

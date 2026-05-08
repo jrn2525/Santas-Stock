@@ -22,12 +22,6 @@ enum Role {
   USER
 }
 
-enum ClientSegment {
-  RESIDENTIAL
-  COMMERCIAL
-  MUNICIPAL
-}
-
 enum LifecycleType {
   RENTAL_SEASONAL
   SOLD_PERMANENT
@@ -232,21 +226,36 @@ model KitItem {
 // ---------- Jobber-mirrored ----------
 
 model Client {
-  id              String         @id @default(cuid())
-  jobberClientId  String         @unique
+  id              String     @id @default(cuid())
+  jobberClientId  String     @unique
+
+  // Display name derived during sync from companyName || "firstName lastName".
+  // Kept as a single column so list views can sort and search uniformly.
   name            String
+
+  // Identity fields — exactly the set requested for sync from Jobber.
+  firstName       String?
+  lastName        String?
   companyName     String?
-  email           String?
-  phone           String?
-  segment         ClientSegment?
+  emails          String[]   @default([])
+  phones          String[]   @default([])
+  tags            String[]   @default([])
+
+  // Service address — denormalized from the customer's primary property
+  // so the customer card can display it without a join.
+  serviceStreet1  String?
+  serviceCity     String?
+  serviceState    String?
+  serviceCountry  String?
+  serviceZip      String?
 
   properties      Property[]
   jobs            JobberJob[]
   kits            Kit[]
 
   syncedAt        DateTime?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
 }
 
 model Property {

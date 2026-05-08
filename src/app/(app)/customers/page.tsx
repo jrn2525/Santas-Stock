@@ -4,6 +4,21 @@ import { requireUser } from "@/lib/auth-helpers";
 
 export const dynamic = "force-dynamic";
 
+function joinAddress(c: {
+  serviceStreet1: string | null;
+  serviceCity: string | null;
+  serviceState: string | null;
+  serviceZip: string | null;
+  serviceCountry: string | null;
+}): string {
+  const parts = [
+    c.serviceStreet1,
+    [c.serviceCity, c.serviceState, c.serviceZip].filter(Boolean).join(" ").trim(),
+    c.serviceCountry,
+  ].filter((p) => p && p.trim().length > 0);
+  return parts.join(", ");
+}
+
 export default async function CustomersPage({
   searchParams,
 }: {
@@ -19,15 +34,18 @@ export default async function CustomersPage({
           OR: [
             { name: { contains: query, mode: "insensitive" } },
             { companyName: { contains: query, mode: "insensitive" } },
-            { email: { contains: query, mode: "insensitive" } },
-            { phone: { contains: query, mode: "insensitive" } },
+            { firstName: { contains: query, mode: "insensitive" } },
+            { lastName: { contains: query, mode: "insensitive" } },
+            { emails: { has: query } },
+            { phones: { has: query } },
+            { tags: { has: query } },
+            { serviceStreet1: { contains: query, mode: "insensitive" } },
+            { serviceCity: { contains: query, mode: "insensitive" } },
+            { serviceZip: { contains: query, mode: "insensitive" } },
           ],
         }
       : undefined,
     orderBy: { name: "asc" },
-    include: {
-      _count: { select: { properties: true } },
-    },
     take: 200,
   });
 
@@ -54,7 +72,7 @@ export default async function CustomersPage({
           type="search"
           name="q"
           defaultValue={query}
-          placeholder="Search by name, company, email, or phone..."
+          placeholder="Search by name, company, email, phone, tag, or address..."
           className="w-full rounded-md border border-rule bg-card px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
         />
       </form>
@@ -65,9 +83,9 @@ export default async function CustomersPage({
             <tr>
               <th className="px-4 py-3">Name</th>
               <th className="px-4 py-3">Company</th>
-              <th className="px-4 py-3">Email</th>
-              <th className="px-4 py-3">Phone</th>
-              <th className="px-4 py-3 text-right">Properties</th>
+              <th className="px-4 py-3">Contact</th>
+              <th className="px-4 py-3">Service address</th>
+              <th className="px-4 py-3">Tags</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-rule bg-canvas">
@@ -88,17 +106,58 @@ export default async function CustomersPage({
                 </td>
               </tr>
             ) : (
-              customers.map((c) => (
-                <tr key={c.id} className="text-ink">
-                  <td className="px-4 py-3 font-medium">{c.name}</td>
-                  <td className="px-4 py-3 text-ink-dim">{c.companyName ?? "—"}</td>
-                  <td className="px-4 py-3 text-ink-dim">{c.email ?? "—"}</td>
-                  <td className="px-4 py-3 text-ink-dim">{c.phone ?? "—"}</td>
-                  <td className="px-4 py-3 text-right tabular-nums">
-                    {c._count.properties}
-                  </td>
-                </tr>
-              ))
+              customers.map((c) => {
+                const personal = [c.firstName, c.lastName]
+                  .filter((p) => p && p.trim())
+                  .join(" ")
+                  .trim();
+                const address = joinAddress(c);
+                return (
+                  <tr key={c.id} className="text-ink align-top">
+                    <td className="px-4 py-3 font-medium">
+                      {personal || c.name}
+                    </td>
+                    <td className="px-4 py-3 text-ink-dim">
+                      {c.companyName ?? "—"}
+                    </td>
+                    <td className="px-4 py-3 text-ink-dim">
+                      {c.emails.length === 0 && c.phones.length === 0 ? (
+                        "—"
+                      ) : (
+                        <div className="space-y-1">
+                          {c.emails.map((e) => (
+                            <div key={e}>{e}</div>
+                          ))}
+                          {c.phones.map((p) => (
+                            <div key={p} className="text-ink-dim">
+                              {p}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-ink-dim">
+                      {address || "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      {c.tags.length === 0 ? (
+                        <span className="text-ink-dim">—</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {c.tags.map((t) => (
+                            <span
+                              key={t}
+                              className="inline-block rounded-full border border-rule bg-card px-2 py-0.5 text-xs text-ink"
+                            >
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
