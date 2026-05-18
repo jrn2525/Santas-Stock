@@ -1,0 +1,445 @@
+// Santa's Stock — Prisma schema
+// Based on §5 of inventory-app-feature-research.pdf
+//
+// Phase 1 includes the core tables; Phase 2+ adds kits, allocations,
+// vehicles, maintenance, etc. They're all defined here so migrations
+// stay coherent, but only a subset is wired into the UI in Phase 1.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Enums ----------
+
+enum Role {
+  ADMIN
+  MANAGER
+  USER
+}
+
+enum LifecycleType {
+  RENTAL_SEASONAL
+  SOLD_PERMANENT
+  INSTALLED_YEAR_ROUND
+}
+
+// Product type for Item — Christmas decor, landscape lighting, or
+// permanent year-round lighting/fixtures.
+enum ProductType {
+  CHRISTMAS
+  LANDSCAPE
+  PERMANENT
+}
+
+// ConditionGrade is kept in the schema (used by ReplacementQueue and other
+// models) but no longer surfaced on Item — re-introduced in a later phase.
+enum ConditionGrade {
+  A
+  B
+  C
+  RETIRED
+}
+
+// LocationType is kept in the schema for future planning — it's no longer
+// surfaced anywhere because Item now stores its locations as free text.
+enum LocationType {
+  WAREHOUSE
+  AISLE
+  RACK
+  BIN
+  VEHICLE
+}
+
+enum ItemStatus {
+  AVAILABLE
+  ALLOCATED
+}
+
+enum KitType {
+  TEMPLATE
+  CUSTOMER
+}
+
+enum KitStatus {
+  DRAFT
+  READY
+  DEPLOYED
+  RETIRED
+}
+
+enum AllocationStatus {
+  RESERVED_ON_SALE
+  RESERVED
+  OUT
+  RETURNED
+  SHORT
+  MISSING
+}
+
+enum ReplacementResolution {
+  REPAIR
+  REPLACE_FROM_STOCK
+  PURCHASE_ORDER
+}
+
+enum MaintenanceStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  RETIRED
+}
+
+enum SyncStatus {
+  PENDING
+  PROCESSED
+  FAILED
+}
+
+// ---------- Core ----------
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String
+  role          Role     @default(USER)
+  jobberUserId  String?  @unique
+  active        Boolean  @default(true)
+  passwordHash  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  allocations          Allocation[]         @relation("AllocatedBy")
+  flaggedReplacements  ReplacementQueue[]   @relation("FlaggedBy")
+  resolvedReplacements ReplacementQueue[]   @relation("ResolvedBy")
+  openedTickets        MaintenanceTicket[]  @relation("OpenedBy")
+  auditEntries         AuditLog[]
+  jobberConnections    JobberConnection[]
+}
+
+// Single-tenant Jobber OAuth connection. There should only be zero or one
+// row in this table at any time — the admin disconnects to wipe and
+// reconnect. Tokens are stored in plain text; acceptable for the trust
+// model of an internal single-franchise app, revisit before multi-tenant.
+model JobberConnection {
+  id              String   @id @default(cuid())
+  jobberAccountId String?
+  accountName     String?
+  accessToken     String
+  refreshToken    String
+  expiresAt       DateTime
+  scopes          String[] @default([])
+  connectedById   String?
+  connectedBy     User?    @relation(fields: [connectedById], references: [id])
+  connectedAt     DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Item is the master inventory record. As of the latest revision it's
+// flat — description, product type, and locations are stored inline as
+// text/enums rather than as relations. Per-unit serial tracking, kits,
+// and a structured Location catalog will return in later phases.
+model Item {
+  id                       String         @id @default(cuid())
+  sku                      String?
+
+  name                     String
+  description              String
+
+  manufacturer             String?
+  model                    String?
+
+  productType              ProductType?
+
+  status                   ItemStatus     @default(AVAILABLE)
+  quantity                 Int            @default(0)
+  unitCost                 Decimal?       @db.Decimal(12, 2) @map("purchaseCost")
+
+  homeLocation             String?
+  currentLocation          String?
+
+  purchaseDate             DateTime?
+
+  // Lifecycle, retirement, photos, and custom fields are kept in the
+  // schema so later phases can light them up without another migration,
+  // but they're not on the form right now.
+  lifecycleType            LifecycleType?
+  retirementMaxSeasons     Int?
+  retirementMaxRepairs     Int?
+  retirementConditionFloor ConditionGrade?
+
+  seasonsDeployed          Int            @default(0)
+  repairCount              Int            @default(0)
+  retirementStatus         String?
+
+  photos                   String[]       @default([])
+  customFields             Json?
+
+  kitMemberships           KitItem[]
+  allocations              Allocation[]
+  replacementEntries       ReplacementQueue[]
+  maintenanceTickets       MaintenanceTicket[]
+
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
+}
+
+model Kit {
+  id              String     @id @default(cuid())
+  name            String
+  kitType         KitType?
+  status          KitStatus  @default(DRAFT)
+
+  clientId        String?
+  client          Client?    @relation(fields: [clientId], references: [id])
+  propertyId      String?
+  property        Property?  @relation(fields: [propertyId], references: [id])
+
+  // Home location is now free text, matching Item. Was a relation to the
+  // dropped Location model.
+  homeLocation    String?
+
+  photos          String[]   @default([])
+
+  items           KitItem[]
+  allocations     Allocation[]
+
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+}
+
+model KitItem {
+  kitId    String
+  itemId   String
+  quantity Int    @default(1)
+
+  kit      Kit    @relation(fields: [kitId], references: [id], onDelete: Cascade)
+  item     Item   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@id([kitId, itemId])
+}
+
+// ---------- Jobber-mirrored ----------
+
+model Client {
+  id              String     @id @default(cuid())
+  jobberClientId  String     @unique
+
+  // Display name derived during sync from companyName || "firstName lastName".
+  // Kept as a single column so list views can sort and search uniformly.
+  name            String
+
+  // Identity fields — exactly the set requested for sync from Jobber.
+  firstName       String?
+  lastName        String?
+  companyName     String?
+  emails          String[]   @default([])
+  phones          String[]   @default([])
+  tags            String[]   @default([])
+
+  // Service address — denormalized from the customer's primary property
+  // so the customer card can display it without a join.
+  serviceStreet1  String?
+  serviceCity     String?
+  serviceState    String?
+  serviceCountry  String?
+  serviceZip      String?
+
+  properties      Property[]
+  jobs            JobberJob[]
+  kits            Kit[]
+
+  syncedAt        DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+}
+
+model Property {
+  id                String      @id @default(cuid())
+  jobberPropertyId  String      @unique
+  clientId          String
+  client            Client      @relation(fields: [clientId], references: [id])
+  address           String
+
+  jobs              JobberJob[]
+  kits              Kit[]
+
+  syncedAt          DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+}
+
+model JobberJob {
+  id            String         @id @default(cuid())
+  jobberJobId   String         @unique
+  clientId      String
+  client        Client         @relation(fields: [clientId], references: [id])
+  propertyId    String?
+  property      Property?      @relation(fields: [propertyId], references: [id])
+  status        String
+
+  visits        JobberVisit[]
+
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model JobberVisit {
+  id            String       @id @default(cuid())
+  jobberVisitId String       @unique
+  jobId         String
+  job           JobberJob    @relation(fields: [jobId], references: [id])
+  startAt       DateTime?
+  endAt         DateTime?
+  status        String
+
+  allocations   Allocation[]
+
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
+
+// ---------- Vehicles, allocations, maintenance ----------
+
+model Vehicle {
+  id                 String        @id @default(cuid())
+  name               String
+  plate              String?
+  vin                String?       @unique
+  make               String?
+  model              String?
+  year               Int?
+  capacity           String?
+  registrationExp    DateTime?
+  insuranceExp       DateTime?
+  odometer           Int?
+  status             String?
+  photos             String[]      @default([])
+
+  allocations        Allocation[]
+
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+}
+
+model Allocation {
+  id                 String           @id @default(cuid())
+  kitId              String?
+  kit                Kit?             @relation(fields: [kitId], references: [id])
+  itemId             String?
+  item               Item?            @relation(fields: [itemId], references: [id])
+  jobberVisitId      String?
+  jobberVisit        JobberVisit?     @relation(fields: [jobberVisitId], references: [id])
+  vehicleId          String?
+  vehicle            Vehicle?         @relation(fields: [vehicleId], references: [id])
+
+  allocatedAt        DateTime         @default(now())
+  checkedOutAt       DateTime?
+  checkedInAt        DateTime?
+  allocatedByUserId  String?
+  allocatedBy        User?            @relation("AllocatedBy", fields: [allocatedByUserId], references: [id])
+
+  seasonId           String?
+  season             Season?          @relation(fields: [seasonId], references: [id])
+
+  status             AllocationStatus @default(RESERVED)
+
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+}
+
+model Season {
+  id          String        @id @default(cuid())
+  name        String        @unique
+  startDate   DateTime
+  endDate     DateTime
+  allocations Allocation[]
+}
+
+model ReplacementQueue {
+  id                 String                 @id @default(cuid())
+  itemId             String
+  item               Item                   @relation(fields: [itemId], references: [id])
+  reason             String
+  flaggedAt          DateTime               @default(now())
+  flaggedByUserId    String?
+  flaggedBy          User?                  @relation("FlaggedBy", fields: [flaggedByUserId], references: [id])
+  resolution         ReplacementResolution?
+  poId               String?
+  resolvedAt         DateTime?
+  resolvedByUserId   String?
+  resolvedBy         User?                  @relation("ResolvedBy", fields: [resolvedByUserId], references: [id])
+}
+
+model MaintenanceTicket {
+  id            String            @id @default(cuid())
+  itemId        String
+  item          Item              @relation(fields: [itemId], references: [id])
+  openedAt      DateTime          @default(now())
+  openedByUserId String?
+  openedBy      User?             @relation("OpenedBy", fields: [openedByUserId], references: [id])
+  status        MaintenanceStatus @default(OPEN)
+  description   String
+  photos        String[]          @default([])
+  partsUsed     Json?
+  laborMinutes  Int?
+  closedAt      DateTime?
+}
+
+// ---------- Audit + sync + custom fields ----------
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  action      String
+  entityType  String
+  entityId    String
+  beforeJson  Json?
+  afterJson   Json?
+  ip          String?
+  userAgent   String?
+  occurredAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([occurredAt])
+}
+
+model SyncEvent {
+  id           String     @id @default(cuid())
+  source       String     @default("jobber")
+  eventType    String
+  payload      Json
+  processedAt  DateTime?
+  status       SyncStatus @default(PENDING)
+  error        String?
+  createdAt    DateTime   @default(now())
+
+  @@index([status, createdAt])
+}
+
+model CustomFieldDef {
+  id         String                @id @default(cuid())
+  appliesTo  String
+  name       String
+  type       String
+  options    Json?
+  values     CustomFieldValue[]
+
+  @@unique([appliesTo, name])
+}
+
+model CustomFieldValue {
+  entityType  String
+  entityId    String
+  fieldDefId  String
+  fieldDef    CustomFieldDef @relation(fields: [fieldDefId], references: [id], onDelete: Cascade)
+  value       Json
+
+  @@id([entityType, entityId, fieldDefId])
+  @@index([entityType, entityId])
+}
