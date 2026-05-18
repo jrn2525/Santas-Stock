@@ -4,6 +4,7 @@ import { signOut } from "@/auth";
 import { requireUser } from "@/lib/auth-helpers";
 import { Sidebar } from "@/components/sidebar";
 import { WorkspaceTabs } from "@/components/workspace-tabs";
+import { WorkspaceLabel } from "@/components/workspace-label";
 
 const roleLabels: Record<string, string> = {
   ADMIN: "Admin",
@@ -38,6 +39,8 @@ export default async function AppLayout({
             />
           </Link>
           <WorkspaceTabs />
+          <div className="h-6 w-px bg-rule" aria-hidden="true" />
+          <WorkspaceLabel />
         </div>
 
         <div className="flex items-center gap-4 text-xs">
