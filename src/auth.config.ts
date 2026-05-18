@@ -20,7 +20,7 @@ export const authConfig: NextAuthConfig = {
 
       if (isPublic) {
         if (isLoggedIn) {
-          return Response.redirect(new URL("/dashboard", nextUrl));
+          return Response.redirect(new URL("/job-flow/dashboard", nextUrl));
         }
         return true;
       }

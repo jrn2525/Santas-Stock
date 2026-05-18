@@ -60,7 +60,7 @@ export default async function ItemsPage({
         </div>
         {canWrite && (
           <Link
-            href="/items/new"
+            href="/inventory/items/new"
             className="rounded-md bg-brand px-3 py-2 text-sm font-medium text-ink hover:bg-brand-hover"
           >
             + New item
@@ -68,7 +68,7 @@ export default async function ItemsPage({
         )}
       </header>
 
-      <form className="mt-6 max-w-md" action="/items">
+      <form className="mt-6 max-w-md" action="/inventory/items">
         <input
           type="search"
           name="q"
@@ -104,7 +104,7 @@ export default async function ItemsPage({
                         <>
                           {" "}
                           <Link
-                            href="/items/new"
+                            href="/inventory/items/new"
                             className="text-brand underline"
                           >
                             Add the first one.

@@ -32,7 +32,7 @@ export default async function KitsPage() {
         </div>
         {canWrite && (
           <Link
-            href="/kits/new"
+            href="/inventory/kits/new"
             className="rounded-md bg-brand px-3 py-2 text-sm font-medium text-ink hover:bg-brand-hover"
           >
             + New kit
@@ -59,7 +59,7 @@ export default async function KitsPage() {
                   {canWrite && (
                     <>
                       {" "}
-                      <Link href="/kits/new" className="text-brand underline">
+                      <Link href="/inventory/kits/new" className="text-brand underline">
                         Add the first one.
                       </Link>
                     </>

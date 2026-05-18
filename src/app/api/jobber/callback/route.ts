@@ -73,5 +73,5 @@ export async function GET(req: NextRequest) {
 }
 
 function redirectToJobberPage(origin: string, qs: string) {
-  return NextResponse.redirect(new URL(`/jobber?${qs}`, origin));
+  return NextResponse.redirect(new URL(`/job-flow/jobber?${qs}`, origin));
 }

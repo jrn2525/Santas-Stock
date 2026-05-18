@@ -8,7 +8,7 @@ export default function UnauthorizedPage() {
         Your account doesn&apos;t have permission to view that page.
       </p>
       <Link
-        href="/dashboard"
+        href="/job-flow/dashboard"
         className="mt-6 inline-block text-sm text-ink underline hover:text-ink-dim"
       >
         Back to dashboard

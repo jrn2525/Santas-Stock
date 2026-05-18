@@ -60,14 +60,14 @@ export default async function CustomersPage({
           </p>
         </div>
         <Link
-          href="/jobber"
+          href="/job-flow/jobber"
           className="rounded-md border border-rule bg-card px-3 py-2 text-sm font-medium text-ink hover:border-brand hover:text-brand"
         >
           Sync
         </Link>
       </header>
 
-      <form className="mt-6 max-w-md" action="/customers">
+      <form className="mt-6 max-w-md" action="/job-flow/customers">
         <input
           type="search"
           name="q"
@@ -97,7 +97,7 @@ export default async function CustomersPage({
                   ) : (
                     <>
                       No customers yet.{" "}
-                      <Link href="/jobber" className="text-brand underline">
+                      <Link href="/job-flow/jobber" className="text-brand underline">
                         Run a Jobber sync
                       </Link>{" "}
                       to pull them in.

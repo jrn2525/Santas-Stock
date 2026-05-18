@@ -64,8 +64,8 @@ export default async function DashboardPage() {
       </header>
 
       <section className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Items" value={counts.items} href="/items" />
-        <StatCard label="Total stock qty" value={counts.totalQty} href="/items" />
+        <StatCard label="Items" value={counts.items} href="/inventory/items" />
+        <StatCard label="Total stock qty" value={counts.totalQty} href="/inventory/items" />
         <StatCard label="Available items" value={counts.available} />
         <StatCard label="Allocated items" value={counts.allocated} />
       </section>

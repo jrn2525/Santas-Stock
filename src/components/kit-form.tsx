@@ -172,7 +172,7 @@ export function KitForm({ kit, items }: { kit?: Kit; items: ItemOption[] }) {
         >
           {pending ? "Saving..." : kit ? "Save changes" : "Create kit"}
         </button>
-        <Link href="/kits" className="text-sm text-ink-dim underline hover:text-ink">
+        <Link href="/inventory/kits" className="text-sm text-ink-dim underline hover:text-ink">
           Cancel
         </Link>
       </div>

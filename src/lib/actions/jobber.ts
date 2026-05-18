@@ -10,7 +10,7 @@ import type { FormState } from "./state";
 export async function disconnectJobber() {
   await assertRoleForAction("ADMIN");
   await prisma.jobberConnection.deleteMany({});
-  revalidatePath("/jobber");
+  revalidatePath("/job-flow/jobber");
 }
 
 export type SyncFormState = FormState & {
@@ -24,8 +24,8 @@ export async function syncJobberCustomers(
 
   try {
     const result = await syncClientsAndProperties();
-    revalidatePath("/customers");
-    revalidatePath("/jobber");
+    revalidatePath("/job-flow/customers");
+    revalidatePath("/job-flow/jobber");
     return { errors: {}, message: null, result };
   } catch (err) {
     if (err instanceof JobberNotConnectedError) {

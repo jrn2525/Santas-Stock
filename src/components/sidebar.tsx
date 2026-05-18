@@ -10,16 +10,27 @@ type NavItem = {
   adminOnly?: boolean;
 };
 
-const navItems: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/items", label: "Items" },
-  { href: "/kits", label: "Kits" },
-  { href: "/customers", label: "Customers" },
-  { href: "/jobber", label: "Jobber", adminOnly: true },
+const jobFlowNav: NavItem[] = [
+  { href: "/job-flow/dashboard", label: "Dashboard" },
+  { href: "/job-flow/job-flows", label: "Job Flows" },
+  { href: "/job-flow/customers", label: "Customers" },
+  { href: "/job-flow/jobs", label: "Jobs" },
+  { href: "/job-flow/pick-list", label: "Pick List" },
+  { href: "/job-flow/calendar", label: "Calendar" },
+  { href: "/job-flow/jobber", label: "Jobber", adminOnly: true },
+];
+
+const inventoryNav: NavItem[] = [
+  { href: "/inventory/dashboard", label: "Dashboard" },
+  { href: "/inventory/items", label: "Items" },
+  { href: "/inventory/kits", label: "Kits" },
+  { href: "/inventory/jobber", label: "Jobber", adminOnly: true },
+  { href: "/inventory/import-export", label: "Import / Export", adminOnly: true },
 ];
 
 export function Sidebar({ role }: { role: Role }) {
   const pathname = usePathname();
+  const navItems = pathname.startsWith("/inventory") ? inventoryNav : jobFlowNav;
 
   return (
     <nav className="flex flex-col gap-1 p-4">

@@ -120,8 +120,8 @@ export async function createItem(
     throw err;
   }
 
-  revalidatePath("/items");
-  redirect("/items");
+  revalidatePath("/inventory/items");
+  redirect("/inventory/items");
 }
 
 export async function updateItem(
@@ -145,8 +145,8 @@ export async function updateItem(
     throw err;
   }
 
-  revalidatePath("/items");
-  redirect("/items");
+  revalidatePath("/inventory/items");
+  redirect("/inventory/items");
 }
 
 export async function deleteItem(id: string) {
@@ -163,5 +163,5 @@ export async function deleteItem(id: string) {
     throw err;
   }
 
-  revalidatePath("/items");
+  revalidatePath("/inventory/items");
 }

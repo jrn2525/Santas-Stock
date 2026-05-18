@@ -86,8 +86,8 @@ export async function createKit(
     throw err;
   }
 
-  revalidatePath("/kits");
-  redirect("/kits");
+  revalidatePath("/inventory/kits");
+  redirect("/inventory/kits");
 }
 
 export async function updateKit(
@@ -130,13 +130,13 @@ export async function updateKit(
     throw err;
   }
 
-  revalidatePath("/kits");
-  redirect("/kits");
+  revalidatePath("/inventory/kits");
+  redirect("/inventory/kits");
 }
 
 export async function deleteKit(id: string) {
   await assertRoleForAction(WRITE_ROLES);
 
   await prisma.kit.delete({ where: { id } });
-  revalidatePath("/kits");
+  revalidatePath("/inventory/kits");
 }

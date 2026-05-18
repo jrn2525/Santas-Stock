@@ -182,7 +182,7 @@ export function ItemForm({ item }: { item?: Item }) {
         >
           {pending ? "Saving..." : item ? "Save changes" : "Create item"}
         </button>
-        <Link href="/items" className="text-sm text-ink-dim underline hover:text-ink">
+        <Link href="/inventory/items" className="text-sm text-ink-dim underline hover:text-ink">
           Cancel
         </Link>
       </div>
