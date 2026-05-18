@@ -4,7 +4,6 @@ import { signOut } from "@/auth";
 import { requireUser } from "@/lib/auth-helpers";
 import { Sidebar } from "@/components/sidebar";
 import { WorkspaceTabs } from "@/components/workspace-tabs";
-import { WorkspaceLabel } from "@/components/workspace-label";
 
 const roleLabels: Record<string, string> = {
   ADMIN: "Admin",
@@ -26,21 +25,19 @@ export default async function AppLayout({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="flex items-center justify-between border-b border-rule bg-sidebar px-6 py-3">
+      <header className="flex items-center justify-between border-b border-rule bg-sidebar px-6 py-4">
         <div className="flex items-center gap-6">
           <Link href="/job-flow/dashboard" className="block">
             <Image
               src="/logo.png"
               alt="Santa's Stock"
-              width={120}
-              height={40}
+              width={160}
+              height={160}
               priority
-              className="h-10 w-auto"
+              className="h-auto w-32"
             />
           </Link>
           <WorkspaceTabs />
-          <div className="h-6 w-px bg-rule" aria-hidden="true" />
-          <WorkspaceLabel />
         </div>
 
         <div className="flex items-center gap-4 text-xs">

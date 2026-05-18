@@ -9,14 +9,14 @@ export function WorkspaceTabs() {
   const isJobFlow = !isInventory;
 
   const tabClass = (active: boolean) =>
-    `rounded-md px-4 py-2 text-sm font-medium transition ${
+    `rounded-md px-6 py-3 text-base font-semibold transition ${
       active
         ? "bg-brand text-ink"
-        : "text-ink-dim hover:bg-card/40 hover:text-ink"
+        : "bg-card text-ink hover:bg-card/80"
     }`;
 
   return (
-    <div className="flex gap-1 rounded-lg bg-canvas p-1">
+    <div className="flex gap-2 rounded-lg bg-canvas p-1">
       <Link href="/job-flow/dashboard" className={tabClass(isJobFlow)}>
         Job Flow
       </Link>
