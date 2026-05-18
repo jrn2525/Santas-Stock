@@ -2,11 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { Role } from "@prisma/client";
 
-export function WorkspaceTabs() {
+export function WorkspaceTabs({ role }: { role: Role }) {
   const pathname = usePathname();
   const isInventory = pathname.startsWith("/inventory");
-  const isJobFlow = !isInventory;
+  const isAdmin = pathname.startsWith("/admin");
+  const isJobFlow = !isInventory && !isAdmin;
+
+  const showAdmin = role === "ADMIN" || role === "MANAGER";
 
   const tabClass = (active: boolean) =>
     `rounded-md px-6 py-3 text-base font-semibold transition ${
@@ -23,6 +27,11 @@ export function WorkspaceTabs() {
       <Link href="/inventory/dashboard" className={tabClass(isInventory)}>
         Inventory
       </Link>
+      {showAdmin && (
+        <Link href="/admin/overview" className={tabClass(isAdmin)}>
+          Admin
+        </Link>
+      )}
     </div>
   );
 }

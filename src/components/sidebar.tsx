@@ -28,9 +28,20 @@ const inventoryNav: NavItem[] = [
   { href: "/inventory/import-export", label: "Import / Export", adminOnly: true },
 ];
 
+const adminNav: NavItem[] = [
+  { href: "/admin/overview", label: "Overview" },
+  { href: "/admin/users", label: "Users", adminOnly: true },
+];
+
+function pickNav(pathname: string): NavItem[] {
+  if (pathname.startsWith("/inventory")) return inventoryNav;
+  if (pathname.startsWith("/admin")) return adminNav;
+  return jobFlowNav;
+}
+
 export function Sidebar({ role }: { role: Role }) {
   const pathname = usePathname();
-  const navItems = pathname.startsWith("/inventory") ? inventoryNav : jobFlowNav;
+  const navItems = pickNav(pathname);
 
   return (
     <nav className="flex flex-col gap-1 p-4">

@@ -1,15 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { signOut } from "@/auth";
-import { requireUser } from "@/lib/auth-helpers";
+import { requireUser, roleLabel } from "@/lib/auth-helpers";
 import { Sidebar } from "@/components/sidebar";
 import { WorkspaceTabs } from "@/components/workspace-tabs";
-
-const roleLabels: Record<string, string> = {
-  ADMIN: "Admin",
-  MANAGER: "Manager",
-  USER: "User",
-};
 
 async function signOutAction() {
   "use server";
@@ -37,14 +31,18 @@ export default async function AppLayout({
               className="h-auto w-32"
             />
           </Link>
-          <WorkspaceTabs />
+          <WorkspaceTabs role={user.role} />
         </div>
 
         <div className="flex items-center gap-4 text-xs">
-          <div className="text-right">
+          <Link
+            href="/account"
+            className="text-right hover:text-ink"
+            title="My account"
+          >
             <div className="text-ink">{user.name}</div>
-            <div className="text-ink-dim">{roleLabels[user.role] ?? user.role}</div>
-          </div>
+            <div className="text-ink-dim">{roleLabel(user.role)}</div>
+          </Link>
           <form action={signOutAction}>
             <button
               type="submit"

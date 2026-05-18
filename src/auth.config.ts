@@ -16,21 +16,29 @@ export const authConfig: NextAuthConfig = {
       const isLoggedIn = !!auth?.user;
       const path = nextUrl.pathname;
 
-      const isPublic = path.startsWith("/sign-in");
+      const isSignIn = path.startsWith("/sign-in");
+      const isChangePassword = path === "/account/change-password";
 
-      if (isPublic) {
+      if (isSignIn) {
         if (isLoggedIn) {
           return Response.redirect(new URL("/job-flow/dashboard", nextUrl));
         }
         return true;
       }
 
-      return isLoggedIn;
+      if (!isLoggedIn) return false;
+
+      if (auth.user.mustChangePassword && !isChangePassword) {
+        return Response.redirect(new URL("/account/change-password", nextUrl));
+      }
+
+      return true;
     },
     jwt({ token, user }) {
       if (user) {
         token.id = user.id as string;
         token.role = user.role;
+        token.mustChangePassword = user.mustChangePassword;
       }
       return token;
     },
@@ -38,6 +46,7 @@ export const authConfig: NextAuthConfig = {
       if (token && session.user) {
         session.user.id = token.id;
         session.user.role = token.role;
+        session.user.mustChangePassword = token.mustChangePassword;
       }
       return session;
     },

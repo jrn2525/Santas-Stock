@@ -1,10 +1,20 @@
 import { redirect } from "next/navigation";
 import type { Role } from "@prisma/client";
 import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
 
 export async function requireUser() {
   const session = await auth();
   if (!session?.user) redirect("/sign-in");
+
+  // Defensive check: a deactivated user shouldn't be able to keep using
+  // a still-valid JWT. Re-query the DB on every gated route to enforce.
+  const dbUser = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { active: true },
+  });
+  if (!dbUser || !dbUser.active) redirect("/sign-in");
+
   return session.user;
 }
 
@@ -30,3 +40,18 @@ export async function assertRoleForAction(allowed: Role | Role[]) {
 }
 
 export const WRITE_ROLES: Role[] = ["ADMIN", "MANAGER"];
+export const ADMIN_ROLES: Role[] = ["ADMIN"];
+export const ADMIN_PANEL_ROLES: Role[] = ["ADMIN", "MANAGER"];
+
+// Display label for a Role. The third role is stored as USER in the DB but
+// presented to humans as "Crew".
+export function roleLabel(role: Role): string {
+  switch (role) {
+    case "ADMIN":
+      return "Admin";
+    case "MANAGER":
+      return "Manager";
+    case "USER":
+      return "Crew";
+  }
+}
