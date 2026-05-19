@@ -19,11 +19,12 @@ export default async function ImportExportPage() {
       <section className="mt-8 rounded-lg border border-rule bg-card p-6">
         <h2 className="text-lg font-semibold text-ink">Import from CSV</h2>
         <p className="mt-1 text-sm text-ink-dim">
-          Drop a Jobber Products &amp; Services export here. Rows tagged{" "}
-          <em>Product</em> become Items, rows tagged <em>Service</em> become
-          Kits. The Jobber-only columns (Unit Price, Bookable, Duration
-          Minutes, Quantity Enabled, Min/Max Quantity, Taxable) are silently
-          ignored.
+          Rows tagged <em>Product</em> become Items, rows tagged <em>Service</em>{" "}
+          become Kits. For Kits, the <code>Item 1, Item 1 Qty, Item 2, …</code>{" "}
+          columns set the kit&apos;s contents — Item names must match an existing
+          Item exactly. Items are imported first so Kits can reference them.
+          Jobber-only columns (Unit Price, Bookable, Duration Minutes, Quantity
+          Enabled, Min/Max Quantity, Taxable) are ignored.
         </p>
         <div className="mt-4">
           <CsvImportForm />

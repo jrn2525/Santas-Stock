@@ -1,6 +1,6 @@
 "use server";
 
-import { Prisma } from "@prisma/client";
+import { ItemStatus, Prisma, ProductType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { assertRoleForAction, ADMIN_ROLES } from "@/lib/auth-helpers";
@@ -23,38 +23,43 @@ export const emptyImportSummary: ImportSummary = {
   errors: [],
 };
 
-// Columns we intentionally ignore from Jobber's Products & Services CSV.
-// Kept here as documentation — the importer only reads the five columns it
-// recognizes, so any extras (these included) are dropped silently.
-const _IGNORED_COLUMNS = [
-  "Unit Price",
-  "Bookable",
-  "Duration Minutes",
-  "Quantity Enabled",
-  "Minimum Quantity",
-  "Maximum Quantity",
-  "Taxable",
+// Map every header we recognize to a stable key. Lowercased on lookup so
+// header casing doesn't matter.
+const HEADER_KEYS = [
+  "name",
+  "description",
+  "category",
+  "unitCost",
+  "sku",
+  "manufacturer",
+  "model",
+  "productType",
+  "status",
+  "quantity",
+  "active",
+  "homeLocation",
+  "currentLocation",
 ] as const;
+type HeaderKey = (typeof HEADER_KEYS)[number];
 
-// Recognized headers, normalized to lowercase. Accept a few aliases so users
-// don't have to hand-edit a Jobber export.
-const HEADER_ALIASES: Record<string, "name" | "description" | "category" | "unitCost" | "active"> = {
+const HEADER_ALIASES: Record<string, HeaderKey> = {
   name: "name",
   description: "description",
   category: "category",
   "unit cost": "unitCost",
   cost: "unitCost",
+  sku: "sku",
+  manufacturer: "manufacturer",
+  model: "model",
+  "product type": "productType",
+  status: "status",
+  quantity: "quantity",
+  qty: "quantity",
   active: "active",
   "visible to clients": "active",
   visible: "active",
-};
-
-type ParsedRow = {
-  name: string;
-  description: string;
-  category: string;
-  unitCost: string;
-  active: string;
+  "home location": "homeLocation",
+  "current location": "currentLocation",
 };
 
 function parseCsv(text: string): string[][] {
@@ -64,10 +69,7 @@ function parseCsv(text: string): string[][] {
   let inQuotes = false;
   let i = 0;
 
-  // Strip a UTF-8 BOM if present.
-  if (text.charCodeAt(0) === 0xfeff) {
-    i = 1;
-  }
+  if (text.charCodeAt(0) === 0xfeff) i = 1;
 
   while (i < text.length) {
     const c = text[i];
@@ -113,7 +115,6 @@ function parseCsv(text: string): string[][] {
     row.push(cur);
     rows.push(row);
   }
-  // Drop fully-empty rows (a trailing newline produces [""])
   return rows.filter((r) => !(r.length === 1 && r[0] === ""));
 }
 
@@ -132,11 +133,84 @@ function parseDecimal(raw: string): Prisma.Decimal | null {
   return new Prisma.Decimal(cleaned);
 }
 
+function parseInt0(raw: string): number {
+  const cleaned = raw.replace(/[,\s]/g, "").trim();
+  if (cleaned === "") return 0;
+  const n = Number(cleaned);
+  if (Number.isNaN(n) || n < 0) return 0;
+  return Math.trunc(n);
+}
+
 function categoryToTarget(raw: string): "item" | "kit" | null {
   const v = raw.trim().toLowerCase();
   if (v === "product" || v === "products") return "item";
   if (v === "service" || v === "services") return "kit";
   return null;
+}
+
+function parseStatus(raw: string): ItemStatus {
+  const v = raw.trim().toLowerCase();
+  if (v === "allocated") return ItemStatus.ALLOCATED;
+  return ItemStatus.AVAILABLE;
+}
+
+function parseProductType(raw: string): ProductType | null {
+  const v = raw.trim().toLowerCase();
+  if (v === "christmas") return ProductType.CHRISTMAS;
+  if (v === "landscape") return ProductType.LANDSCAPE;
+  if (v === "permanent") return ProductType.PERMANENT;
+  return null;
+}
+
+function nullableStr(raw: string): string | null {
+  const t = raw.trim();
+  return t === "" ? null : t;
+}
+
+type ColMap = Map<HeaderKey, number>;
+
+function buildColMap(header: string[]): ColMap {
+  const m = new Map<HeaderKey, number>();
+  header.forEach((h, idx) => {
+    const key = HEADER_ALIASES[h.trim().toLowerCase()];
+    if (key) m.set(key, idx);
+  });
+  return m;
+}
+
+// Locate the "Item N" / "Item N Qty" pairs in the header. Returns an array
+// of {nameIdx, qtyIdx} in CSV order.
+function buildItemSlotMap(
+  header: string[],
+): Array<{ nameIdx: number; qtyIdx: number }> {
+  const byKey = new Map<number, { nameIdx?: number; qtyIdx?: number }>();
+  header.forEach((h, idx) => {
+    const t = h.trim();
+    const qtyMatch = t.match(/^item\s+(\d+)\s+qty$/i);
+    const nameMatch = t.match(/^item\s+(\d+)$/i);
+    if (qtyMatch) {
+      const n = Number(qtyMatch[1]);
+      byKey.set(n, { ...(byKey.get(n) ?? {}), qtyIdx: idx });
+    } else if (nameMatch) {
+      const n = Number(nameMatch[1]);
+      byKey.set(n, { ...(byKey.get(n) ?? {}), nameIdx: idx });
+    }
+  });
+  const out: Array<{ nameIdx: number; qtyIdx: number }> = [];
+  Array.from(byKey.keys())
+    .sort((a, b) => a - b)
+    .forEach((n) => {
+      const slot = byKey.get(n)!;
+      if (slot.nameIdx !== undefined) {
+        out.push({ nameIdx: slot.nameIdx, qtyIdx: slot.qtyIdx ?? -1 });
+      }
+    });
+  return out;
+}
+
+function readCell(cells: string[], idx: number | undefined): string {
+  if (idx === undefined || idx < 0) return "";
+  return (cells[idx] ?? "").trim();
 }
 
 export async function importInventoryCsv(
@@ -153,19 +227,12 @@ export async function importInventoryCsv(
   const text = await file.text();
   const rows = parseCsv(text);
   if (rows.length < 2) {
-    return {
-      ...emptyImportSummary,
-      message: "CSV is empty or has no data rows.",
-    };
+    return { ...emptyImportSummary, message: "CSV is empty or has no data rows." };
   }
 
-  // Build column index map from the header row.
   const header = rows[0];
-  const colMap = new Map<keyof ParsedRow, number>();
-  header.forEach((h, idx) => {
-    const key = HEADER_ALIASES[h.trim().toLowerCase()];
-    if (key) colMap.set(key, idx);
-  });
+  const colMap = buildColMap(header);
+  const itemSlots = buildItemSlotMap(header);
 
   const missing: string[] = [];
   if (!colMap.has("name")) missing.push("Name");
@@ -186,70 +253,153 @@ export async function importInventoryCsv(
     errors: [],
   };
 
+  // Pre-classify rows into Item / Kit buckets so we can run Items first and
+  // resolve Kit→Item references by name.
+  type Row = { rowNum: number; cells: string[]; target: "item" | "kit" };
+  const itemRows: Row[] = [];
+  const kitRows: Row[] = [];
+
   for (let r = 1; r < rows.length; r++) {
     const cells = rows[r];
-    const get = (k: keyof ParsedRow) => {
-      const idx = colMap.get(k);
-      return idx === undefined ? "" : (cells[idx] ?? "").trim();
-    };
-
-    const name = get("name");
-    const categoryRaw = get("category");
+    const rowNum = r + 1;
+    const name = readCell(cells, colMap.get("name"));
+    const categoryRaw = readCell(cells, colMap.get("category"));
     const target = categoryToTarget(categoryRaw);
 
     if (!name) {
       summary.skipped++;
-      summary.errors.push({ row: r + 1, reason: "Missing Name." });
+      summary.errors.push({ row: rowNum, reason: "Missing Name." });
       continue;
     }
     if (!target) {
       summary.skipped++;
       summary.errors.push({
-        row: r + 1,
+        row: rowNum,
         reason: `Unknown Category "${categoryRaw}" (expected Product or Service).`,
       });
       continue;
     }
+    (target === "item" ? itemRows : kitRows).push({ rowNum, cells, target });
+  }
 
-    const description = get("description");
-    const unitCost = parseDecimal(get("unitCost"));
-    const active = parseBool(get("active"));
-
+  // ---------- Pass 1: Items ----------
+  for (const { rowNum, cells } of itemRows) {
+    const name = readCell(cells, colMap.get("name"));
+    const data = {
+      name,
+      description: readCell(cells, colMap.get("description")),
+      sku: nullableStr(readCell(cells, colMap.get("sku"))),
+      manufacturer: nullableStr(readCell(cells, colMap.get("manufacturer"))),
+      model: nullableStr(readCell(cells, colMap.get("model"))),
+      productType: parseProductType(readCell(cells, colMap.get("productType"))),
+      status: parseStatus(readCell(cells, colMap.get("status"))),
+      quantity: parseInt0(readCell(cells, colMap.get("quantity"))),
+      active: parseBool(readCell(cells, colMap.get("active"))),
+      homeLocation: nullableStr(readCell(cells, colMap.get("homeLocation"))),
+      currentLocation: nullableStr(readCell(cells, colMap.get("currentLocation"))),
+      unitCost: parseDecimal(readCell(cells, colMap.get("unitCost"))),
+    };
     try {
-      if (target === "item") {
-        const existing = await prisma.item.findFirst({ where: { name } });
-        if (existing) {
-          await prisma.item.update({
-            where: { id: existing.id },
-            data: { description, unitCost, active },
-          });
-          summary.items.updated++;
-        } else {
-          await prisma.item.create({
-            data: { name, description, unitCost, active },
-          });
-          summary.items.created++;
-        }
+      const existing = await prisma.item.findFirst({ where: { name } });
+      if (existing) {
+        await prisma.item.update({ where: { id: existing.id }, data });
+        summary.items.updated++;
       } else {
-        const existing = await prisma.kit.findFirst({ where: { name } });
-        if (existing) {
-          await prisma.kit.update({
-            where: { id: existing.id },
-            data: { description, unitCost, active },
-          });
-          summary.kits.updated++;
-        } else {
-          await prisma.kit.create({
-            data: { name, description, unitCost, active },
-          });
-          summary.kits.created++;
-        }
+        await prisma.item.create({ data });
+        summary.items.created++;
       }
     } catch (err) {
       summary.skipped++;
-      const reason =
-        err instanceof Error ? err.message : "Unknown database error.";
-      summary.errors.push({ row: r + 1, reason });
+      summary.errors.push({
+        row: rowNum,
+        reason: err instanceof Error ? err.message : "Unknown database error.",
+      });
+    }
+  }
+
+  // ---------- Pass 2: Kits ----------
+  // Build an Item-name → id map once for kit→item resolution. Items just
+  // touched in Pass 1 will be in here too.
+  const allItems = await prisma.item.findMany({
+    select: { id: true, name: true },
+  });
+  const itemIdByName = new Map<string, string>();
+  for (const it of allItems) itemIdByName.set(it.name, it.id);
+
+  for (const { rowNum, cells } of kitRows) {
+    const name = readCell(cells, colMap.get("name"));
+
+    const kitItems: { itemId: string; quantity: number }[] = [];
+    for (let s = 0; s < itemSlots.length; s++) {
+      const slot = itemSlots[s];
+      const itemName = readCell(cells, slot.nameIdx);
+      if (!itemName) continue;
+      const qty = parseInt0(readCell(cells, slot.qtyIdx));
+      const itemId = itemIdByName.get(itemName);
+      if (!itemId) {
+        summary.errors.push({
+          row: rowNum,
+          reason: `Kit "${name}" references unknown Item "${itemName}" (slot ${s + 1}) — skipped that slot.`,
+        });
+        continue;
+      }
+      kitItems.push({ itemId, quantity: qty > 0 ? qty : 1 });
+    }
+
+    // Consolidate duplicates (same Item appearing twice).
+    const consolidated = new Map<string, number>();
+    for (const ki of kitItems) {
+      consolidated.set(
+        ki.itemId,
+        (consolidated.get(ki.itemId) ?? 0) + ki.quantity,
+      );
+    }
+    const kitItemRows = Array.from(consolidated, ([itemId, quantity]) => ({
+      itemId,
+      quantity,
+    }));
+
+    const data = {
+      name,
+      description: readCell(cells, colMap.get("description")),
+      sku: nullableStr(readCell(cells, colMap.get("sku"))),
+      manufacturer: nullableStr(readCell(cells, colMap.get("manufacturer"))),
+      model: nullableStr(readCell(cells, colMap.get("model"))),
+      productType: parseProductType(readCell(cells, colMap.get("productType"))),
+      status: parseStatus(readCell(cells, colMap.get("status"))),
+      quantity: parseInt0(readCell(cells, colMap.get("quantity"))),
+      active: parseBool(readCell(cells, colMap.get("active"))),
+      homeLocation: nullableStr(readCell(cells, colMap.get("homeLocation"))),
+      currentLocation: nullableStr(readCell(cells, colMap.get("currentLocation"))),
+      unitCost: parseDecimal(readCell(cells, colMap.get("unitCost"))),
+    };
+
+    try {
+      const existing = await prisma.kit.findFirst({ where: { name } });
+      if (existing) {
+        await prisma.$transaction([
+          prisma.kitItem.deleteMany({ where: { kitId: existing.id } }),
+          prisma.kit.update({
+            where: { id: existing.id },
+            data: {
+              ...data,
+              items: { create: kitItemRows },
+            },
+          }),
+        ]);
+        summary.kits.updated++;
+      } else {
+        await prisma.kit.create({
+          data: { ...data, items: { create: kitItemRows } },
+        });
+        summary.kits.created++;
+      }
+    } catch (err) {
+      summary.skipped++;
+      summary.errors.push({
+        row: rowNum,
+        reason: err instanceof Error ? err.message : "Unknown database error.",
+      });
     }
   }
 

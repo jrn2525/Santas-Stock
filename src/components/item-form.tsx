@@ -16,6 +16,7 @@ type Item = {
   productType: ProductType | null;
   status: ItemStatus;
   quantity: number;
+  active: boolean;
   homeLocation: string | null;
   currentLocation: string | null;
   unitCost: { toString(): string } | null;
@@ -83,6 +84,19 @@ export function ItemForm({ item }: { item?: Item }) {
 
       <Section title="Classification">
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+          <div>
+            <label className="block text-sm font-medium text-ink">Category</label>
+            <input
+              type="text"
+              value="Product"
+              readOnly
+              className="mt-1 block w-full cursor-not-allowed rounded-md border border-rule bg-canvas/50 px-3 py-2 text-ink-dim"
+            />
+            <p className="mt-1 text-xs text-ink-dim">
+              Items are always Products. Services belong on the Kits tab.
+            </p>
+          </div>
+
           <SelectField
             label="Product type"
             name="productType"
@@ -110,7 +124,9 @@ export function ItemForm({ item }: { item?: Item }) {
               </option>
             ))}
           </SelectField>
+        </div>
 
+        <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
           <Field
             label="Quantity"
             name="quantity"
@@ -120,6 +136,23 @@ export function ItemForm({ item }: { item?: Item }) {
             errors={state.errors.quantity}
             required
           />
+
+          <div className="sm:col-span-2 flex items-end pb-1">
+            <label className="flex items-center gap-3 text-sm text-ink">
+              <input
+                type="checkbox"
+                name="active"
+                defaultChecked={item?.active ?? true}
+                className="h-4 w-4 rounded border-rule bg-canvas text-brand focus:ring-brand"
+              />
+              <span>
+                Active
+                <span className="ml-2 text-xs text-ink-dim">
+                  Uncheck to hide this item from pickers without deleting it.
+                </span>
+              </span>
+            </label>
+          </div>
         </div>
       </Section>
 

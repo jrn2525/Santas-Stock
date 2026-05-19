@@ -29,10 +29,14 @@ export function CsvImportForm() {
         />
         <p className="mt-2 text-xs text-ink-dim">
           Recognized columns: <code>Name</code>, <code>Description</code>,{" "}
-          <code>Category</code>, <code>Unit Cost</code>, <code>Active</code>.
-          Anything else is ignored. Category must be <em>Product</em> (→ Item)
-          or <em>Service</em> (→ Kit). Existing rows are matched by name and
-          updated.
+          <code>Category</code>, <code>Unit Cost</code>, <code>SKU</code>,{" "}
+          <code>Manufacturer</code>, <code>Model</code>,{" "}
+          <code>Product Type</code>, <code>Status</code>, <code>Quantity</code>,{" "}
+          <code>Active</code>, <code>Home Location</code>,{" "}
+          <code>Current Location</code>, plus <code>Item N</code> +{" "}
+          <code>Item N Qty</code> pairs for Kits. Category must be{" "}
+          <em>Product</em> (→ Item) or <em>Service</em> (→ Kit). Existing rows
+          are matched by name and updated.
         </p>
       </div>
 

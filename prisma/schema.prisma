@@ -195,10 +195,15 @@ model Kit {
   id              String     @id @default(cuid())
   name            String
   description     String     @default("")
+  sku             String?
+  manufacturer    String?
+  model           String?
+  productType     ProductType?
   unitCost        Decimal?   @db.Decimal(12, 2)
   active          Boolean    @default(true)
   kitType         KitType?
-  status          KitStatus  @default(DRAFT)
+  status          ItemStatus @default(AVAILABLE)
+  quantity        Int        @default(0)
 
   clientId        String?
   client          Client?    @relation(fields: [clientId], references: [id])
@@ -208,6 +213,7 @@ model Kit {
   // Home location is now free text, matching Item. Was a relation to the
   // dropped Location model.
   homeLocation    String?
+  currentLocation String?
 
   photos          String[]   @default([])
 

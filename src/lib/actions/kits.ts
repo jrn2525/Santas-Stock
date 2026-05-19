@@ -3,10 +3,31 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { Prisma } from "@prisma/client";
+import { ItemStatus, Prisma, ProductType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { assertRoleForAction, WRITE_ROLES } from "@/lib/auth-helpers";
 import type { FormState } from "./state";
+
+const optionalString = z.preprocess(
+  (v) => (v === "" || v === null || v === undefined ? null : String(v).trim() || null),
+  z.string().nullable(),
+);
+
+const optionalDecimal = z.preprocess(
+  (v) => (v === "" || v === null || v === undefined ? null : v),
+  z
+    .union([z.string(), z.number()])
+    .nullable()
+    .refine(
+      (v) => v === null || (!isNaN(Number(v)) && Number(v) >= 0),
+      "Must be a non-negative number.",
+    ),
+);
+
+const optionalProductType = z.preprocess(
+  (v) => (v === "" || v === null || v === undefined ? null : v),
+  z.nativeEnum(ProductType).nullable(),
+);
 
 const KitItemSchema = z.object({
   itemId: z.string().min(1, "Item is required."),
@@ -14,8 +35,31 @@ const KitItemSchema = z.object({
 });
 
 const KitSchema = z.object({
+  // Required
   name: z.string().min(1, "Name is required.").max(160),
+  description: z.preprocess(
+    (v) => (v === null || v === undefined ? "" : String(v)),
+    z.string().max(500),
+  ),
+  status: z.nativeEnum(ItemStatus),
+  quantity: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? 0 : Number(v)),
+    z.number().int().min(0, "Quantity must be 0 or more."),
+  ),
+  active: z.preprocess(
+    (v) => v === "on" || v === "true" || v === true,
+    z.boolean(),
+  ),
   kitItems: z.array(KitItemSchema).min(1, "Add at least one item."),
+
+  // Optional
+  sku: optionalString,
+  manufacturer: optionalString,
+  model: optionalString,
+  productType: optionalProductType,
+  homeLocation: optionalString,
+  currentLocation: optionalString,
+  unitCost: optionalDecimal,
 });
 
 function parseKitItemsJson(value: FormDataEntryValue | null): unknown {
@@ -38,6 +82,17 @@ function parseKitItemsJson(value: FormDataEntryValue | null): unknown {
 function readForm(formData: FormData) {
   return KitSchema.safeParse({
     name: formData.get("name"),
+    description: formData.get("description"),
+    status: formData.get("status"),
+    quantity: formData.get("quantity"),
+    active: formData.get("active"),
+    sku: formData.get("sku"),
+    manufacturer: formData.get("manufacturer"),
+    model: formData.get("model"),
+    productType: formData.get("productType"),
+    homeLocation: formData.get("homeLocation"),
+    currentLocation: formData.get("currentLocation"),
+    unitCost: formData.get("unitCost"),
     kitItems: parseKitItemsJson(formData.get("kitItems")),
   });
 }
@@ -49,6 +104,24 @@ function consolidate(rows: { itemId: string; quantity: number }[]) {
     map.set(r.itemId, (map.get(r.itemId) ?? 0) + r.quantity);
   }
   return Array.from(map, ([itemId, quantity]) => ({ itemId, quantity }));
+}
+
+function buildScalarData(parsed: z.infer<typeof KitSchema>) {
+  return {
+    name: parsed.name,
+    description: parsed.description,
+    status: parsed.status,
+    quantity: parsed.quantity,
+    active: parsed.active,
+    sku: parsed.sku,
+    manufacturer: parsed.manufacturer,
+    model: parsed.model,
+    productType: parsed.productType,
+    homeLocation: parsed.homeLocation,
+    currentLocation: parsed.currentLocation,
+    unitCost:
+      parsed.unitCost === null ? null : new Prisma.Decimal(parsed.unitCost),
+  };
 }
 
 export async function createKit(
@@ -72,7 +145,7 @@ export async function createKit(
   try {
     await prisma.kit.create({
       data: {
-        name: parsed.data.name,
+        ...buildScalarData(parsed.data),
         items: { create: items },
       },
     });
@@ -115,7 +188,7 @@ export async function updateKit(
       prisma.kit.update({
         where: { id },
         data: {
-          name: parsed.data.name,
+          ...buildScalarData(parsed.data),
           items: { create: items },
         },
       }),

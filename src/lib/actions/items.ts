@@ -38,6 +38,10 @@ const ItemSchema = z.object({
     (v) => (v === "" || v === null || v === undefined ? 0 : Number(v)),
     z.number().int().min(0, "Quantity must be 0 or more."),
   ),
+  active: z.preprocess(
+    (v) => v === "on" || v === "true" || v === true,
+    z.boolean(),
+  ),
 
   // Optional fields
   sku: optionalString,
@@ -55,6 +59,7 @@ function readForm(formData: FormData) {
     description: formData.get("description"),
     status: formData.get("status"),
     quantity: formData.get("quantity"),
+    active: formData.get("active"),
     sku: formData.get("sku"),
     manufacturer: formData.get("manufacturer"),
     model: formData.get("model"),
@@ -71,6 +76,7 @@ function buildData(parsed: z.infer<typeof ItemSchema>) {
     description: parsed.description,
     status: parsed.status,
     quantity: parsed.quantity,
+    active: parsed.active,
     sku: parsed.sku,
     manufacturer: parsed.manufacturer,
     model: parsed.model,

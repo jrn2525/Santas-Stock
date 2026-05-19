@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useState } from "react";
+import { ItemStatus, ProductType } from "@prisma/client";
 import { createKit, updateKit } from "@/lib/actions/kits";
 import { emptyFormState, type FormState } from "@/lib/actions/state";
 
@@ -12,7 +13,29 @@ type KitItemRow = { key: string; itemId: string; quantity: number };
 type Kit = {
   id: string;
   name: string;
+  description: string;
+  sku: string | null;
+  manufacturer: string | null;
+  model: string | null;
+  productType: ProductType | null;
+  status: ItemStatus;
+  quantity: number;
+  active: boolean;
+  homeLocation: string | null;
+  currentLocation: string | null;
+  unitCost: { toString(): string } | null;
   items: { itemId: string; quantity: number }[];
+};
+
+const statusLabels: Record<ItemStatus, string> = {
+  AVAILABLE: "Available",
+  ALLOCATED: "Allocated",
+};
+
+const productTypeLabels: Record<ProductType, string> = {
+  CHRISTMAS: "Christmas",
+  LANDSCAPE: "Landscape",
+  PERMANENT: "Permanent",
 };
 
 let rowKeyCounter = 0;
@@ -61,19 +84,169 @@ export function KitForm({ kit, items }: { kit?: Kit; items: ItemOption[] }) {
   return (
     <form action={submitWithItems} className="mt-6 max-w-3xl space-y-6">
       <Section title="Identity">
-        <Field
-          label="Name"
-          name="name"
-          defaultValue={kit?.name ?? ""}
-          errors={state.errors.name}
-          required
-          placeholder="24&quot; Red Wreath Kit"
-        />
+        <div className="grid grid-cols-1 gap-5">
+          <Field
+            label="Name"
+            name="name"
+            defaultValue={kit?.name ?? ""}
+            errors={state.errors.name}
+            required
+            placeholder='24" Red Wreath Kit'
+          />
+          <Field
+            label="Description"
+            name="description"
+            defaultValue={kit?.description ?? ""}
+            errors={state.errors.description}
+          />
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+            <Field
+              label="SKU"
+              name="sku"
+              defaultValue={kit?.sku ?? ""}
+              errors={state.errors.sku}
+            />
+            <Field
+              label="Manufacturer"
+              name="manufacturer"
+              defaultValue={kit?.manufacturer ?? ""}
+              errors={state.errors.manufacturer}
+            />
+            <Field
+              label="Model"
+              name="model"
+              defaultValue={kit?.model ?? ""}
+              errors={state.errors.model}
+            />
+          </div>
+        </div>
+      </Section>
+
+      <Section title="Classification">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+          <div>
+            <label className="block text-sm font-medium text-ink">Category</label>
+            <input
+              type="text"
+              value="Service"
+              readOnly
+              className="mt-1 block w-full cursor-not-allowed rounded-md border border-rule bg-canvas/50 px-3 py-2 text-ink-dim"
+            />
+            <p className="mt-1 text-xs text-ink-dim">
+              Kits are always Services. Products belong on the Items tab.
+            </p>
+          </div>
+
+          <SelectField
+            label="Product type"
+            name="productType"
+            defaultValue={kit?.productType ?? ""}
+            errors={state.errors.productType}
+          >
+            <option value="">— Unassigned —</option>
+            {(Object.keys(productTypeLabels) as ProductType[]).map((p) => (
+              <option key={p} value={p}>
+                {productTypeLabels[p]}
+              </option>
+            ))}
+          </SelectField>
+
+          <SelectField
+            label="Status"
+            name="status"
+            defaultValue={kit?.status ?? "AVAILABLE"}
+            errors={state.errors.status}
+            required
+          >
+            {(Object.keys(statusLabels) as ItemStatus[]).map((s) => (
+              <option key={s} value={s}>
+                {statusLabels[s]}
+              </option>
+            ))}
+          </SelectField>
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
+          <Field
+            label="Quantity"
+            name="quantity"
+            type="number"
+            min={0}
+            defaultValue={kit?.quantity ?? 0}
+            errors={state.errors.quantity}
+            required
+          />
+          <div className="sm:col-span-2 flex items-end pb-1">
+            <label className="flex items-center gap-3 text-sm text-ink">
+              <input
+                type="checkbox"
+                name="active"
+                defaultChecked={kit?.active ?? true}
+                className="h-4 w-4 rounded border-rule bg-canvas text-brand focus:ring-brand"
+              />
+              <span>
+                Active
+                <span className="ml-2 text-xs text-ink-dim">
+                  Uncheck to hide this kit from pickers without deleting it.
+                </span>
+              </span>
+            </label>
+          </div>
+        </div>
+      </Section>
+
+      <Section title="Location">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+          <Field
+            label="Home location"
+            name="homeLocation"
+            defaultValue={kit?.homeLocation ?? ""}
+            errors={state.errors.homeLocation}
+            help='Where it lives in the off-season.'
+          />
+          <Field
+            label="Current location"
+            name="currentLocation"
+            defaultValue={kit?.currentLocation ?? ""}
+            errors={state.errors.currentLocation}
+            help="Where it is right now."
+          />
+        </div>
+      </Section>
+
+      <Section title="Cost">
+        <div>
+          <label htmlFor="unitCost" className="block text-sm font-medium text-ink">
+            Unit cost
+          </label>
+          <div className="relative mt-1">
+            <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-ink-dim">
+              $
+            </span>
+            <input
+              id="unitCost"
+              name="unitCost"
+              type="number"
+              inputMode="decimal"
+              step="0.01"
+              min={0}
+              defaultValue={kit?.unitCost?.toString() ?? ""}
+              placeholder="0.00"
+              className="block w-full rounded-md border border-rule bg-card py-2 pl-7 pr-3 text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+            />
+          </div>
+          {state.errors.unitCost?.map((e) => (
+            <p key={e} className="mt-1 text-xs text-brand">
+              {e}
+            </p>
+          ))}
+        </div>
       </Section>
 
       <Section title="Items in this kit">
         <p className="mb-4 text-xs text-ink-dim">
-          Build the recipe: pick each ingredient and how many of it the kit needs.
+          Build the recipe: pick each ingredient and how many of it the kit
+          needs. Click <em>+ Add another item</em> for as many as you need.
         </p>
 
         <div className="space-y-3">
@@ -89,20 +262,12 @@ export function KitForm({ kit, items }: { kit?: Kit; items: ItemOption[] }) {
                 >
                   Item {idx + 1}
                 </label>
-                <select
-                  id={`item-${row.key}`}
+                <ItemPicker
+                  inputId={`item-${row.key}`}
+                  options={items}
                   value={row.itemId}
-                  onChange={(e) => updateRow(row.key, { itemId: e.target.value })}
-                  className="mt-1 block w-full rounded-md border border-rule bg-canvas px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-                  required
-                >
-                  <option value="">— Select item —</option>
-                  {items.map((it) => (
-                    <option key={it.id} value={it.id}>
-                      {it.name}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(v) => updateRow(row.key, { itemId: v })}
+                />
               </div>
 
               <div>
@@ -131,7 +296,11 @@ export function KitForm({ kit, items }: { kit?: Kit; items: ItemOption[] }) {
                   onClick={() => removeRow(row.key)}
                   disabled={rows.length === 1}
                   className="text-xs text-brand hover:text-brand-hover disabled:cursor-not-allowed disabled:opacity-30"
-                  title={rows.length === 1 ? "A kit must have at least one item." : "Remove"}
+                  title={
+                    rows.length === 1
+                      ? "A kit must have at least one item."
+                      : "Remove"
+                  }
                 >
                   Remove
                 </button>
@@ -146,7 +315,7 @@ export function KitForm({ kit, items }: { kit?: Kit; items: ItemOption[] }) {
             onClick={addRow}
             className="rounded-md border border-rule bg-canvas px-3 py-1.5 text-sm font-medium text-ink hover:border-brand hover:text-brand"
           >
-            + Add item
+            + Add another item
           </button>
         </div>
 
@@ -180,6 +349,60 @@ export function KitForm({ kit, items }: { kit?: Kit; items: ItemOption[] }) {
   );
 }
 
+// Searchable Item picker built on a <datalist>. The user can type to filter
+// the names; the underlying value is the Item's id. A native <select> would
+// work but doesn't filter on type, and the catalog can easily have hundreds
+// of Items.
+function ItemPicker({
+  inputId,
+  options,
+  value,
+  onChange,
+}: {
+  inputId: string;
+  options: ItemOption[];
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  const listId = `${inputId}-list`;
+  const selected = options.find((o) => o.id === value);
+  const [text, setText] = useState(selected?.name ?? "");
+
+  // Keep text in sync when the row is re-rendered with a different selection
+  // (e.g. after add/remove).
+  if (selected && selected.name !== text && value !== "") {
+    // no-op — leave whatever the user is typing alone
+  }
+
+  const handleChange = (raw: string) => {
+    setText(raw);
+    // Exact-name match wins.
+    const match = options.find((o) => o.name === raw);
+    onChange(match ? match.id : "");
+  };
+
+  return (
+    <>
+      <input
+        id={inputId}
+        type="text"
+        list={listId}
+        value={text}
+        onChange={(e) => handleChange(e.target.value)}
+        placeholder="Type to search items..."
+        autoComplete="off"
+        className="mt-1 block w-full rounded-md border border-rule bg-canvas px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+        required
+      />
+      <datalist id={listId}>
+        {options.map((o) => (
+          <option key={o.id} value={o.name} />
+        ))}
+      </datalist>
+    </>
+  );
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <fieldset className="rounded-md border border-rule bg-card p-5">
@@ -192,17 +415,23 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Field({
   label,
   name,
+  type = "text",
   defaultValue,
   errors,
   required,
   placeholder,
+  help,
+  min,
 }: {
   label: string;
   name: string;
-  defaultValue?: string;
+  type?: string;
+  defaultValue?: string | number;
   errors?: string[];
   required?: boolean;
   placeholder?: string;
+  help?: string;
+  min?: number;
 }) {
   return (
     <div>
@@ -213,11 +442,56 @@ function Field({
       <input
         id={name}
         name={name}
+        type={type}
         defaultValue={defaultValue}
         required={required}
         placeholder={placeholder}
+        min={min}
         className="mt-1 block w-full rounded-md border border-rule bg-canvas px-3 py-2 text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
       />
+      {help && <p className="mt-1 text-xs text-ink-dim">{help}</p>}
+      {errors?.map((e) => (
+        <p key={e} className="mt-1 text-xs text-brand">
+          {e}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+function SelectField({
+  label,
+  name,
+  defaultValue,
+  errors,
+  required,
+  help,
+  children,
+}: {
+  label: string;
+  name: string;
+  defaultValue?: string;
+  errors?: string[];
+  required?: boolean;
+  help?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label htmlFor={name} className="block text-sm font-medium text-ink">
+        {label}
+        {required && <span className="ml-0.5 text-brand">*</span>}
+      </label>
+      <select
+        id={name}
+        name={name}
+        defaultValue={defaultValue}
+        required={required}
+        className="mt-1 block w-full rounded-md border border-rule bg-canvas px-3 py-2 text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+      >
+        {children}
+      </select>
+      {help && <p className="mt-1 text-xs text-ink-dim">{help}</p>}
       {errors?.map((e) => (
         <p key={e} className="mt-1 text-xs text-brand">
           {e}
