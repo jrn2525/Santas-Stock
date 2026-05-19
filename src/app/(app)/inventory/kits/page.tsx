@@ -87,7 +87,7 @@ export default async function KitsPage() {
                       {canWrite && (
                         <div className="flex justify-end gap-3">
                           <Link
-                            href={`/kits/${k.id}/edit`}
+                            href={`/inventory/kits/${k.id}/edit`}
                             className="text-xs font-medium text-brand hover:text-brand-hover"
                           >
                             Edit

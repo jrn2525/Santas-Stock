@@ -136,7 +136,7 @@ export default async function ItemsPage({
                     {canWrite && (
                       <div className="flex justify-end gap-3">
                         <Link
-                          href={`/items/${i.id}/edit`}
+                          href={`/inventory/items/${i.id}/edit`}
                           className="text-xs font-medium text-brand hover:text-brand-hover"
                         >
                           Edit
