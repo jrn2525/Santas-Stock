@@ -8,11 +8,10 @@ const config: Config = {
         // Surfaces (darkest -> lightest)
         sidebar: "#000000",
         canvas: "#070b0d",
-        card: "#e5e7eb", // light gray panels for readable dark text
-        rule: "#6b7280", // medium gray, visible on both light cards and dark canvas
+        card: "#41494f",
+        rule: "#6d7c83",
 
-        // Text (ink on dark surfaces — sidebar/canvas)
-        // Text inside .bg-card is overridden in globals.css to dark colors.
+        // Text (ink on dark surfaces)
         ink: {
           DEFAULT: "#ffffff",
           dim: "#6d7c83",

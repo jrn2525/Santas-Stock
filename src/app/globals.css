@@ -12,29 +12,3 @@ body {
   background: var(--background);
   color: var(--foreground);
 }
-
-/* Text inside light gray panels (.bg-card) is forced dark for readability.
-   Sidebar and canvas keep light text (no .bg-card ancestor). */
-.bg-card .text-ink {
-  color: #000000;
-}
-.bg-card .text-ink-dim {
-  color: #374151;
-}
-
-/* Restore light text on nested dark blocks (bg-canvas inside a card) — e.g.
-   the Pick List line-item tiles that sit on the dark canvas inside a card. */
-.bg-card .bg-canvas .text-ink {
-  color: #ffffff;
-}
-.bg-card .bg-canvas .text-ink-dim {
-  color: #9ca3af;
-}
-
-/* Form inputs that use bg-card as their fill: keep dark text and a visible
-   placeholder. */
-.bg-card::placeholder,
-input.bg-card::placeholder,
-textarea.bg-card::placeholder {
-  color: #6b7280;
-}
