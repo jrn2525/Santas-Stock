@@ -34,15 +34,15 @@ export default async function SignInPage({
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
+    <main className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center px-6">
       <div className="mb-6 flex justify-center">
         <Image
           src="/logo.png"
           alt="Santa's Stock"
-          width={320}
-          height={320}
+          width={640}
+          height={640}
           priority
-          className="h-auto w-80"
+          className="h-auto w-[40rem] max-w-full"
         />
       </div>
 
