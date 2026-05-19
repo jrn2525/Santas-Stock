@@ -187,6 +187,7 @@ model Item {
 
   kitMemberships           KitItem[]
   allocations              Allocation[]
+  jobLineItems             JobLineItem[]
   replacementEntries       ReplacementQueue[]
   maintenanceTickets       MaintenanceTicket[]
 
@@ -224,6 +225,7 @@ model Kit {
 
   items           KitItem[]
   allocations     Allocation[]
+  jobLineItems    JobLineItem[]
 
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
@@ -311,10 +313,40 @@ model JobberJob {
 
   visits        JobberVisit[]
   notes         JobberNote[]
+  lineItems     JobLineItem[]
 
   syncedAt      DateTime?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
+}
+
+// A single line on a Jobber Job. Each line is either a Product (mapped to
+// Item) or a Service (mapped to Kit). If we can't resolve to a local row
+// (deleted product, brand-new product not synced yet), we keep the raw
+// name as a fallback so the Pick List still has something to show.
+model JobLineItem {
+  id               String      @id @default(cuid())
+  jobberLineItemId String?     @unique
+  jobId            String
+  job              JobberJob   @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  itemId           String?
+  item             Item?       @relation(fields: [itemId], references: [id])
+  kitId            String?
+  kit              Kit?        @relation(fields: [kitId], references: [id])
+
+  rawName          String?
+
+  quantity         Decimal     @default(1) @db.Decimal(12, 2)
+  notes            String?
+  position         Int?
+
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([jobId])
+  @@index([itemId])
+  @@index([kitId])
 }
 
 model JobberVisit {

@@ -441,11 +441,28 @@ const JOBS_QUERY = /* GraphQL */ `
         jobStatus
         client { id }
         property { id }
+        lineItems {
+          nodes {
+            id
+            name
+            description
+            quantity
+            productOrService { id }
+          }
+        }
       }
       pageInfo { hasNextPage endCursor }
     }
   }
 `;
+
+type JobberLineItemNode = {
+  id: string;
+  name: string | null;
+  description: string | null;
+  quantity: number | string | null;
+  productOrService: { id: string } | null;
+};
 
 type JobberJobNode = {
   id: string;
@@ -459,6 +476,7 @@ type JobberJobNode = {
   jobStatus: string | null;
   client: { id: string } | null;
   property: { id: string } | null;
+  lineItems: { nodes: JobberLineItemNode[] } | null;
 };
 
 type JobsResponse = {
@@ -490,14 +508,33 @@ export async function syncJobs(): Promise<JobsSyncResult> {
   const result: JobsSyncResult = { upserted: 0, skipped: 0, warnings: [] };
   const now = new Date();
 
-  // Pre-load client & property name→id maps keyed by Jobber id.
-  const [clients, properties] = await Promise.all([
+  // Pre-load client & property maps + Item/Kit Jobber-id maps so line items
+  // can be resolved to local rows without a per-line lookup.
+  const [clients, properties, items, kits] = await Promise.all([
     prisma.client.findMany({ select: { id: true, jobberClientId: true } }),
     prisma.property.findMany({ select: { id: true, jobberPropertyId: true } }),
+    prisma.item.findMany({
+      where: { jobberProductId: { not: null } },
+      select: { id: true, jobberProductId: true },
+    }),
+    prisma.kit.findMany({
+      where: { jobberProductId: { not: null } },
+      select: { id: true, jobberProductId: true },
+    }),
   ]);
   const clientIdByJobberId = new Map(clients.map((c) => [c.jobberClientId, c.id]));
   const propIdByJobberId = new Map(
     properties.map((p) => [p.jobberPropertyId, p.id]),
+  );
+  const itemIdByJobberProductId = new Map(
+    items
+      .filter((i): i is { id: string; jobberProductId: string } => !!i.jobberProductId)
+      .map((i) => [i.jobberProductId, i.id]),
+  );
+  const kitIdByJobberProductId = new Map(
+    kits
+      .filter((k): k is { id: string; jobberProductId: string } => !!k.jobberProductId)
+      .map((k) => [k.jobberProductId, k.id]),
   );
 
   let cursor: string | null = null;
@@ -535,12 +572,41 @@ export async function syncJobs(): Promise<JobsSyncResult> {
       };
 
       try {
-        await prisma.jobberJob.upsert({
+        const upserted = await prisma.jobberJob.upsert({
           where: { jobberJobId: node.id },
           update: data_,
           create: { jobberJobId: node.id, ...data_ },
         });
         result.upserted++;
+
+        // Replace the line items for this job. Simpler than diffing — line
+        // items are small in count per job and cheap to wipe + recreate.
+        await prisma.jobLineItem.deleteMany({ where: { jobId: upserted.id } });
+        const lineNodes = node.lineItems?.nodes ?? [];
+        for (let pos = 0; pos < lineNodes.length; pos++) {
+          const li = lineNodes[pos];
+          const linkedJobberId = li.productOrService?.id ?? null;
+          const itemId = linkedJobberId
+            ? itemIdByJobberProductId.get(linkedJobberId) ?? null
+            : null;
+          const kitId =
+            !itemId && linkedJobberId
+              ? kitIdByJobberProductId.get(linkedJobberId) ?? null
+              : null;
+          await prisma.jobLineItem.create({
+            data: {
+              jobberLineItemId: li.id,
+              jobId: upserted.id,
+              itemId,
+              kitId,
+              rawName: li.name?.trim() || null,
+              quantity:
+                toDecimal(li.quantity) ?? new Prisma.Decimal("1"),
+              notes: li.description?.trim() || null,
+              position: pos,
+            },
+          });
+        }
       } catch (err) {
         console.error(`[jobber-sync] job ${node.id}:`, err);
         result.skipped++;

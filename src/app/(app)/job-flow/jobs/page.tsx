@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 
@@ -56,9 +57,21 @@ export default async function JobsPage() {
               </tr>
             ) : (
               jobs.map((j) => (
-                <tr key={j.id} className="text-ink">
-                  <td className="px-4 py-3 text-ink-dim">{j.jobNumber ?? "—"}</td>
-                  <td className="px-4 py-3 font-medium">{j.title ?? "(untitled)"}</td>
+                <tr
+                  key={j.id}
+                  className="text-ink hover:bg-card/40"
+                >
+                  <td className="px-4 py-3 text-ink-dim">
+                    <Link href={`/job-flow/jobs/${j.id}`}>{j.jobNumber ?? "—"}</Link>
+                  </td>
+                  <td className="px-4 py-3 font-medium">
+                    <Link
+                      href={`/job-flow/jobs/${j.id}`}
+                      className="hover:text-brand"
+                    >
+                      {j.title ?? "(untitled)"}
+                    </Link>
+                  </td>
                   <td className="px-4 py-3">{j.client?.name ?? "—"}</td>
                   <td className="px-4 py-3 text-ink-dim">
                     {j.property?.address ?? "—"}
