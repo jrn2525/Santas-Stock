@@ -466,7 +466,7 @@ type JobberLineItemNode = {
 type JobberJobNode = {
   id: string;
   title: string | null;
-  jobNumber: string | null;
+  jobNumber: number | string | null;
   instructions: string | null;
   total: number | string | null;
   startAt: string | null;
@@ -557,7 +557,8 @@ export async function syncJobs(): Promise<JobsSyncResult> {
 
       const data_ = {
         title: node.title?.trim() || null,
-        jobNumber: node.jobNumber?.trim() || null,
+        jobNumber:
+          node.jobNumber != null ? String(node.jobNumber).trim() || null : null,
         instructions: node.instructions?.trim() || null,
         total: toDecimal(node.total),
         startAt: toDate(node.startAt),
