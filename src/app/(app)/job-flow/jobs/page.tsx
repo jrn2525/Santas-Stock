@@ -1,21 +1,81 @@
-export default function JobsPage() {
+import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/auth-helpers";
+
+export const dynamic = "force-dynamic";
+
+const dateFmt = new Intl.DateTimeFormat("en-US", {
+  dateStyle: "medium",
+});
+
+const moneyFmt = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+});
+
+export default async function JobsPage() {
+  await requireUser();
+
+  const jobs = await prisma.jobberJob.findMany({
+    orderBy: [{ startAt: "desc" }, { createdAt: "desc" }],
+    include: {
+      client: { select: { name: true } },
+      property: { select: { address: true } },
+    },
+    take: 500,
+  });
+
   return (
     <>
       <header>
         <h1 className="text-3xl font-bold text-brand-hover">Jobs</h1>
         <p className="mt-1 text-sm text-ink-dim">
-          Jobs synced from Jobber. Each job is the overall scope of work for a
-          client.
+          Jobs synced from Jobber. Click Sync Jobs in Job Flow → Jobber to
+          refresh.
         </p>
       </header>
 
-      <section className="mt-8 rounded-lg border border-rule bg-card p-6">
-        <h2 className="text-lg font-semibold text-ink">Coming soon</h2>
-        <p className="mt-2 text-sm text-ink-dim">
-          Job list, detail view, and status filters. Data will sync from Jobber
-          using the same pattern as customers.
-        </p>
-      </section>
+      <div className="mt-8 overflow-hidden rounded-lg border border-rule">
+        <table className="w-full text-sm">
+          <thead className="bg-card text-left text-xs uppercase tracking-wider text-ink-dim">
+            <tr>
+              <th className="px-4 py-3">Job #</th>
+              <th className="px-4 py-3">Title</th>
+              <th className="px-4 py-3">Client</th>
+              <th className="px-4 py-3">Property</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Scheduled</th>
+              <th className="px-4 py-3 text-right">Total</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-rule bg-canvas">
+            {jobs.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-4 py-12 text-center text-ink-dim">
+                  No jobs yet. Run Sync Jobs in Job Flow → Jobber.
+                </td>
+              </tr>
+            ) : (
+              jobs.map((j) => (
+                <tr key={j.id} className="text-ink">
+                  <td className="px-4 py-3 text-ink-dim">{j.jobNumber ?? "—"}</td>
+                  <td className="px-4 py-3 font-medium">{j.title ?? "(untitled)"}</td>
+                  <td className="px-4 py-3">{j.client?.name ?? "—"}</td>
+                  <td className="px-4 py-3 text-ink-dim">
+                    {j.property?.address ?? "—"}
+                  </td>
+                  <td className="px-4 py-3 text-ink-dim">{j.status || "—"}</td>
+                  <td className="px-4 py-3 text-ink-dim">
+                    {j.startAt ? dateFmt.format(j.startAt) : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums">
+                    {j.total ? moneyFmt.format(Number(j.total)) : "—"}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </>
   );
 }

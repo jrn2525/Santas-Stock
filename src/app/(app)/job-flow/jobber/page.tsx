@@ -1,8 +1,13 @@
 import Link from "next/link";
-import { requireRole } from "@/lib/auth-helpers";
+import { WRITE_ROLES, requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { disconnectJobber } from "@/lib/actions/jobber";
 import { JobberSyncButton } from "@/components/jobber-sync-button";
+import {
+  JobberJobsSyncButton,
+  JobberVisitsSyncButton,
+  JobberNotesSyncButton,
+} from "@/components/jobber-job-flow-sync-buttons";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +34,7 @@ export default async function JobberPage({
 }: {
   searchParams: Promise<{ connected?: string; error?: string }>;
 }) {
-  await requireRole("ADMIN");
+  await requireRole(WRITE_ROLES);
   const params = await searchParams;
   const connection = await prisma.jobberConnection.findFirst({
     include: { connectedBy: { select: { name: true, email: true } } },
@@ -149,6 +154,22 @@ export default async function JobberPage({
 
           <div className="mt-6 border-t border-rule pt-6">
             <JobberSyncButton />
+          </div>
+        </section>
+      )}
+
+      {connection && (
+        <section className="mt-6 rounded-lg border border-rule bg-card p-6">
+          <h2 className="text-lg font-semibold text-ink">Job Flow syncs</h2>
+          <p className="mt-1 text-sm text-ink-dim">
+            Pull Jobs, Visits, and Notes from Jobber. Each runs independently
+            with its own button. The recommended order on a fresh setup is{" "}
+            <em>Customers → Jobs → Visits → Notes</em>.
+          </p>
+          <div className="mt-4 space-y-3">
+            <JobberJobsSyncButton />
+            <JobberVisitsSyncButton />
+            <JobberNotesSyncButton />
           </div>
         </section>
       )}

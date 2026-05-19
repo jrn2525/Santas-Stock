@@ -418,3 +418,412 @@ async function upsertKit(
   ctx.result.kitsCreated++;
   ctx.result.createdKitNames.push(name);
 }
+
+// ---------------------------------------------------------------------------
+// Jobs sync
+// ---------------------------------------------------------------------------
+//
+// Pulls every Job from Jobber, matched by jobberJobId. Requires Customer
+// sync to have run first so clients/properties exist locally.
+
+const JOBS_QUERY = /* GraphQL */ `
+  query SyncJobs($cursor: String) {
+    jobs(first: 25, after: $cursor) {
+      nodes {
+        id
+        title
+        jobNumber
+        description
+        instructions
+        total
+        startAt
+        endAt
+        jobStatus
+        client { id }
+        property { id }
+      }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+`;
+
+type JobberJobNode = {
+  id: string;
+  title: string | null;
+  jobNumber: string | null;
+  description: string | null;
+  instructions: string | null;
+  total: number | string | null;
+  startAt: string | null;
+  endAt: string | null;
+  jobStatus: string | null;
+  client: { id: string } | null;
+  property: { id: string } | null;
+};
+
+type JobsResponse = {
+  jobs: {
+    nodes: JobberJobNode[];
+    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+  };
+};
+
+export type JobsSyncResult = {
+  upserted: number;
+  skipped: number;
+  warnings: string[];
+};
+
+function toDate(s: string | null): Date | null {
+  if (!s) return null;
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function toDecimal(v: number | string | null): Prisma.Decimal | null {
+  if (v === null || v === undefined || v === "") return null;
+  if (Number.isNaN(Number(v))) return null;
+  return new Prisma.Decimal(String(v));
+}
+
+export async function syncJobs(): Promise<JobsSyncResult> {
+  const result: JobsSyncResult = { upserted: 0, skipped: 0, warnings: [] };
+  const now = new Date();
+
+  // Pre-load client & property name→id maps keyed by Jobber id.
+  const [clients, properties] = await Promise.all([
+    prisma.client.findMany({ select: { id: true, jobberClientId: true } }),
+    prisma.property.findMany({ select: { id: true, jobberPropertyId: true } }),
+  ]);
+  const clientIdByJobberId = new Map(clients.map((c) => [c.jobberClientId, c.id]));
+  const propIdByJobberId = new Map(
+    properties.map((p) => [p.jobberPropertyId, p.id]),
+  );
+
+  let cursor: string | null = null;
+  do {
+    const data: JobsResponse = await jobberQuery<JobsResponse>(JOBS_QUERY, {
+      cursor,
+    });
+    for (const node of data.jobs.nodes) {
+      const clientLocalId = node.client
+        ? clientIdByJobberId.get(node.client.id)
+        : undefined;
+      if (!clientLocalId) {
+        result.skipped++;
+        result.warnings.push(
+          `Job ${node.jobNumber ?? node.id}: client not in Santa's Stock yet. Run Sync Customers first.`,
+        );
+        continue;
+      }
+      const propertyLocalId = node.property
+        ? propIdByJobberId.get(node.property.id) ?? null
+        : null;
+
+      const data_ = {
+        title: node.title?.trim() || null,
+        jobNumber: node.jobNumber?.trim() || null,
+        description: node.description?.trim() || null,
+        instructions: node.instructions?.trim() || null,
+        total: toDecimal(node.total),
+        startAt: toDate(node.startAt),
+        endAt: toDate(node.endAt),
+        clientId: clientLocalId,
+        propertyId: propertyLocalId,
+        status: node.jobStatus ?? "",
+        syncedAt: now,
+      };
+
+      try {
+        await prisma.jobberJob.upsert({
+          where: { jobberJobId: node.id },
+          update: data_,
+          create: { jobberJobId: node.id, ...data_ },
+        });
+        result.upserted++;
+      } catch (err) {
+        console.error(`[jobber-sync] job ${node.id}:`, err);
+        result.skipped++;
+        result.warnings.push(
+          `Job ${node.jobNumber ?? node.id}: ${err instanceof Error ? err.message : "unknown error"}`,
+        );
+      }
+    }
+    cursor = data.jobs.pageInfo.hasNextPage
+      ? data.jobs.pageInfo.endCursor
+      : null;
+  } while (cursor);
+
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Visits sync
+// ---------------------------------------------------------------------------
+
+const VISITS_QUERY = /* GraphQL */ `
+  query SyncVisits($cursor: String) {
+    visits(first: 25, after: $cursor) {
+      nodes {
+        id
+        title
+        instructions
+        startAt
+        endAt
+        visitStatus
+        job { id }
+      }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+`;
+
+type JobberVisitNode = {
+  id: string;
+  title: string | null;
+  instructions: string | null;
+  startAt: string | null;
+  endAt: string | null;
+  visitStatus: string | null;
+  job: { id: string } | null;
+};
+
+type VisitsResponse = {
+  visits: {
+    nodes: JobberVisitNode[];
+    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+  };
+};
+
+export type VisitsSyncResult = {
+  upserted: number;
+  skipped: number;
+  warnings: string[];
+};
+
+export async function syncVisits(): Promise<VisitsSyncResult> {
+  const result: VisitsSyncResult = { upserted: 0, skipped: 0, warnings: [] };
+  const now = new Date();
+
+  const jobs = await prisma.jobberJob.findMany({
+    select: { id: true, jobberJobId: true },
+  });
+  const jobIdByJobberId = new Map(jobs.map((j) => [j.jobberJobId, j.id]));
+
+  let cursor: string | null = null;
+  do {
+    const data: VisitsResponse = await jobberQuery<VisitsResponse>(
+      VISITS_QUERY,
+      { cursor },
+    );
+    for (const node of data.visits.nodes) {
+      const jobLocalId = node.job ? jobIdByJobberId.get(node.job.id) : undefined;
+      if (!jobLocalId) {
+        result.skipped++;
+        result.warnings.push(
+          `Visit ${node.id}: parent Job not synced yet. Run Sync Jobs first.`,
+        );
+        continue;
+      }
+      const data_ = {
+        jobId: jobLocalId,
+        title: node.title?.trim() || null,
+        instructions: node.instructions?.trim() || null,
+        startAt: toDate(node.startAt),
+        endAt: toDate(node.endAt),
+        status: node.visitStatus ?? "",
+        syncedAt: now,
+      };
+      try {
+        await prisma.jobberVisit.upsert({
+          where: { jobberVisitId: node.id },
+          update: data_,
+          create: { jobberVisitId: node.id, ...data_ },
+        });
+        result.upserted++;
+      } catch (err) {
+        console.error(`[jobber-sync] visit ${node.id}:`, err);
+        result.skipped++;
+        result.warnings.push(
+          `Visit ${node.id}: ${err instanceof Error ? err.message : "unknown error"}`,
+        );
+      }
+    }
+    cursor = data.visits.pageInfo.hasNextPage
+      ? data.visits.pageInfo.endCursor
+      : null;
+  } while (cursor);
+
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Notes sync
+// ---------------------------------------------------------------------------
+//
+// Jobber attaches notes to clients, jobs, and visits. We fetch each parent's
+// notes via paginated sub-query. Each note is then upserted with its parent
+// link recorded. Requires the corresponding parents to be synced first.
+
+const CLIENT_NOTES_QUERY = /* GraphQL */ `
+  query ClientNotes($id: EncodedId!, $cursor: String) {
+    client(id: $id) {
+      notes(first: 50, after: $cursor) {
+        nodes { id message pinned createdAt }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+`;
+
+const JOB_NOTES_QUERY = /* GraphQL */ `
+  query JobNotes($id: EncodedId!, $cursor: String) {
+    job(id: $id) {
+      notes(first: 50, after: $cursor) {
+        nodes { id message pinned createdAt }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+`;
+
+const VISIT_NOTES_QUERY = /* GraphQL */ `
+  query VisitNotes($id: EncodedId!, $cursor: String) {
+    visit(id: $id) {
+      notes(first: 50, after: $cursor) {
+        nodes { id message pinned createdAt }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+`;
+
+type JobberNoteNode = {
+  id: string;
+  message: string | null;
+  pinned: boolean | null;
+  createdAt: string | null;
+};
+
+type NotesPage = {
+  nodes: JobberNoteNode[];
+  pageInfo: { hasNextPage: boolean; endCursor: string | null };
+};
+
+export type NotesSyncResult = {
+  upserted: number;
+  skipped: number;
+  warnings: string[];
+};
+
+async function fetchAllNotes(
+  query: string,
+  jobberParentId: string,
+  pickConnection: (data: unknown) => NotesPage | null,
+): Promise<JobberNoteNode[]> {
+  const out: JobberNoteNode[] = [];
+  let cursor: string | null = null;
+  do {
+    const data = await jobberQuery<unknown>(query, { id: jobberParentId, cursor });
+    const page = pickConnection(data);
+    if (!page) break;
+    out.push(...page.nodes);
+    cursor = page.pageInfo.hasNextPage ? page.pageInfo.endCursor : null;
+  } while (cursor);
+  return out;
+}
+
+export async function syncNotes(): Promise<NotesSyncResult> {
+  const result: NotesSyncResult = { upserted: 0, skipped: 0, warnings: [] };
+  const now = new Date();
+
+  const [clients, jobs, visits] = await Promise.all([
+    prisma.client.findMany({ select: { id: true, jobberClientId: true } }),
+    prisma.jobberJob.findMany({ select: { id: true, jobberJobId: true } }),
+    prisma.jobberVisit.findMany({ select: { id: true, jobberVisitId: true } }),
+  ]);
+
+  type Parent =
+    | { kind: "client"; localId: string; jobberId: string }
+    | { kind: "job"; localId: string; jobberId: string }
+    | { kind: "visit"; localId: string; jobberId: string };
+
+  const parents: Parent[] = [
+    ...clients.map((c) => ({
+      kind: "client" as const,
+      localId: c.id,
+      jobberId: c.jobberClientId,
+    })),
+    ...jobs.map((j) => ({
+      kind: "job" as const,
+      localId: j.id,
+      jobberId: j.jobberJobId,
+    })),
+    ...visits.map((v) => ({
+      kind: "visit" as const,
+      localId: v.id,
+      jobberId: v.jobberVisitId,
+    })),
+  ];
+
+  // Modest concurrency to avoid hammering Jobber's API while still finishing
+  // in a reasonable wall-clock time on large accounts.
+  const CONCURRENCY = 4;
+  for (let i = 0; i < parents.length; i += CONCURRENCY) {
+    const batch = parents.slice(i, i + CONCURRENCY);
+    await Promise.all(
+      batch.map(async (p) => {
+        const query =
+          p.kind === "client"
+            ? CLIENT_NOTES_QUERY
+            : p.kind === "job"
+              ? JOB_NOTES_QUERY
+              : VISIT_NOTES_QUERY;
+
+        try {
+          const notes = await fetchAllNotes(query, p.jobberId, (data) => {
+            const d = data as Record<string, { notes?: NotesPage } | null>;
+            if (p.kind === "client") return d.client?.notes ?? null;
+            if (p.kind === "job") return d.job?.notes ?? null;
+            return d.visit?.notes ?? null;
+          });
+
+          for (const n of notes) {
+            const body = n.message?.trim();
+            if (!body) {
+              result.skipped++;
+              continue;
+            }
+            const link =
+              p.kind === "client"
+                ? { clientId: p.localId, jobId: null, visitId: null }
+                : p.kind === "job"
+                  ? { clientId: null, jobId: p.localId, visitId: null }
+                  : { clientId: null, jobId: null, visitId: p.localId };
+            const data_ = {
+              body,
+              isInternal: false, // Jobber API surfaces visibility differently; treat all as internal for now.
+              noteCreatedAt: toDate(n.createdAt),
+              ...link,
+              syncedAt: now,
+            };
+            await prisma.jobberNote.upsert({
+              where: { jobberNoteId: n.id },
+              update: data_,
+              create: { jobberNoteId: n.id, ...data_ },
+            });
+            result.upserted++;
+          }
+        } catch (err) {
+          console.error(`[jobber-sync] notes for ${p.kind} ${p.jobberId}:`, err);
+          result.skipped++;
+          result.warnings.push(
+            `${p.kind} ${p.jobberId}: ${err instanceof Error ? err.message : "unknown error"}`,
+          );
+        }
+      }),
+    );
+  }
+
+  return result;
+}
