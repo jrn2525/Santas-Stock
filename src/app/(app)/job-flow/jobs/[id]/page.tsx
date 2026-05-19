@@ -66,6 +66,22 @@ export default async function JobDetailPage({
     take: 50,
   });
 
+  // Visit-level notes for any of this Job's visits. Surface them alongside the
+  // job's own notes — from the user's perspective they're "notes on this job".
+  const visitIds = job.visits.map((v) => v.id);
+  const visitNotes = visitIds.length
+    ? await prisma.jobberNote.findMany({
+        where: { visitId: { in: visitIds } },
+        orderBy: [{ noteCreatedAt: "desc" }],
+      })
+    : [];
+
+  const jobAndVisitNotes = [...job.notes, ...visitNotes].sort((a, b) => {
+    const aT = a.noteCreatedAt?.getTime() ?? 0;
+    const bT = b.noteCreatedAt?.getTime() ?? 0;
+    return bT - aT;
+  });
+
   return (
     <>
       <header>
@@ -136,7 +152,7 @@ export default async function JobDetailPage({
       </div>
 
       <JobNotes
-        jobNotes={job.notes.map((n) => ({
+        jobNotes={jobAndVisitNotes.map((n) => ({
           id: n.id,
           body: n.body,
           noteCreatedAt: n.noteCreatedAt?.toISOString() ?? null,
