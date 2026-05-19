@@ -82,16 +82,20 @@ export function KitForm({ kit, items }: { kit?: Kit; items: ItemOption[] }) {
     formAction(formData);
   };
 
-  const linked = !!kit?.jobberProductId;
+  // Once a Kit exists, Name / Description / Unit Cost are owned by Jobber
+  // and can only be changed there. The create form still allows entering
+  // them so manually-created Kits can be seeded.
+  const editing = !!kit;
 
   return (
     <form action={submitWithItems} className="mt-6 max-w-3xl space-y-6">
-      {linked && (
+      {editing && (
         <div className="rounded-md border border-rule bg-card p-4 text-sm text-ink-dim">
-          🔗 Linked to a Jobber service. <strong className="text-ink">Name</strong>,{" "}
+          🔒 <strong className="text-ink">Name</strong>,{" "}
           <strong className="text-ink">Description</strong>, and{" "}
-          <strong className="text-ink">Unit Cost</strong> are owned by Jobber —
-          edit them there and re-sync.
+          <strong className="text-ink">Unit Cost</strong> are managed in
+          Jobber. To change them, edit the service in Jobber and re-run
+          Inventory → Jobber → Sync.
         </div>
       )}
 
@@ -104,14 +108,14 @@ export function KitForm({ kit, items }: { kit?: Kit; items: ItemOption[] }) {
             errors={state.errors.name}
             required
             placeholder='24" Red Wreath Kit'
-            readOnly={linked}
+            readOnly={editing}
           />
           <Field
             label="Description"
             name="description"
             defaultValue={kit?.description ?? ""}
             errors={state.errors.description}
-            readOnly={linked}
+            readOnly={editing}
           />
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
             <Field
@@ -246,9 +250,9 @@ export function KitForm({ kit, items }: { kit?: Kit; items: ItemOption[] }) {
               min={0}
               defaultValue={kit?.unitCost?.toString() ?? ""}
               placeholder="0.00"
-              readOnly={linked}
+              readOnly={editing}
               className={`block w-full rounded-md border border-rule py-2 pl-7 pr-3 text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand ${
-                linked
+                editing
                   ? "cursor-not-allowed bg-canvas/50 text-ink-dim"
                   : "bg-card"
               }`}

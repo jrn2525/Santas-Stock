@@ -182,19 +182,15 @@ export async function updateKit(
 
   const items = consolidate(parsed.data.kitItems);
 
-  // Defense in depth: if this Kit is linked to a Jobber service, Jobber
-  // owns name/description/unitCost. Preserve whatever's in the DB.
+  // Name / Description / Unit Cost are managed in Jobber. Always preserve
+  // the DB values on update; the edit form locks these fields but the
+  // server enforces it independently in case the form is bypassed.
   const scalarData = buildScalarData(parsed.data);
   const existing = await prisma.kit.findUnique({
     where: { id },
-    select: {
-      jobberProductId: true,
-      name: true,
-      description: true,
-      unitCost: true,
-    },
+    select: { name: true, description: true, unitCost: true },
   });
-  if (existing?.jobberProductId) {
+  if (existing) {
     scalarData.name = existing.name;
     scalarData.description = existing.description;
     scalarData.unitCost = existing.unitCost;

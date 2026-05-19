@@ -170,19 +170,14 @@ export async function updateItem(
 
   const data = buildData(parsed.data);
 
-  // Defense in depth: if this row is linked to a Jobber product, Jobber
-  // owns name/description/unitCost. Preserve whatever's in the DB, even
-  // if the form somehow tried to send new values.
+  // Name / Description / Unit Cost are managed in Jobber. Always preserve
+  // the DB values on update; the edit form locks these fields but the
+  // server enforces it independently in case the form is bypassed.
   const existing = await prisma.item.findUnique({
     where: { id },
-    select: {
-      jobberProductId: true,
-      name: true,
-      description: true,
-      unitCost: true,
-    },
+    select: { name: true, description: true, unitCost: true },
   });
-  if (existing?.jobberProductId) {
+  if (existing) {
     data.name = existing.name;
     data.description = existing.description;
     data.unitCost = existing.unitCost;
