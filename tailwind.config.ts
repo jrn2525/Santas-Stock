@@ -4,6 +4,13 @@ const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      fontSize: {
+        // Bumped scale: xs/sm/base all collapse to 16px for readability.
+        xs: ["1rem", { lineHeight: "1.5rem" }],
+        sm: ["1rem", { lineHeight: "1.5rem" }],
+        base: ["1rem", { lineHeight: "1.5rem" }],
+        lg: ["1.25rem", { lineHeight: "1.75rem" }],
+      },
       colors: {
         // Surfaces (darkest -> lightest)
         sidebar: "#000000",
