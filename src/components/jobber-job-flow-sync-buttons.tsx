@@ -20,8 +20,8 @@ export function JobberJobsSyncButton() {
 
   return (
     <SyncSection
-      label="Jobs, Visits, and Notes"
-      hint="One click pulls Jobs, then their Visits (for Calendar), then Notes. Run Sync Customers first if any jobs reference a client that isn't here yet."
+      label="Customers, Jobs, Visits, and Notes"
+      hint="One click pulls Customers + Properties, then Jobs, then Visits (for Calendar), then Notes."
       action={action}
       pending={pending}
       summary={summary}
@@ -33,6 +33,8 @@ export function JobberJobsSyncButton() {
 
 function buildSummary(r: JobFlowSyncResult): string | null {
   const parts: string[] = [];
+  if (r.customers)
+    parts.push(`Customers ${r.customers.clientsUpserted} upserted`);
   if (r.jobs)
     parts.push(`Jobs ${r.jobs.upserted} upserted / ${r.jobs.skipped} skipped`);
   if (r.visits)

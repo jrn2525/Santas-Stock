@@ -24,33 +24,6 @@ export async function disconnectJobber() {
   revalidatePath("/job-flow/jobber");
 }
 
-export type SyncFormState = FormState & {
-  result?: SyncResult;
-};
-
-export async function syncJobberCustomers(
-  _prev: SyncFormState,
-): Promise<SyncFormState> {
-  await assertRoleForAction(WRITE_ROLES);
-
-  try {
-    const result = await syncClientsAndProperties();
-    revalidatePath("/job-flow/customers");
-    revalidatePath("/job-flow/jobber");
-    return { errors: {}, message: null, result };
-  } catch (err) {
-    if (err instanceof JobberNotConnectedError) {
-      return {
-        errors: {},
-        message: "Jobber is not connected. Connect first, then try syncing.",
-      };
-    }
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("Jobber sync failed:", err);
-    return { errors: {}, message: `Sync failed: ${msg}` };
-  }
-}
-
 export type InventorySyncFormState = FormState & {
   result?: InventorySyncResult;
 };
@@ -81,6 +54,7 @@ export async function syncJobberInventory(
 }
 
 export type JobFlowSyncResult = {
+  customers: SyncResult | null;
   jobs: JobsSyncResult | null;
   visits: VisitsSyncResult | null;
   notes: NotesSyncResult | null;
@@ -102,17 +76,28 @@ export async function syncJobberJobs(
   await assertRoleForAction(WRITE_ROLES);
 
   const phaseErrors: string[] = [];
+  let customers: SyncResult | null = null;
   let jobs: JobsSyncResult | null = null;
   let visits: VisitsSyncResult | null = null;
   let notes: NotesSyncResult | null = null;
 
   try {
-    jobs = await syncJobs();
+    customers = await syncClientsAndProperties();
   } catch (err) {
     if (err instanceof JobberNotConnectedError) return notConnectedState();
     const msg = err instanceof Error ? err.message : String(err);
-    console.error("Jobber jobs sync failed:", err);
-    phaseErrors.push(`Jobs: ${msg}`);
+    console.error("Jobber customers sync failed:", err);
+    phaseErrors.push(`Customers: ${msg}`);
+  }
+
+  if (customers) {
+    try {
+      jobs = await syncJobs();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("Jobber jobs sync failed:", err);
+      phaseErrors.push(`Jobs: ${msg}`);
+    }
   }
 
   if (jobs) {
@@ -137,12 +122,12 @@ export async function syncJobberJobs(
 
   revalidatePath("/job-flow/jobs");
   revalidatePath("/job-flow/calendar");
-  revalidatePath("/job-flow/customers");
+  revalidatePath("/job-flow/pick-list");
   revalidatePath("/job-flow/jobber");
 
   return {
     errors: {},
     message: phaseErrors.length ? `Sync failed: ${phaseErrors.join(" · ")}` : null,
-    result: { jobs, visits, notes },
+    result: { customers, jobs, visits, notes },
   };
 }
