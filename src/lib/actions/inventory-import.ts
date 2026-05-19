@@ -299,8 +299,31 @@ export async function importInventoryCsv(
     (target === "item" ? itemRows : kitRows).push({ rowNum, cells, target });
   }
 
+  // Pre-load existing rows by name so the inner loops don't each do their
+  // own findFirst. One query each instead of one-per-row.
+  const [existingItems, existingKits] = await Promise.all([
+    prisma.item.findMany({ select: { id: true, name: true } }),
+    prisma.kit.findMany({ select: { id: true, name: true } }),
+  ]);
+  const itemIdByName = new Map<string, string>(
+    existingItems.map((e) => [e.name, e.id]),
+  );
+  const kitIdByName = new Map<string, string>(
+    existingKits.map((e) => [e.name, e.id]),
+  );
+
+  // Cap concurrency so we don't blow past Prisma's connection pool. 5 is
+  // comfortably below the default pool size and still ~10× faster than
+  // sequential.
+  const CONCURRENCY = 5;
+  async function runInBatches<T>(arr: T[], fn: (x: T) => Promise<void>) {
+    for (let i = 0; i < arr.length; i += CONCURRENCY) {
+      await Promise.all(arr.slice(i, i + CONCURRENCY).map(fn));
+    }
+  }
+
   // ---------- Pass 1: Items ----------
-  for (const { rowNum, cells } of itemRows) {
+  await runInBatches(itemRows, async ({ rowNum, cells }) => {
     const name = readCell(cells, colMap.get("name"));
     const websites: string[] = [];
     const seenWebsites = new Set<string>();
@@ -327,33 +350,27 @@ export async function importInventoryCsv(
       websites,
     };
     try {
-      const existing = await prisma.item.findFirst({ where: { name } });
-      if (existing) {
-        await prisma.item.update({ where: { id: existing.id }, data });
+      const existingId = itemIdByName.get(name);
+      if (existingId) {
+        await prisma.item.update({ where: { id: existingId }, data });
         summary.items.updated++;
       } else {
-        await prisma.item.create({ data });
+        const created = await prisma.item.create({ data });
+        itemIdByName.set(name, created.id);
         summary.items.created++;
       }
     } catch (err) {
+      console.error(`[csv-import] row ${rowNum} item "${name}":`, err);
       summary.skipped++;
       summary.errors.push({
         row: rowNum,
         reason: err instanceof Error ? err.message : "Unknown database error.",
       });
     }
-  }
+  });
 
   // ---------- Pass 2: Kits ----------
-  // Build an Item-name → id map once for kit→item resolution. Items just
-  // touched in Pass 1 will be in here too.
-  const allItems = await prisma.item.findMany({
-    select: { id: true, name: true },
-  });
-  const itemIdByName = new Map<string, string>();
-  for (const it of allItems) itemIdByName.set(it.name, it.id);
-
-  for (const { rowNum, cells } of kitRows) {
+  await runInBatches(kitRows, async ({ rowNum, cells }) => {
     const name = readCell(cells, colMap.get("name"));
 
     const kitItems: { itemId: string; quantity: number }[] = [];
@@ -402,12 +419,12 @@ export async function importInventoryCsv(
     };
 
     try {
-      const existing = await prisma.kit.findFirst({ where: { name } });
-      if (existing) {
+      const existingId = kitIdByName.get(name);
+      if (existingId) {
         await prisma.$transaction([
-          prisma.kitItem.deleteMany({ where: { kitId: existing.id } }),
+          prisma.kitItem.deleteMany({ where: { kitId: existingId } }),
           prisma.kit.update({
-            where: { id: existing.id },
+            where: { id: existingId },
             data: {
               ...data,
               items: { create: kitItemRows },
@@ -416,19 +433,21 @@ export async function importInventoryCsv(
         ]);
         summary.kits.updated++;
       } else {
-        await prisma.kit.create({
+        const created = await prisma.kit.create({
           data: { ...data, items: { create: kitItemRows } },
         });
+        kitIdByName.set(name, created.id);
         summary.kits.created++;
       }
     } catch (err) {
+      console.error(`[csv-import] row ${rowNum} kit "${name}":`, err);
       summary.skipped++;
       summary.errors.push({
         row: rowNum,
         reason: err instanceof Error ? err.message : "Unknown database error.",
       });
     }
-  }
+  });
 
   const total =
     summary.items.created +
