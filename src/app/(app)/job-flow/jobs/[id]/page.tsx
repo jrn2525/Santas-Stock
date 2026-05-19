@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
+import { PrintButton } from "@/components/print-button";
+import { JobNotes } from "@/components/job-notes";
 
 export const dynamic = "force-dynamic";
 
@@ -66,27 +68,28 @@ export default async function JobDetailPage({
 
   return (
     <>
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs uppercase tracking-wider text-ink-dim">
-            <Link href="/job-flow/jobs" className="hover:text-ink">
-              ← Jobs
-            </Link>
-          </p>
-          <h1 className="mt-2 text-3xl font-bold text-brand-hover">
-            {job.title ?? "(untitled job)"}
-          </h1>
-          <p className="mt-1 text-sm text-ink-dim">
-            {job.jobNumber && <>Job #{job.jobNumber} · </>}
-            Status: {job.status || "—"}
-            {job.total != null && (
-              <> · Total {moneyFmt.format(Number(job.total))}</>
-            )}
-          </p>
+      <header>
+        <div className="no-print mb-3">
+          <PrintButton />
         </div>
+        <p className="text-xs uppercase tracking-wider text-ink-dim no-print">
+          <Link href="/job-flow/jobs" className="hover:text-ink">
+            ← Jobs
+          </Link>
+        </p>
+        <h1 className="mt-2 text-3xl font-bold text-brand-hover">
+          {job.title ?? "(untitled job)"}
+        </h1>
+        <p className="mt-1 text-sm text-ink-dim">
+          {job.jobNumber && <>Job #{job.jobNumber} · </>}
+          Status: {job.status || "—"}
+          {job.total != null && (
+            <> · Total {moneyFmt.format(Number(job.total))}</>
+          )}
+        </p>
       </header>
 
-      <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Customer */}
         <Card title="Customer">
           {job.client ? (
@@ -130,45 +133,23 @@ export default async function JobDetailPage({
           )}
         </Card>
 
-        {/* Notes — job-level + customer-level */}
-        <Card title="Notes">
-          {job.notes.length === 0 && clientNotes.length === 0 ? (
-            <p className="text-sm text-ink-dim">
-              No notes. Run Sync Notes in Job Flow → Jobber to pull them in.
-            </p>
-          ) : (
-            <div className="space-y-4">
-              {job.notes.length > 0 && (
-                <div>
-                  <h3 className="text-xs uppercase tracking-wider text-ink-dim">
-                    On this job
-                  </h3>
-                  <ul className="mt-2 space-y-2 text-sm">
-                    {job.notes.map((n) => (
-                      <NoteRow key={n.id} body={n.body} at={n.noteCreatedAt} />
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {clientNotes.length > 0 && (
-                <div>
-                  <h3 className="text-xs uppercase tracking-wider text-ink-dim">
-                    On the customer
-                  </h3>
-                  <ul className="mt-2 space-y-2 text-sm">
-                    {clientNotes.map((n) => (
-                      <NoteRow key={n.id} body={n.body} at={n.noteCreatedAt} />
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
-        </Card>
       </div>
 
+      <JobNotes
+        jobNotes={job.notes.map((n) => ({
+          id: n.id,
+          body: n.body,
+          noteCreatedAt: n.noteCreatedAt?.toISOString() ?? null,
+        }))}
+        clientNotes={clientNotes.map((n) => ({
+          id: n.id,
+          body: n.body,
+          noteCreatedAt: n.noteCreatedAt?.toISOString() ?? null,
+        }))}
+      />
+
       {/* Pick List */}
-      <section className="mt-6 rounded-lg border border-rule bg-card p-6">
+      <section className="mt-6 rounded-lg border border-rule bg-card p-6 print-block">
         <header className="flex items-end justify-between">
           <div>
             <h2 className="text-lg font-semibold text-ink">Pick List</h2>
@@ -254,7 +235,7 @@ export default async function JobDetailPage({
       </section>
 
       {(job.description || job.instructions) && (
-        <section className="mt-6 rounded-lg border border-rule bg-card p-6">
+        <section className="mt-6 rounded-lg border border-rule bg-card p-6 print-block">
           <h2 className="text-lg font-semibold text-ink">Details</h2>
           {job.description && (
             <div className="mt-3">
@@ -299,13 +280,3 @@ function Card({
   );
 }
 
-function NoteRow({ body, at }: { body: string; at: Date | null }) {
-  return (
-    <li className="rounded border border-rule bg-canvas p-2">
-      <p className="text-ink whitespace-pre-line">{body}</p>
-      {at && (
-        <p className="mt-1 text-xs text-ink-dim">{dayFmt.format(at)}</p>
-      )}
-    </li>
-  );
-}

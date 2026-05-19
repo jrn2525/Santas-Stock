@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
-import { PickListNotes } from "@/components/pick-list-notes";
+import { PrintButton } from "@/components/print-button";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +26,6 @@ export default async function PickListDetailPage({
     include: {
       client: true,
       property: true,
-      notes: { orderBy: [{ noteCreatedAt: "desc" }] },
       lineItems: {
         orderBy: [{ position: "asc" }],
         include: {
@@ -46,39 +45,32 @@ export default async function PickListDetailPage({
 
   if (!job) notFound();
 
-  const clientNotes = await prisma.jobberNote.findMany({
-    where: { clientId: job.clientId },
-    orderBy: [{ noteCreatedAt: "desc" }],
-    take: 100,
-  });
-
   const kitLines = job.lineItems.filter((li) => li.kit);
   const itemLines = job.lineItems.filter((li) => li.item && !li.kit);
   const unresolvedLines = job.lineItems.filter((li) => !li.item && !li.kit);
 
   return (
     <>
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs uppercase tracking-wider text-ink-dim no-print">
-            <Link href="/job-flow/pick-list" className="hover:text-ink">
-              ← Pick List
-            </Link>
-          </p>
-          <h1 className="mt-2 text-3xl font-bold text-brand-hover">
-            {job.title ?? "(untitled job)"}
-          </h1>
-          <p className="mt-1 text-sm text-ink-dim">
-            {job.jobNumber && <>Job #{job.jobNumber} · </>}
-            {job.client?.name ?? "—"}
-            {job.startAt && <> · {dayFmt.format(job.startAt)}</>}
-          </p>
-          {job.property?.address && (
-            <p className="mt-1 text-sm text-ink-dim">
-              {job.property.address}
-            </p>
-          )}
+      <header>
+        <div className="no-print mb-3">
+          <PrintButton />
         </div>
+        <p className="text-xs uppercase tracking-wider text-ink-dim no-print">
+          <Link href="/job-flow/pick-list" className="hover:text-ink">
+            ← Pick List
+          </Link>
+        </p>
+        <h1 className="mt-2 text-3xl font-bold text-brand-hover">
+          {job.title ?? "(untitled job)"}
+        </h1>
+        <p className="mt-1 text-sm text-ink-dim">
+          {job.jobNumber && <>Job #{job.jobNumber} · </>}
+          {job.client?.name ?? "—"}
+          {job.startAt && <> · {dayFmt.format(job.startAt)}</>}
+        </p>
+        {job.property?.address && (
+          <p className="mt-1 text-sm text-ink-dim">{job.property.address}</p>
+        )}
       </header>
 
       <section className="mt-8 rounded-lg border border-rule bg-card p-6 print-block">
@@ -208,18 +200,6 @@ export default async function PickListDetailPage({
         )}
       </section>
 
-      <PickListNotes
-        jobNotes={job.notes.map((n) => ({
-          id: n.id,
-          body: n.body,
-          noteCreatedAt: n.noteCreatedAt?.toISOString() ?? null,
-        }))}
-        clientNotes={clientNotes.map((n) => ({
-          id: n.id,
-          body: n.body,
-          noteCreatedAt: n.noteCreatedAt?.toISOString() ?? null,
-        }))}
-      />
     </>
   );
 }

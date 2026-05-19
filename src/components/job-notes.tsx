@@ -13,9 +13,10 @@ const dayFmt = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
   year: "numeric",
+  timeZone: "America/New_York",
 });
 
-export function PickListNotes({
+export function JobNotes({
   jobNotes,
   clientNotes,
 }: {
@@ -35,34 +36,20 @@ export function PickListNotes({
     });
   }
 
-  function handlePrint() {
-    window.print();
-  }
-
   const hasNotes = jobNotes.length > 0 || clientNotes.length > 0;
 
   return (
     <section className="mt-6 rounded-lg border border-rule bg-card p-6 print-block">
-      <header className="flex items-start justify-between gap-2">
-        <div>
-          <h2 className="text-lg font-semibold text-ink">Notes</h2>
-          <p className="mt-1 text-sm text-ink-dim no-print">
-            Uncheck any note you don&apos;t want to include in the printout.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={handlePrint}
-          className="no-print rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-ink hover:bg-brand-hover"
-        >
-          Print
-        </button>
+      <header>
+        <h2 className="text-lg font-semibold text-ink">Notes</h2>
+        <p className="mt-1 text-sm text-ink-dim no-print">
+          Uncheck any note you don&apos;t want to include in the printout.
+        </p>
       </header>
 
       {!hasNotes ? (
         <p className="mt-6 text-sm text-ink-dim">
-          No notes for this job. Run Sync Jobs in Job Flow → Jobber to pull
-          them in.
+          No notes for this job. Run Sync in Job Flow → Jobber to pull them in.
         </p>
       ) : (
         <div className="mt-4 space-y-5">

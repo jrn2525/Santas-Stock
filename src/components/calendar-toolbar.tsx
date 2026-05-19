@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarPrintButton } from "./calendar-print-button";
+import { PrintButton } from "./print-button";
 import {
   addDaysET,
   addMonthsET,
@@ -77,7 +77,7 @@ export function CalendarToolbar({
             );
           })}
         </div>
-        <CalendarPrintButton />
+        <PrintButton />
       </div>
     </div>
   );
