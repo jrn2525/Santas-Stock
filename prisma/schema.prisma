@@ -160,6 +160,8 @@ model Item {
   status                   ItemStatus     @default(AVAILABLE)
   active                   Boolean        @default(true)
   quantity                 Int            @default(0)
+  /// Low-stock threshold. Items with quantity <= minQuantity surface on the dashboard.
+  minQuantity              Int            @default(0)
   unitCost                 Decimal?       @db.Decimal(12, 2) @map("purchaseCost")
 
   homeLocation             String?

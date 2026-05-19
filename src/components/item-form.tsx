@@ -16,6 +16,7 @@ type Item = {
   productType: ProductType | null;
   status: ItemStatus;
   quantity: number;
+  minQuantity: number;
   active: boolean;
   homeLocation: string | null;
   currentLocation: string | null;
@@ -184,7 +185,17 @@ export function ItemForm({ item }: { item?: Item }) {
             required
           />
 
-          <div className="sm:col-span-2 flex items-end pb-1">
+          <Field
+            label="Min quantity"
+            name="minQuantity"
+            type="number"
+            min={0}
+            defaultValue={item?.minQuantity ?? 0}
+            errors={state.errors.minQuantity}
+            help="Low-stock alert when at or below this number. 0 to disable."
+          />
+
+          <div className="flex items-end pb-1">
             <label className="flex items-center gap-3 text-sm text-ink">
               <input
                 type="checkbox"
