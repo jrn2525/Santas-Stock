@@ -21,6 +21,7 @@ type Item = {
   currentLocation: string | null;
   unitCost: { toString(): string } | null;
   websites: string[];
+  jobberProductId: string | null;
 };
 
 type WebsiteRow = { key: string; url: string };
@@ -70,8 +71,19 @@ export function ItemForm({ item }: { item?: Item }) {
     formAction(formData);
   };
 
+  const linked = !!item?.jobberProductId;
+
   return (
     <form action={submitWithWebsites} className="mt-6 max-w-3xl space-y-6">
+      {linked && (
+        <div className="rounded-md border border-rule bg-card p-4 text-sm text-ink-dim">
+          🔗 Linked to a Jobber product. <strong className="text-ink">Name</strong>,{" "}
+          <strong className="text-ink">Description</strong>, and{" "}
+          <strong className="text-ink">Unit Cost</strong> are owned by Jobber —
+          edit them there and re-sync.
+        </div>
+      )}
+
       <Section title="Identity">
         <div className="grid grid-cols-1 gap-5">
           <Field
@@ -80,6 +92,7 @@ export function ItemForm({ item }: { item?: Item }) {
             defaultValue={item?.name ?? ""}
             errors={state.errors.name}
             required
+            readOnly={linked}
           />
           <Field
             label="Description"
@@ -87,6 +100,7 @@ export function ItemForm({ item }: { item?: Item }) {
             defaultValue={item?.description ?? ""}
             errors={state.errors.description}
             required
+            readOnly={linked}
           />
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
             <Field
@@ -222,7 +236,12 @@ export function ItemForm({ item }: { item?: Item }) {
               min={0}
               defaultValue={item?.unitCost?.toString() ?? ""}
               placeholder="0.00"
-              className="block w-full rounded-md border border-rule bg-card py-2 pl-7 pr-3 text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+              readOnly={linked}
+              className={`block w-full rounded-md border border-rule py-2 pl-7 pr-3 text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand ${
+                linked
+                  ? "cursor-not-allowed bg-canvas/50 text-ink-dim"
+                  : "bg-card"
+              }`}
             />
           </div>
           <p className="mt-1 text-xs text-ink-dim">What we paid per unit.</p>
@@ -331,6 +350,7 @@ function Field({
   step,
   min,
   help,
+  readOnly,
 }: {
   label: string;
   name: string;
@@ -341,6 +361,7 @@ function Field({
   step?: string;
   min?: number;
   help?: string;
+  readOnly?: boolean;
 }) {
   return (
     <div>
@@ -356,7 +377,10 @@ function Field({
         required={required}
         step={step}
         min={min}
-        className="mt-1 block w-full rounded-md border border-rule bg-canvas px-3 py-2 text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+        readOnly={readOnly}
+        className={`mt-1 block w-full rounded-md border border-rule px-3 py-2 text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand ${
+          readOnly ? "cursor-not-allowed bg-canvas/50 text-ink-dim" : "bg-canvas"
+        }`}
       />
       {help && <p className="mt-1 text-xs text-ink-dim">{help}</p>}
       {errors?.map((e) => (

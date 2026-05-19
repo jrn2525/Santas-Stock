@@ -168,8 +168,28 @@ export async function updateItem(
     return { errors: parsed.error.flatten().fieldErrors, message: null };
   }
 
+  const data = buildData(parsed.data);
+
+  // Defense in depth: if this row is linked to a Jobber product, Jobber
+  // owns name/description/unitCost. Preserve whatever's in the DB, even
+  // if the form somehow tried to send new values.
+  const existing = await prisma.item.findUnique({
+    where: { id },
+    select: {
+      jobberProductId: true,
+      name: true,
+      description: true,
+      unitCost: true,
+    },
+  });
+  if (existing?.jobberProductId) {
+    data.name = existing.name;
+    data.description = existing.description;
+    data.unitCost = existing.unitCost;
+  }
+
   try {
-    await prisma.item.update({ where: { id }, data: buildData(parsed.data) });
+    await prisma.item.update({ where: { id }, data });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
       return uniqueViolationState(err);

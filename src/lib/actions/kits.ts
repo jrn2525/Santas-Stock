@@ -182,13 +182,31 @@ export async function updateKit(
 
   const items = consolidate(parsed.data.kitItems);
 
+  // Defense in depth: if this Kit is linked to a Jobber service, Jobber
+  // owns name/description/unitCost. Preserve whatever's in the DB.
+  const scalarData = buildScalarData(parsed.data);
+  const existing = await prisma.kit.findUnique({
+    where: { id },
+    select: {
+      jobberProductId: true,
+      name: true,
+      description: true,
+      unitCost: true,
+    },
+  });
+  if (existing?.jobberProductId) {
+    scalarData.name = existing.name;
+    scalarData.description = existing.description;
+    scalarData.unitCost = existing.unitCost;
+  }
+
   try {
     await prisma.$transaction([
       prisma.kitItem.deleteMany({ where: { kitId: id } }),
       prisma.kit.update({
         where: { id },
         data: {
-          ...buildScalarData(parsed.data),
+          ...scalarData,
           items: { create: items },
         },
       }),
