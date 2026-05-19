@@ -39,10 +39,10 @@ export default async function SignInPage({
         <Image
           src="/logo.png"
           alt="Santa's Stock"
-          width={160}
-          height={160}
+          width={320}
+          height={320}
           priority
-          className="h-auto w-40"
+          className="h-auto w-80"
         />
       </div>
 
