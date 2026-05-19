@@ -10,7 +10,7 @@ export function WorkspaceTabs({ role }: { role: Role }) {
   const isAdmin = pathname.startsWith("/admin");
   const isJobFlow = !isInventory && !isAdmin;
 
-  const showAdmin = role === "ADMIN" || role === "MANAGER";
+  const showAdmin = role === "ADMIN";
 
   const tabClass = (active: boolean) =>
     `rounded-md px-6 py-3 text-base font-semibold transition ${

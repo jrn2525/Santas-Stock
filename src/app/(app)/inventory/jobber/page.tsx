@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireRole } from "@/lib/auth-helpers";
+import { WRITE_ROLES, requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { InventorySyncButton } from "@/components/inventory-sync-button";
 
@@ -11,7 +11,7 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
 });
 
 export default async function InventoryJobberPage() {
-  await requireRole("ADMIN");
+  await requireRole(WRITE_ROLES);
 
   const [connection, itemTotals, kitTotals, lastTouchedItem, lastTouchedKit] =
     await Promise.all([

@@ -41,7 +41,6 @@ export async function assertRoleForAction(allowed: Role | Role[]) {
 
 export const WRITE_ROLES: Role[] = ["ADMIN", "MANAGER"];
 export const ADMIN_ROLES: Role[] = ["ADMIN"];
-export const ADMIN_PANEL_ROLES: Role[] = ["ADMIN", "MANAGER"];
 
 // Display label for a Role. The third role is stored as USER in the DB but
 // presented to humans as "Crew".

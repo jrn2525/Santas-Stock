@@ -7,7 +7,10 @@ import type { Role } from "@prisma/client";
 type NavItem = {
   href: string;
   label: string;
-  adminOnly?: boolean;
+  // If omitted, visible to every role. Otherwise restricted to the listed
+  // roles. Page-level requireRole() calls are the source of truth — this
+  // just hides links the user can't use.
+  visibleTo?: Role[];
 };
 
 const jobFlowNav: NavItem[] = [
@@ -17,24 +20,20 @@ const jobFlowNav: NavItem[] = [
   { href: "/job-flow/jobs", label: "Jobs" },
   { href: "/job-flow/pick-list", label: "Pick List" },
   { href: "/job-flow/calendar", label: "Calendar" },
-  { href: "/job-flow/jobber", label: "Jobber", adminOnly: true },
+  { href: "/job-flow/jobber", label: "Jobber", visibleTo: ["ADMIN", "MANAGER"] },
 ];
 
 const inventoryNav: NavItem[] = [
   { href: "/inventory/dashboard", label: "Dashboard" },
   { href: "/inventory/items", label: "Items" },
   { href: "/inventory/kits", label: "Kits" },
-  { href: "/inventory/jobber", label: "Jobber", adminOnly: true },
-  { href: "/inventory/import-export", label: "Import / Export", adminOnly: true },
+  { href: "/inventory/jobber", label: "Jobber", visibleTo: ["ADMIN", "MANAGER"] },
 ];
 
-// Admin section also surfaces Import / Export and Jobber sync so admins can
-// reach those tools from either the Inventory or Admin sidebar.
 const adminNav: NavItem[] = [
   { href: "/admin/overview", label: "Overview" },
-  { href: "/admin/users", label: "Users", adminOnly: true },
-  { href: "/inventory/import-export", label: "Import / Export", adminOnly: true },
-  { href: "/inventory/jobber", label: "Jobber sync", adminOnly: true },
+  { href: "/admin/users", label: "Users" },
+  { href: "/inventory/import-export", label: "Import / Export" },
 ];
 
 function pickNav(pathname: string): NavItem[] {
@@ -50,7 +49,7 @@ export function Sidebar({ role }: { role: Role }) {
   return (
     <nav className="flex flex-col gap-1 p-4">
       {navItems
-        .filter((item) => !item.adminOnly || role === "ADMIN")
+        .filter((item) => !item.visibleTo || item.visibleTo.includes(role))
         .map((item) => {
           const active =
             pathname === item.href || pathname.startsWith(`${item.href}/`);
