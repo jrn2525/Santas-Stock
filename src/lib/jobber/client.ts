@@ -48,9 +48,36 @@ async function getValidAccessToken(): Promise<string> {
 
 type GraphQLError = { message: string; path?: (string | number)[] };
 
+// Jobber uses a cost-based GraphQL throttle. On "Throttled" we back off and
+// retry; everything else fails fast.
+const MAX_THROTTLE_RETRIES = 4;
+
+function isThrottled(err: unknown): boolean {
+  return err instanceof JobberError && /Throttled/i.test(err.message);
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 export async function jobberQuery<TData = unknown>(
   query: string,
   variables: Record<string, unknown> = {},
+): Promise<TData> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= MAX_THROTTLE_RETRIES; attempt++) {
+    try {
+      return await jobberQueryOnce<TData>(query, variables);
+    } catch (err) {
+      lastErr = err;
+      if (!isThrottled(err) || attempt === MAX_THROTTLE_RETRIES) throw err;
+      await sleep(2000 * 2 ** attempt); // 2s, 4s, 8s, 16s
+    }
+  }
+  throw lastErr;
+}
+
+async function jobberQueryOnce<TData>(
+  query: string,
+  variables: Record<string, unknown>,
 ): Promise<TData> {
   const accessToken = await getValidAccessToken();
 

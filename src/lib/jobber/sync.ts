@@ -433,7 +433,6 @@ const JOBS_QUERY = /* GraphQL */ `
         id
         title
         jobNumber
-        description
         instructions
         total
         startAt
@@ -447,7 +446,7 @@ const JOBS_QUERY = /* GraphQL */ `
             name
             description
             quantity
-            productOrService { id }
+            linkedProductOrService { id }
           }
         }
       }
@@ -461,14 +460,13 @@ type JobberLineItemNode = {
   name: string | null;
   description: string | null;
   quantity: number | string | null;
-  productOrService: { id: string } | null;
+  linkedProductOrService: { id: string } | null;
 };
 
 type JobberJobNode = {
   id: string;
   title: string | null;
   jobNumber: string | null;
-  description: string | null;
   instructions: string | null;
   total: number | string | null;
   startAt: string | null;
@@ -560,7 +558,6 @@ export async function syncJobs(): Promise<JobsSyncResult> {
       const data_ = {
         title: node.title?.trim() || null,
         jobNumber: node.jobNumber?.trim() || null,
-        description: node.description?.trim() || null,
         instructions: node.instructions?.trim() || null,
         total: toDecimal(node.total),
         startAt: toDate(node.startAt),
@@ -585,7 +582,7 @@ export async function syncJobs(): Promise<JobsSyncResult> {
         const lineNodes = node.lineItems?.nodes ?? [];
         for (let pos = 0; pos < lineNodes.length; pos++) {
           const li = lineNodes[pos];
-          const linkedJobberId = li.productOrService?.id ?? null;
+          const linkedJobberId = li.linkedProductOrService?.id ?? null;
           const itemId = linkedJobberId
             ? itemIdByJobberProductId.get(linkedJobberId) ?? null
             : null;
