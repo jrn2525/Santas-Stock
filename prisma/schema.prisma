@@ -183,6 +183,8 @@ model Item {
   websites                 String[]       @default([])
   customFields             Json?
 
+  jobberProductId          String?        @unique
+
   kitMemberships           KitItem[]
   allocations              Allocation[]
   replacementEntries       ReplacementQueue[]
@@ -217,6 +219,8 @@ model Kit {
   currentLocation String?
 
   photos          String[]   @default([])
+
+  jobberProductId String?    @unique
 
   items           KitItem[]
   allocations     Allocation[]

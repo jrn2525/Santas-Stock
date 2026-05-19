@@ -1,4 +1,5 @@
-﻿import { prisma } from "@/lib/prisma";
+﻿import { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import { jobberQuery } from "./client";
 
 const CLIENTS_QUERY = /* GraphQL */ `
@@ -145,4 +146,258 @@ export async function syncClientsAndProperties(): Promise<SyncResult> {
   } while (cursor);
 
   return { clientsUpserted };
+}
+
+// ---------------------------------------------------------------------------
+// Products & Services sync
+// ---------------------------------------------------------------------------
+//
+// Jobber's catalog is a single "ProductOrService" entity with a category
+// (PRODUCT or SERVICE). We pull both and route:
+//   PRODUCT  -> Item
+//   SERVICE  -> Kit
+//
+// Matching strategy per row:
+//   1. Match by jobberProductId (the Jobber GraphQL ID) if it's set locally.
+//   2. Fall back to match by exact name on rows that have no jobberProductId
+//      yet (claim-by-name) so CSV-imported rows get linked on first sync.
+//   3. Otherwise insert a new row.
+//
+// Jobber-owned fields (overwritten on every sync): name, description,
+// unitCost. Everything else on Item/Kit is Santa's Stock-only and is left
+// alone by sync.
+
+const PRODUCT_OR_SERVICE_QUERY = /* GraphQL */ `
+  query SyncProductOrServices($cursor: String) {
+    productOrServices(first: 25, after: $cursor) {
+      nodes {
+        id
+        name
+        description
+        category
+        defaultUnitCost
+        internalUnitCost
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`;
+
+type JobberProductOrServiceNode = {
+  id: string;
+  name: string | null;
+  description: string | null;
+  category: string | null;
+  defaultUnitCost: number | string | null;
+  internalUnitCost: number | string | null;
+};
+
+type ProductOrServicesResponse = {
+  productOrServices: {
+    nodes: JobberProductOrServiceNode[];
+    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+  };
+};
+
+export type InventorySyncResult = {
+  itemsCreated: number;
+  itemsUpdated: number;
+  kitsCreated: number;
+  kitsUpdated: number;
+  skipped: number;
+  warnings: string[];
+};
+
+function pickUnitCost(
+  node: JobberProductOrServiceNode,
+): Prisma.Decimal | null {
+  // Prefer internalUnitCost (our cost basis); fall back to defaultUnitCost
+  // so a row at least has a price. Null if neither is set.
+  const raw = node.internalUnitCost ?? node.defaultUnitCost;
+  if (raw === null || raw === undefined || raw === "") return null;
+  const s = String(raw);
+  if (Number.isNaN(Number(s))) return null;
+  return new Prisma.Decimal(s);
+}
+
+export async function syncProductsAndServices(): Promise<InventorySyncResult> {
+  const result: InventorySyncResult = {
+    itemsCreated: 0,
+    itemsUpdated: 0,
+    kitsCreated: 0,
+    kitsUpdated: 0,
+    skipped: 0,
+    warnings: [],
+  };
+
+  // Pre-load existing rows for fast claim-by-name fallback. Names should be
+  // unique-ish; if not, we'll only claim the first.
+  const [existingItems, existingKits] = await Promise.all([
+    prisma.item.findMany({
+      select: { id: true, name: true, jobberProductId: true },
+    }),
+    prisma.kit.findMany({
+      select: { id: true, name: true, jobberProductId: true },
+    }),
+  ]);
+  const itemIdByJobberId = new Map<string, string>();
+  const itemIdByName = new Map<string, string>();
+  for (const i of existingItems) {
+    if (i.jobberProductId) itemIdByJobberId.set(i.jobberProductId, i.id);
+    if (!i.jobberProductId && !itemIdByName.has(i.name)) {
+      itemIdByName.set(i.name, i.id);
+    }
+  }
+  const kitIdByJobberId = new Map<string, string>();
+  const kitIdByName = new Map<string, string>();
+  for (const k of existingKits) {
+    if (k.jobberProductId) kitIdByJobberId.set(k.jobberProductId, k.id);
+    if (!k.jobberProductId && !kitIdByName.has(k.name)) {
+      kitIdByName.set(k.name, k.id);
+    }
+  }
+
+  let cursor: string | null = null;
+  do {
+    const data: ProductOrServicesResponse =
+      await jobberQuery<ProductOrServicesResponse>(PRODUCT_OR_SERVICE_QUERY, {
+        cursor,
+      });
+
+    for (const node of data.productOrServices.nodes) {
+      const name = node.name?.trim();
+      if (!name) {
+        result.skipped++;
+        result.warnings.push(`Jobber row ${node.id} has no name — skipped.`);
+        continue;
+      }
+      const description = (node.description ?? "").trim();
+      const unitCost = pickUnitCost(node);
+      const category = (node.category ?? "").toUpperCase();
+
+      const isService = category === "SERVICE";
+      const isProduct = category === "PRODUCT" || category === "";
+
+      try {
+        if (isService) {
+          await upsertKit(node.id, name, description, unitCost, {
+            kitIdByJobberId,
+            kitIdByName,
+            result,
+          });
+        } else if (isProduct) {
+          await upsertItem(node.id, name, description, unitCost, {
+            itemIdByJobberId,
+            itemIdByName,
+            result,
+          });
+        } else {
+          result.skipped++;
+          result.warnings.push(
+            `Jobber "${name}" has unknown category "${category}" — skipped.`,
+          );
+        }
+      } catch (err) {
+        console.error(`[jobber-sync] failed for "${name}":`, err);
+        result.skipped++;
+        result.warnings.push(
+          `"${name}": ${err instanceof Error ? err.message : "unknown error"}`,
+        );
+      }
+    }
+
+    cursor = data.productOrServices.pageInfo.hasNextPage
+      ? data.productOrServices.pageInfo.endCursor
+      : null;
+  } while (cursor);
+
+  return result;
+}
+
+async function upsertItem(
+  jobberId: string,
+  name: string,
+  description: string,
+  unitCost: Prisma.Decimal | null,
+  ctx: {
+    itemIdByJobberId: Map<string, string>;
+    itemIdByName: Map<string, string>;
+    result: InventorySyncResult;
+  },
+) {
+  // Only these three fields are owned by Jobber.
+  const jobberFields = { name, description, unitCost };
+
+  const existingByJobberId = ctx.itemIdByJobberId.get(jobberId);
+  if (existingByJobberId) {
+    await prisma.item.update({
+      where: { id: existingByJobberId },
+      data: jobberFields,
+    });
+    ctx.result.itemsUpdated++;
+    return;
+  }
+
+  const claimable = ctx.itemIdByName.get(name);
+  if (claimable) {
+    await prisma.item.update({
+      where: { id: claimable },
+      data: { ...jobberFields, jobberProductId: jobberId },
+    });
+    ctx.itemIdByJobberId.set(jobberId, claimable);
+    ctx.itemIdByName.delete(name);
+    ctx.result.itemsUpdated++;
+    return;
+  }
+
+  const created = await prisma.item.create({
+    data: { ...jobberFields, jobberProductId: jobberId },
+  });
+  ctx.itemIdByJobberId.set(jobberId, created.id);
+  ctx.result.itemsCreated++;
+}
+
+async function upsertKit(
+  jobberId: string,
+  name: string,
+  description: string,
+  unitCost: Prisma.Decimal | null,
+  ctx: {
+    kitIdByJobberId: Map<string, string>;
+    kitIdByName: Map<string, string>;
+    result: InventorySyncResult;
+  },
+) {
+  const jobberFields = { name, description, unitCost };
+
+  const existingByJobberId = ctx.kitIdByJobberId.get(jobberId);
+  if (existingByJobberId) {
+    await prisma.kit.update({
+      where: { id: existingByJobberId },
+      data: jobberFields,
+    });
+    ctx.result.kitsUpdated++;
+    return;
+  }
+
+  const claimable = ctx.kitIdByName.get(name);
+  if (claimable) {
+    await prisma.kit.update({
+      where: { id: claimable },
+      data: { ...jobberFields, jobberProductId: jobberId },
+    });
+    ctx.kitIdByJobberId.set(jobberId, claimable);
+    ctx.kitIdByName.delete(name);
+    ctx.result.kitsUpdated++;
+    return;
+  }
+
+  const created = await prisma.kit.create({
+    data: { ...jobberFields, jobberProductId: jobberId },
+  });
+  ctx.kitIdByJobberId.set(jobberId, created.id);
+  ctx.result.kitsCreated++;
 }
