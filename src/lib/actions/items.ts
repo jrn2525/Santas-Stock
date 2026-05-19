@@ -42,6 +42,10 @@ const ItemSchema = z.object({
     (v) => v === "on" || v === "true" || v === true,
     z.boolean(),
   ),
+  websites: z.preprocess(
+    (v) => parseWebsitesJson(v),
+    z.array(z.string().min(1).max(500)).max(50),
+  ),
 
   // Optional fields
   sku: optionalString,
@@ -53,6 +57,26 @@ const ItemSchema = z.object({
   unitCost: optionalDecimal,
 });
 
+function parseWebsitesJson(value: unknown): string[] {
+  if (typeof value !== "string" || value.length === 0) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const raw of parsed) {
+      if (typeof raw !== "string") continue;
+      const trimmed = raw.trim();
+      if (!trimmed || seen.has(trimmed)) continue;
+      seen.add(trimmed);
+      out.push(trimmed);
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 function readForm(formData: FormData) {
   return ItemSchema.safeParse({
     name: formData.get("name"),
@@ -60,6 +84,7 @@ function readForm(formData: FormData) {
     status: formData.get("status"),
     quantity: formData.get("quantity"),
     active: formData.get("active"),
+    websites: formData.get("websites"),
     sku: formData.get("sku"),
     manufacturer: formData.get("manufacturer"),
     model: formData.get("model"),
@@ -77,6 +102,7 @@ function buildData(parsed: z.infer<typeof ItemSchema>) {
     status: parsed.status,
     quantity: parsed.quantity,
     active: parsed.active,
+    websites: parsed.websites,
     sku: parsed.sku,
     manufacturer: parsed.manufacturer,
     model: parsed.model,

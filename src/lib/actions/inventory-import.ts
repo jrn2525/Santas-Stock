@@ -208,6 +208,22 @@ function buildItemSlotMap(
   return out;
 }
 
+// Locate "Website N" columns in the header. Returns indices in CSV order.
+// A bare "Website" (or "Websites") column is treated as Website 0.
+function buildWebsiteSlotIndices(header: string[]): number[] {
+  const byKey = new Map<number, number>();
+  header.forEach((h, idx) => {
+    const t = h.trim();
+    const m = t.match(/^website\s*(\d*)$/i) ?? t.match(/^websites$/i);
+    if (!m) return;
+    const n = m[1] ? Number(m[1]) : 0;
+    byKey.set(n, idx);
+  });
+  return Array.from(byKey.keys())
+    .sort((a, b) => a - b)
+    .map((n) => byKey.get(n)!);
+}
+
 function readCell(cells: string[], idx: number | undefined): string {
   if (idx === undefined || idx < 0) return "";
   return (cells[idx] ?? "").trim();
@@ -233,6 +249,7 @@ export async function importInventoryCsv(
   const header = rows[0];
   const colMap = buildColMap(header);
   const itemSlots = buildItemSlotMap(header);
+  const websiteSlots = buildWebsiteSlotIndices(header);
 
   const missing: string[] = [];
   if (!colMap.has("name")) missing.push("Name");
@@ -285,6 +302,15 @@ export async function importInventoryCsv(
   // ---------- Pass 1: Items ----------
   for (const { rowNum, cells } of itemRows) {
     const name = readCell(cells, colMap.get("name"));
+    const websites: string[] = [];
+    const seenWebsites = new Set<string>();
+    for (const idx of websiteSlots) {
+      const url = readCell(cells, idx);
+      if (url && !seenWebsites.has(url)) {
+        seenWebsites.add(url);
+        websites.push(url);
+      }
+    }
     const data = {
       name,
       description: readCell(cells, colMap.get("description")),
@@ -298,6 +324,7 @@ export async function importInventoryCsv(
       homeLocation: nullableStr(readCell(cells, colMap.get("homeLocation"))),
       currentLocation: nullableStr(readCell(cells, colMap.get("currentLocation"))),
       unitCost: parseDecimal(readCell(cells, colMap.get("unitCost"))),
+      websites,
     };
     try {
       const existing = await prisma.item.findFirst({ where: { name } });

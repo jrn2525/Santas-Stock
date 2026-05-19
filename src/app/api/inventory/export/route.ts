@@ -70,8 +70,8 @@ export async function GET(req: NextRequest) {
   const wantItems = scope === "items" || scope === "both";
   const wantKits = scope === "kits" || scope === "both";
 
-  // Pre-compute the widest Item slot count needed (so the header matches the
-  // data). Only Kits use Item slots.
+  // Pre-compute the widest Item-slot count and Website-slot count so headers
+  // match the widest row. Only Kits use Item slots; only Items use Websites.
   let maxItemSlots = 0;
   let kits: Awaited<ReturnType<typeof loadKits>> = [];
   if (wantKits) {
@@ -81,7 +81,21 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  let maxWebsiteSlots = 0;
+  let items: Awaited<ReturnType<typeof loadItems>> = [];
+  if (wantItems) {
+    items = await loadItems();
+    for (const it of items) {
+      if (it.websites.length > maxWebsiteSlots) {
+        maxWebsiteSlots = it.websites.length;
+      }
+    }
+  }
+
   const headers = fixedHeaders();
+  for (let s = 1; s <= maxWebsiteSlots; s++) {
+    headers.push(`Website ${s}`);
+  }
   for (let s = 1; s <= maxItemSlots; s++) {
     headers.push(`Item ${s}`);
     headers.push(`Item ${s} Qty`);
@@ -91,9 +105,6 @@ export async function GET(req: NextRequest) {
   lines.push(row(headers));
 
   if (wantItems) {
-    const items = await prisma.item.findMany({
-      orderBy: [{ name: "asc" }],
-    });
     for (const it of items) {
       const cells = [
         it.name,
@@ -110,6 +121,9 @@ export async function GET(req: NextRequest) {
         it.homeLocation ?? "",
         it.currentLocation ?? "",
       ];
+      for (let s = 0; s < maxWebsiteSlots; s++) {
+        cells.push(it.websites[s] ?? "");
+      }
       // Items don't have sub-items, so pad the Item N / Item N Qty columns.
       for (let s = 0; s < maxItemSlots; s++) {
         cells.push("");
@@ -136,6 +150,10 @@ export async function GET(req: NextRequest) {
         k.homeLocation ?? "",
         k.currentLocation ?? "",
       ];
+      // Kits don't have vendor websites, so pad the Website N columns.
+      for (let s = 0; s < maxWebsiteSlots; s++) {
+        cells.push("");
+      }
       for (let s = 0; s < maxItemSlots; s++) {
         const slot = k.items[s];
         if (slot) {
@@ -177,4 +195,8 @@ async function loadKits() {
       },
     },
   });
+}
+
+async function loadItems() {
+  return prisma.item.findMany({ orderBy: [{ name: "asc" }] });
 }

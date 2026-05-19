@@ -33,8 +33,9 @@ export function CsvImportForm() {
           <code>Manufacturer</code>, <code>Model</code>,{" "}
           <code>Product Type</code>, <code>Status</code>, <code>Quantity</code>,{" "}
           <code>Active</code>, <code>Home Location</code>,{" "}
-          <code>Current Location</code>, plus <code>Item N</code> +{" "}
-          <code>Item N Qty</code> pairs for Kits. Category must be{" "}
+          <code>Current Location</code>, plus <code>Website N</code> columns
+          for Items and <code>Item N</code> + <code>Item N Qty</code> pairs
+          for Kits. Category must be{" "}
           <em>Product</em> (→ Item) or <em>Service</em> (→ Kit). Existing rows
           are matched by name and updated.
         </p>

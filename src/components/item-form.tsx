@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { ItemStatus, ProductType } from "@prisma/client";
 import { createItem, updateItem } from "@/lib/actions/items";
 import { emptyFormState, type FormState } from "@/lib/actions/state";
@@ -20,7 +20,12 @@ type Item = {
   homeLocation: string | null;
   currentLocation: string | null;
   unitCost: { toString(): string } | null;
+  websites: string[];
 };
+
+type WebsiteRow = { key: string; url: string };
+let websiteRowKeyCounter = 0;
+const newWebsiteKey = () => `web-${++websiteRowKeyCounter}`;
 
 const statusLabels: Record<ItemStatus, string> = {
   AVAILABLE: "Available",
@@ -41,8 +46,32 @@ export function ItemForm({ item }: { item?: Item }) {
     emptyFormState,
   );
 
+  const [websites, setWebsites] = useState<WebsiteRow[]>(() => {
+    if (item && item.websites.length > 0) {
+      return item.websites.map((url) => ({ key: newWebsiteKey(), url }));
+    }
+    return [{ key: newWebsiteKey(), url: "" }];
+  });
+
+  const updateWebsite = (key: string, url: string) =>
+    setWebsites((rs) => rs.map((r) => (r.key === key ? { ...r, url } : r)));
+  const removeWebsite = (key: string) =>
+    setWebsites((rs) =>
+      rs.length > 1 ? rs.filter((r) => r.key !== key) : rs,
+    );
+  const addWebsite = () =>
+    setWebsites((rs) => [...rs, { key: newWebsiteKey(), url: "" }]);
+
+  const submitWithWebsites = (formData: FormData) => {
+    const cleaned = websites
+      .map((r) => r.url.trim())
+      .filter((u) => u.length > 0);
+    formData.set("websites", JSON.stringify(cleaned));
+    formAction(formData);
+  };
+
   return (
-    <form action={formAction} className="mt-6 max-w-3xl space-y-6">
+    <form action={submitWithWebsites} className="mt-6 max-w-3xl space-y-6">
       <Section title="Identity">
         <div className="grid grid-cols-1 gap-5">
           <Field
@@ -203,6 +232,66 @@ export function ItemForm({ item }: { item?: Item }) {
             </p>
           ))}
         </div>
+      </Section>
+
+      <Section title="Vendor websites">
+        <p className="mb-4 text-xs text-ink-dim">
+          Links you use to check stock with your vendor(s). Add one per row —
+          paste the full URL.
+        </p>
+
+        <div className="space-y-3">
+          {websites.map((row, idx) => (
+            <div
+              key={row.key}
+              className="grid grid-cols-[1fr_auto] gap-3 rounded-md border border-rule bg-canvas p-3"
+            >
+              <div>
+                <label
+                  htmlFor={`website-${row.key}`}
+                  className="block text-xs font-medium text-ink-dim"
+                >
+                  Website {idx + 1}
+                </label>
+                <input
+                  id={`website-${row.key}`}
+                  type="url"
+                  inputMode="url"
+                  value={row.url}
+                  onChange={(e) => updateWebsite(row.key, e.target.value)}
+                  placeholder="https://example.com/product/12345"
+                  className="mt-1 block w-full rounded-md border border-rule bg-canvas px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+                />
+              </div>
+              <div className="flex items-end pb-1">
+                <button
+                  type="button"
+                  onClick={() => removeWebsite(row.key)}
+                  disabled={websites.length === 1 && row.url === ""}
+                  className="text-xs text-brand hover:text-brand-hover disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={addWebsite}
+            className="rounded-md border border-rule bg-canvas px-3 py-1.5 text-sm font-medium text-ink hover:border-brand hover:text-brand"
+          >
+            + Add another vendor website
+          </button>
+        </div>
+
+        {state.errors.websites?.map((e) => (
+          <p key={e} className="mt-2 text-xs text-brand">
+            {e}
+          </p>
+        ))}
       </Section>
 
       {state.message && <p className="text-sm text-brand">{state.message}</p>}

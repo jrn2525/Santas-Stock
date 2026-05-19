@@ -180,6 +180,7 @@ model Item {
   retirementStatus         String?
 
   photos                   String[]       @default([])
+  websites                 String[]       @default([])
   customFields             Json?
 
   kitMemberships           KitItem[]
