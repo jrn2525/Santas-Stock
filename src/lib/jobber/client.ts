@@ -66,6 +66,7 @@ type CostExtensions = {
 // every response to wait exactly long enough for the bucket to refill,
 // plus a small proactive pause after successful calls that drained it.
 const MAX_THROTTLE_RETRIES = 6;
+const MAX_TRANSIENT_RETRIES = 3;
 const SINGLE_WAIT_CAP_MS = 60_000;
 const LOW_BUDGET_THRESHOLD = 1000;
 
@@ -75,6 +76,8 @@ export async function jobberQuery<TData = unknown>(
   query: string,
   variables: Record<string, unknown> = {},
 ): Promise<TData> {
+  let transientRetries = 0;
+
   for (let attempt = 0; attempt <= MAX_THROTTLE_RETRIES; attempt++) {
     const accessToken = await getValidAccessToken();
     const res = await fetch(JOBBER_API_URL, {
@@ -88,6 +91,21 @@ export async function jobberQuery<TData = unknown>(
     });
 
     if (!res.ok) {
+      // 502/503/504 from Jobber/Cloudflare are transient — retry a few times
+      // before surfacing.
+      if (
+        (res.status === 502 || res.status === 503 || res.status === 504) &&
+        transientRetries < MAX_TRANSIENT_RETRIES
+      ) {
+        transientRetries++;
+        const backoffMs = 2000 * 2 ** (transientRetries - 1);
+        console.warn(
+          `[jobber] ${res.status} from Jobber — waiting ${backoffMs / 1000}s before retry ${transientRetries}/${MAX_TRANSIENT_RETRIES}`,
+        );
+        await sleep(backoffMs);
+        attempt--; // don't consume a throttle-retry slot
+        continue;
+      }
       const text = await res.text();
       throw new JobberError(`Jobber API ${res.status}: ${text}`);
     }

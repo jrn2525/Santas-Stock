@@ -729,43 +729,99 @@ export async function syncVisits(): Promise<VisitsSyncResult> {
 // notes via paginated sub-query. Each note is then upserted with its parent
 // link recorded. Requires the corresponding parents to be synced first.
 
+// Jobber's job.notes and visit.notes return JobNoteUnion — a union of
+// concrete note types. We can't select fields directly on a union, so we
+// introspect the schema at sync time to discover member type names and
+// their per-type body / createdAt field names, then build inline fragments
+// dynamically. client.notes is a regular connection (no union), so its
+// query is static.
+
 const CLIENT_NOTES_QUERY = /* GraphQL */ `
   query ClientNotes($id: EncodedId!, $cursor: String) {
     client(id: $id) {
       notes(first: 50, after: $cursor) {
-        nodes { id message pinned createdAt }
+        nodes { id message createdAt }
         pageInfo { hasNextPage endCursor }
       }
     }
   }
 `;
 
-const JOB_NOTES_QUERY = /* GraphQL */ `
-  query JobNotes($id: EncodedId!, $cursor: String) {
-    job(id: $id) {
-      notes(first: 50, after: $cursor) {
-        nodes { id message pinned createdAt }
-        pageInfo { hasNextPage endCursor }
+const INTROSPECT_UNION_QUERY = /* GraphQL */ `
+  query IntrospectUnion($name: String!) {
+    __type(name: $name) {
+      possibleTypes {
+        name
+        fields { name }
       }
     }
   }
 `;
 
-const VISIT_NOTES_QUERY = /* GraphQL */ `
-  query VisitNotes($id: EncodedId!, $cursor: String) {
-    visit(id: $id) {
-      notes(first: 50, after: $cursor) {
-        nodes { id message pinned createdAt }
-        pageInfo { hasNextPage endCursor }
+type UnionMemberFields = {
+  typeName: string;
+  bodyField: string;
+  createdAtField: string;
+};
+
+async function discoverNoteUnionMembers(
+  unionName: string,
+): Promise<UnionMemberFields[]> {
+  const data = await jobberQuery<{
+    __type: {
+      possibleTypes: { name: string; fields: { name: string }[] | null }[];
+    } | null;
+  }>(INTROSPECT_UNION_QUERY, { name: unionName });
+
+  const members = data.__type?.possibleTypes ?? [];
+  const out: UnionMemberFields[] = [];
+  for (const m of members) {
+    const fieldNames = new Set((m.fields ?? []).map((f) => f.name));
+    const bodyField = ["message", "body", "content", "text"].find((f) =>
+      fieldNames.has(f),
+    );
+    const createdAtField = ["createdAt", "noteCreatedAt", "created"].find(
+      (f) => fieldNames.has(f),
+    );
+    if (!bodyField || !createdAtField || !fieldNames.has("id")) {
+      console.warn(
+        `[jobber-sync] skipping union member ${m.name}: missing required fields`,
+      );
+      continue;
+    }
+    out.push({ typeName: m.name, bodyField, createdAtField });
+  }
+  return out;
+}
+
+function buildUnionNoteQuery(
+  parentField: "job" | "visit",
+  members: UnionMemberFields[],
+): string {
+  const fragments = members
+    .map(
+      (m) =>
+        `... on ${m.typeName} { id message: ${m.bodyField} createdAt: ${m.createdAtField} }`,
+    )
+    .join("\n            ");
+  const opName = parentField === "job" ? "JobNotes" : "VisitNotes";
+  return /* GraphQL */ `
+    query ${opName}($id: EncodedId!, $cursor: String) {
+      ${parentField}(id: $id) {
+        notes(first: 50, after: $cursor) {
+          nodes {
+            ${fragments}
+          }
+          pageInfo { hasNextPage endCursor }
+        }
       }
     }
-  }
-`;
+  `;
+}
 
 type JobberNoteNode = {
   id: string;
   message: string | null;
-  pinned: boolean | null;
   createdAt: string | null;
 };
 
@@ -801,6 +857,27 @@ export async function syncNotes(): Promise<NotesSyncResult> {
   const result: NotesSyncResult = { upserted: 0, skipped: 0, warnings: [] };
   const now = new Date();
 
+  // Discover the JobNoteUnion members up front. Used by both job.notes and
+  // visit.notes (Jobber reuses the same union for both). If introspection
+  // fails or yields no usable members, we still sync client notes.
+  let jobNotesQuery: string | null = null;
+  let visitNotesQuery: string | null = null;
+  try {
+    const members = await discoverNoteUnionMembers("JobNoteUnion");
+    if (members.length > 0) {
+      jobNotesQuery = buildUnionNoteQuery("job", members);
+      visitNotesQuery = buildUnionNoteQuery("visit", members);
+    } else {
+      result.warnings.push(
+        "JobNoteUnion has no introspectable members with id/message/createdAt fields. Job and Visit notes skipped.",
+      );
+    }
+  } catch (err) {
+    result.warnings.push(
+      `Could not introspect JobNoteUnion: ${err instanceof Error ? err.message : "unknown"}. Job and Visit notes skipped.`,
+    );
+  }
+
   const [clients, jobs, visits] = await Promise.all([
     prisma.client.findMany({ select: { id: true, jobberClientId: true } }),
     prisma.jobberJob.findMany({ select: { id: true, jobberJobId: true } }),
@@ -818,16 +895,20 @@ export async function syncNotes(): Promise<NotesSyncResult> {
       localId: c.id,
       jobberId: c.jobberClientId,
     })),
-    ...jobs.map((j) => ({
-      kind: "job" as const,
-      localId: j.id,
-      jobberId: j.jobberJobId,
-    })),
-    ...visits.map((v) => ({
-      kind: "visit" as const,
-      localId: v.id,
-      jobberId: v.jobberVisitId,
-    })),
+    ...(jobNotesQuery
+      ? jobs.map((j) => ({
+          kind: "job" as const,
+          localId: j.id,
+          jobberId: j.jobberJobId,
+        }))
+      : []),
+    ...(visitNotesQuery
+      ? visits.map((v) => ({
+          kind: "visit" as const,
+          localId: v.id,
+          jobberId: v.jobberVisitId,
+        }))
+      : []),
   ];
 
   // Modest concurrency to avoid hammering Jobber's API while still finishing
@@ -841,8 +922,8 @@ export async function syncNotes(): Promise<NotesSyncResult> {
           p.kind === "client"
             ? CLIENT_NOTES_QUERY
             : p.kind === "job"
-              ? JOB_NOTES_QUERY
-              : VISIT_NOTES_QUERY;
+              ? jobNotesQuery!
+              : visitNotesQuery!;
 
         try {
           const notes = await fetchAllNotes(query, p.jobberId, (data) => {
