@@ -23,7 +23,9 @@ export default async function SignInPage({
       await signIn("credentials", {
         email: formData.get("email"),
         password: formData.get("password"),
-        redirectTo: "/job-flow/dashboard",
+        // Route through the root page so role-based landing kicks in
+        // (Admin → /admin/overview, others → /job-flow/dashboard).
+        redirectTo: "/",
       });
     } catch (err) {
       if (err instanceof AuthError) {
