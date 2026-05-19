@@ -208,8 +208,17 @@ export type InventorySyncResult = {
   kitsCreated: number;
   kitsUpdated: number;
   skipped: number;
+  createdItemNames: string[];
+  createdKitNames: string[];
   warnings: string[];
 };
+
+// Used to match CSV-imported names against what Jobber sends. Excel and
+// other CSV editors silently trim, re-case, or collapse whitespace, so an
+// exact-string compare here would create duplicates.
+function normalizeName(s: string): string {
+  return s.trim().toLowerCase().replace(/\s+/g, " ");
+}
 
 function pickUnitCost(
   node: JobberProductOrServiceNode,
@@ -230,6 +239,8 @@ export async function syncProductsAndServices(): Promise<InventorySyncResult> {
     kitsCreated: 0,
     kitsUpdated: 0,
     skipped: 0,
+    createdItemNames: [],
+    createdKitNames: [],
     warnings: [],
   };
 
@@ -247,16 +258,18 @@ export async function syncProductsAndServices(): Promise<InventorySyncResult> {
   const itemIdByName = new Map<string, string>();
   for (const i of existingItems) {
     if (i.jobberProductId) itemIdByJobberId.set(i.jobberProductId, i.id);
-    if (!i.jobberProductId && !itemIdByName.has(i.name)) {
-      itemIdByName.set(i.name, i.id);
+    if (!i.jobberProductId) {
+      const key = normalizeName(i.name);
+      if (!itemIdByName.has(key)) itemIdByName.set(key, i.id);
     }
   }
   const kitIdByJobberId = new Map<string, string>();
   const kitIdByName = new Map<string, string>();
   for (const k of existingKits) {
     if (k.jobberProductId) kitIdByJobberId.set(k.jobberProductId, k.id);
-    if (!k.jobberProductId && !kitIdByName.has(k.name)) {
-      kitIdByName.set(k.name, k.id);
+    if (!k.jobberProductId) {
+      const key = normalizeName(k.name);
+      if (!kitIdByName.has(key)) kitIdByName.set(key, k.id);
     }
   }
 
@@ -341,14 +354,15 @@ async function upsertItem(
     return;
   }
 
-  const claimable = ctx.itemIdByName.get(name);
+  const nameKey = normalizeName(name);
+  const claimable = ctx.itemIdByName.get(nameKey);
   if (claimable) {
     await prisma.item.update({
       where: { id: claimable },
       data: { ...jobberFields, jobberProductId: jobberId },
     });
     ctx.itemIdByJobberId.set(jobberId, claimable);
-    ctx.itemIdByName.delete(name);
+    ctx.itemIdByName.delete(nameKey);
     ctx.result.itemsUpdated++;
     return;
   }
@@ -358,6 +372,7 @@ async function upsertItem(
   });
   ctx.itemIdByJobberId.set(jobberId, created.id);
   ctx.result.itemsCreated++;
+  ctx.result.createdItemNames.push(name);
 }
 
 async function upsertKit(
@@ -383,14 +398,15 @@ async function upsertKit(
     return;
   }
 
-  const claimable = ctx.kitIdByName.get(name);
+  const nameKey = normalizeName(name);
+  const claimable = ctx.kitIdByName.get(nameKey);
   if (claimable) {
     await prisma.kit.update({
       where: { id: claimable },
       data: { ...jobberFields, jobberProductId: jobberId },
     });
     ctx.kitIdByJobberId.set(jobberId, claimable);
-    ctx.kitIdByName.delete(name);
+    ctx.kitIdByName.delete(nameKey);
     ctx.result.kitsUpdated++;
     return;
   }
@@ -400,4 +416,5 @@ async function upsertKit(
   });
   ctx.kitIdByJobberId.set(jobberId, created.id);
   ctx.result.kitsCreated++;
+  ctx.result.createdKitNames.push(name);
 }
