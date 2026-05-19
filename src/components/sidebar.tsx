@@ -24,10 +24,12 @@ const inventoryNav: NavItem[] = [
   { href: "/inventory/dashboard", label: "Dashboard" },
   { href: "/inventory/items", label: "Items" },
   { href: "/inventory/kits", label: "Kits" },
+  { href: "/inventory/jobber", label: "Jobber", adminOnly: true },
+  { href: "/inventory/import-export", label: "Import / Export", adminOnly: true },
 ];
 
-// Admin section now owns Import / Export and Jobber sync (formerly under
-// Inventory). Keeps the Admin role's UI focused on system-admin tasks.
+// Admin section also surfaces Import / Export and Jobber sync so admins can
+// reach those tools from either the Inventory or Admin sidebar.
 const adminNav: NavItem[] = [
   { href: "/admin/overview", label: "Overview" },
   { href: "/admin/users", label: "Users", adminOnly: true },
@@ -35,11 +37,7 @@ const adminNav: NavItem[] = [
   { href: "/inventory/jobber", label: "Jobber sync", adminOnly: true },
 ];
 
-function pickNav(pathname: string, role: Role): NavItem[] {
-  // Admins always see the Admin sidebar — even when they're on an
-  // /inventory/import-export or /inventory/jobber page that lives under
-  // the Inventory route prefix.
-  if (role === "ADMIN") return adminNav;
+function pickNav(pathname: string): NavItem[] {
   if (pathname.startsWith("/inventory")) return inventoryNav;
   if (pathname.startsWith("/admin")) return adminNav;
   return jobFlowNav;
@@ -47,7 +45,7 @@ function pickNav(pathname: string, role: Role): NavItem[] {
 
 export function Sidebar({ role }: { role: Role }) {
   const pathname = usePathname();
-  const navItems = pickNav(pathname, role);
+  const navItems = pickNav(pathname);
 
   return (
     <nav className="flex flex-col gap-1 p-4">

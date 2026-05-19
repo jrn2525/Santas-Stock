@@ -21,7 +21,7 @@ export default async function AppLayout({
     <div className="flex min-h-screen flex-col">
       <header className="flex items-center justify-between border-b border-rule bg-sidebar px-6 py-4">
         <div className="flex items-center gap-6">
-          <Link href="/" className="block">
+          <Link href="/job-flow/dashboard" className="block">
             <Image
               src="/logo.png"
               alt="Santa's Stock"
