@@ -32,10 +32,41 @@ export default async function ImportExportPage() {
 
       <section className="mt-6 rounded-lg border border-rule bg-card p-6">
         <h2 className="text-lg font-semibold text-ink">Export to CSV</h2>
-        <p className="mt-2 text-sm text-ink-dim">
-          Coming next: download the catalog as a CSV, choosing Items, Kits, or
-          Both.
+        <p className="mt-1 text-sm text-ink-dim">
+          Downloads a CSV with the same five columns as Import, so files
+          round-trip cleanly.
         </p>
+
+        <form
+          method="get"
+          action="/api/inventory/export"
+          className="mt-4 flex flex-wrap items-end gap-4"
+        >
+          <div>
+            <label
+              htmlFor="scope"
+              className="block text-sm font-medium text-ink"
+            >
+              What to export
+            </label>
+            <select
+              id="scope"
+              name="scope"
+              defaultValue="both"
+              className="mt-1 block rounded-md border border-rule bg-canvas px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+            >
+              <option value="items">Items only</option>
+              <option value="kits">Kits only</option>
+              <option value="both">Both (single file)</option>
+            </select>
+          </div>
+          <button
+            type="submit"
+            className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-ink hover:bg-brand-hover"
+          >
+            Download CSV
+          </button>
+        </form>
       </section>
     </>
   );
