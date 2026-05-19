@@ -115,7 +115,12 @@ export default async function CustomersPage({
                 return (
                   <tr key={c.id} className="text-ink align-top">
                     <td className="px-4 py-3 font-medium">
-                      {personal || c.name}
+                      <Link
+                        href={`/job-flow/customers/${c.id}`}
+                        className="hover:text-brand"
+                      >
+                        {personal || c.name}
+                      </Link>
                     </td>
                     <td className="px-4 py-3 text-ink-dim">
                       {c.companyName ?? "—"}
