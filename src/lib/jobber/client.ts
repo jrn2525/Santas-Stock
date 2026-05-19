@@ -48,13 +48,26 @@ async function getValidAccessToken(): Promise<string> {
 
 type GraphQLError = { message: string; path?: (string | number)[] };
 
-// Jobber uses a cost-based GraphQL throttle. On "Throttled" we back off and
-// retry; everything else fails fast.
-const MAX_THROTTLE_RETRIES = 4;
+type ThrottleStatus = {
+  maximumAvailable: number;
+  currentlyAvailable: number;
+  restoreRate: number;
+};
 
-function isThrottled(err: unknown): boolean {
-  return err instanceof JobberError && /Throttled/i.test(err.message);
-}
+type CostExtensions = {
+  cost?: {
+    requestedQueryCost?: number;
+    actualQueryCost?: number;
+    throttleStatus?: ThrottleStatus;
+  };
+};
+
+// Jobber uses a cost-based GraphQL throttle. We read throttleStatus from
+// every response to wait exactly long enough for the bucket to refill,
+// plus a small proactive pause after successful calls that drained it.
+const MAX_THROTTLE_RETRIES = 6;
+const SINGLE_WAIT_CAP_MS = 60_000;
+const LOW_BUDGET_THRESHOLD = 1000;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -62,48 +75,75 @@ export async function jobberQuery<TData = unknown>(
   query: string,
   variables: Record<string, unknown> = {},
 ): Promise<TData> {
-  let lastErr: unknown;
   for (let attempt = 0; attempt <= MAX_THROTTLE_RETRIES; attempt++) {
-    try {
-      return await jobberQueryOnce<TData>(query, variables);
-    } catch (err) {
-      lastErr = err;
-      if (!isThrottled(err) || attempt === MAX_THROTTLE_RETRIES) throw err;
-      await sleep(2000 * 2 ** attempt); // 2s, 4s, 8s, 16s
+    const accessToken = await getValidAccessToken();
+    const res = await fetch(JOBBER_API_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        "X-JOBBER-GRAPHQL-VERSION": JOBBER_API_VERSION,
+      },
+      body: JSON.stringify({ query, variables }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new JobberError(`Jobber API ${res.status}: ${text}`);
     }
-  }
-  throw lastErr;
-}
 
-async function jobberQueryOnce<TData>(
-  query: string,
-  variables: Record<string, unknown>,
-): Promise<TData> {
-  const accessToken = await getValidAccessToken();
+    const json = (await res.json()) as {
+      data?: TData;
+      errors?: GraphQLError[];
+      extensions?: CostExtensions;
+    };
 
-  const res = await fetch(JOBBER_API_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      "X-JOBBER-GRAPHQL-VERSION": JOBBER_API_VERSION,
-    },
-    body: JSON.stringify({ query, variables }),
-  });
+    const throttled = json.errors?.some((e) => /Throttled/i.test(e.message));
+    if (throttled) {
+      if (attempt === MAX_THROTTLE_RETRIES) {
+        throw new JobberError(
+          `Jobber GraphQL error: Throttled (gave up after ${attempt + 1} attempts)`,
+        );
+      }
+      const status = json.extensions?.cost?.throttleStatus;
+      const requested = json.extensions?.cost?.requestedQueryCost ?? 1000;
+      const waitMs = status
+        ? Math.ceil(
+            ((requested - status.currentlyAvailable) / Math.max(status.restoreRate, 1) + 1) *
+              1000,
+          )
+        : 2000 * 2 ** attempt;
+      const cappedMs = Math.min(Math.max(waitMs, 2000), SINGLE_WAIT_CAP_MS);
+      console.warn(
+        `[jobber] throttled — waiting ${Math.round(cappedMs / 1000)}s before retry ${attempt + 1}/${MAX_THROTTLE_RETRIES}`,
+      );
+      await sleep(cappedMs);
+      continue;
+    }
 
-  if (!res.ok) {
-    const text = await res.text();
-    throw new JobberError(`Jobber API ${res.status}: ${text}`);
-  }
+    if (json.errors?.length) {
+      throw new JobberError(
+        `Jobber GraphQL error: ${json.errors.map((e) => e.message).join("; ")}`,
+      );
+    }
+    if (!json.data) {
+      throw new JobberError("Jobber returned no data.");
+    }
 
-  const json = (await res.json()) as { data?: TData; errors?: GraphQLError[] };
-  if (json.errors?.length) {
-    throw new JobberError(
-      `Jobber GraphQL error: ${json.errors.map((e) => e.message).join("; ")}`,
-    );
+    // Proactive pacing: caller will issue the next page right after we
+    // return, so if we're under the threshold, breathe now to avoid
+    // re-throttling on the very next call.
+    const status = json.extensions?.cost?.throttleStatus;
+    if (status && status.currentlyAvailable < LOW_BUDGET_THRESHOLD) {
+      const refillMs = Math.ceil(
+        ((LOW_BUDGET_THRESHOLD - status.currentlyAvailable) /
+          Math.max(status.restoreRate, 1)) *
+          1000,
+      );
+      await sleep(Math.min(refillMs, SINGLE_WAIT_CAP_MS));
+    }
+
+    return json.data;
   }
-  if (!json.data) {
-    throw new JobberError("Jobber returned no data.");
-  }
-  return json.data;
+  throw new JobberError("Jobber GraphQL error: Throttled (unreachable)");
 }

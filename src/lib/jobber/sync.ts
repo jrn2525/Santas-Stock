@@ -428,7 +428,7 @@ async function upsertKit(
 
 const JOBS_QUERY = /* GraphQL */ `
   query SyncJobs($cursor: String) {
-    jobs(first: 25, after: $cursor) {
+    jobs(first: 10, after: $cursor) {
       nodes {
         id
         title
