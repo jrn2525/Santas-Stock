@@ -1,11 +1,11 @@
 "use client";
 
 import { useActionState } from "react";
+import { importInventoryCsv } from "@/lib/actions/inventory-import";
 import {
-  importInventoryCsv,
   emptyImportSummary,
   type ImportSummary,
-} from "@/lib/actions/inventory-import";
+} from "@/lib/actions/state";
 
 export function CsvImportForm() {
   const [state, formAction, pending] = useActionState<ImportSummary, FormData>(

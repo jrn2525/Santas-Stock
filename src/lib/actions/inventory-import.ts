@@ -4,24 +4,7 @@ import { ItemStatus, Prisma, ProductType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { assertRoleForAction, ADMIN_ROLES } from "@/lib/auth-helpers";
-
-export type ImportSummary = {
-  ok: boolean;
-  message: string | null;
-  items: { created: number; updated: number };
-  kits: { created: number; updated: number };
-  skipped: number;
-  errors: Array<{ row: number; reason: string }>;
-};
-
-export const emptyImportSummary: ImportSummary = {
-  ok: false,
-  message: null,
-  items: { created: 0, updated: 0 },
-  kits: { created: 0, updated: 0 },
-  skipped: 0,
-  errors: [],
-};
+import { emptyImportSummary, type ImportSummary } from "./state";
 
 // Map every header we recognize to a stable key. Lowercased on lookup so
 // header casing doesn't matter.
