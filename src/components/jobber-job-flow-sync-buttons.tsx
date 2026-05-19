@@ -3,81 +3,53 @@
 import { useActionState } from "react";
 import {
   syncJobberJobs,
-  syncJobberVisits,
-  syncJobberNotes,
   type JobsSyncFormState,
-  type VisitsSyncFormState,
-  type NotesSyncFormState,
+  type JobFlowSyncResult,
 } from "@/lib/actions/jobber";
 
 const emptyJobs: JobsSyncFormState = { errors: {}, message: null };
-const emptyVisits: VisitsSyncFormState = { errors: {}, message: null };
-const emptyNotes: NotesSyncFormState = { errors: {}, message: null };
 
 export function JobberJobsSyncButton() {
   const [state, action, pending] = useActionState<JobsSyncFormState>(
     syncJobberJobs,
     emptyJobs,
   );
+
+  const summary = state.result ? buildSummary(state.result) : null;
+  const warnings = state.result ? mergeWarnings(state.result) : [];
+
   return (
     <SyncSection
-      label="Jobs"
-      hint="Pulls every Job from Jobber. Run Sync Customers first if any jobs reference a client that isn't here yet."
+      label="Jobs, Visits, and Notes"
+      hint="One click pulls Jobs, then their Visits (for Calendar), then Notes. Run Sync Customers first if any jobs reference a client that isn't here yet."
       action={action}
       pending={pending}
-      summary={
-        state.result
-          ? `${state.result.upserted} upserted, ${state.result.skipped} skipped`
-          : null
-      }
-      warnings={state.result?.warnings ?? []}
+      summary={summary}
+      warnings={warnings}
       message={state.message}
     />
   );
 }
 
-export function JobberVisitsSyncButton() {
-  const [state, action, pending] = useActionState<VisitsSyncFormState>(
-    syncJobberVisits,
-    emptyVisits,
-  );
-  return (
-    <SyncSection
-      label="Visits (for Calendar)"
-      hint="Pulls scheduled appointments tied to each Job. Run Sync Jobs first."
-      action={action}
-      pending={pending}
-      summary={
-        state.result
-          ? `${state.result.upserted} upserted, ${state.result.skipped} skipped`
-          : null
-      }
-      warnings={state.result?.warnings ?? []}
-      message={state.message}
-    />
-  );
+function buildSummary(r: JobFlowSyncResult): string | null {
+  const parts: string[] = [];
+  if (r.jobs)
+    parts.push(`Jobs ${r.jobs.upserted} upserted / ${r.jobs.skipped} skipped`);
+  if (r.visits)
+    parts.push(
+      `Visits ${r.visits.upserted} upserted / ${r.visits.skipped} skipped`,
+    );
+  if (r.notes)
+    parts.push(`Notes ${r.notes.upserted} upserted / ${r.notes.skipped} skipped`);
+  return parts.length ? parts.join(" · ") : null;
 }
 
-export function JobberNotesSyncButton() {
-  const [state, action, pending] = useActionState<NotesSyncFormState>(
-    syncJobberNotes,
-    emptyNotes,
-  );
-  return (
-    <SyncSection
-      label="Notes / Internal notes"
-      hint="Pulls notes attached to Customers, Jobs, and Visits. Run the other syncs first so notes can be linked to their parent."
-      action={action}
-      pending={pending}
-      summary={
-        state.result
-          ? `${state.result.upserted} upserted, ${state.result.skipped} skipped`
-          : null
-      }
-      warnings={state.result?.warnings ?? []}
-      message={state.message}
-    />
-  );
+function mergeWarnings(r: JobFlowSyncResult): string[] {
+  return [
+    ...(r.jobs?.warnings ?? []).map((w) => `[Jobs] ${w}`),
+    ...(r.visits?.warnings ?? []).map((w) => `[Visits] ${w}`),
+    ...(r.notes?.warnings ?? []).map((w) => `[Notes] ${w}`),
+  ];
 }
 
 function SyncSection({

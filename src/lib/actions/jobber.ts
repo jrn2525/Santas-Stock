@@ -80,9 +80,13 @@ export async function syncJobberInventory(
   }
 }
 
-export type JobsSyncFormState = FormState & { result?: JobsSyncResult };
-export type VisitsSyncFormState = FormState & { result?: VisitsSyncResult };
-export type NotesSyncFormState = FormState & { result?: NotesSyncResult };
+export type JobFlowSyncResult = {
+  jobs: JobsSyncResult | null;
+  visits: VisitsSyncResult | null;
+  notes: NotesSyncResult | null;
+};
+
+export type JobsSyncFormState = FormState & { result?: JobFlowSyncResult };
 
 function notConnectedState<T extends FormState>(): T {
   return {
@@ -96,50 +100,49 @@ export async function syncJobberJobs(
   _prev: JobsSyncFormState,
 ): Promise<JobsSyncFormState> {
   await assertRoleForAction(WRITE_ROLES);
+
+  const phaseErrors: string[] = [];
+  let jobs: JobsSyncResult | null = null;
+  let visits: VisitsSyncResult | null = null;
+  let notes: NotesSyncResult | null = null;
+
   try {
-    const result = await syncJobs();
-    revalidatePath("/job-flow/jobs");
-    revalidatePath("/job-flow/jobber");
-    return { errors: {}, message: null, result };
+    jobs = await syncJobs();
   } catch (err) {
     if (err instanceof JobberNotConnectedError) return notConnectedState();
     const msg = err instanceof Error ? err.message : String(err);
     console.error("Jobber jobs sync failed:", err);
-    return { errors: {}, message: `Sync failed: ${msg}` };
+    phaseErrors.push(`Jobs: ${msg}`);
   }
-}
 
-export async function syncJobberVisits(
-  _prev: VisitsSyncFormState,
-): Promise<VisitsSyncFormState> {
-  await assertRoleForAction(WRITE_ROLES);
-  try {
-    const result = await syncVisits();
-    revalidatePath("/job-flow/calendar");
-    revalidatePath("/job-flow/jobber");
-    return { errors: {}, message: null, result };
-  } catch (err) {
-    if (err instanceof JobberNotConnectedError) return notConnectedState();
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("Jobber visits sync failed:", err);
-    return { errors: {}, message: `Sync failed: ${msg}` };
+  if (jobs) {
+    try {
+      visits = await syncVisits();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("Jobber visits sync failed:", err);
+      phaseErrors.push(`Visits: ${msg}`);
+    }
   }
-}
 
-export async function syncJobberNotes(
-  _prev: NotesSyncFormState,
-): Promise<NotesSyncFormState> {
-  await assertRoleForAction(WRITE_ROLES);
-  try {
-    const result = await syncNotes();
-    revalidatePath("/job-flow/customers");
-    revalidatePath("/job-flow/jobs");
-    revalidatePath("/job-flow/jobber");
-    return { errors: {}, message: null, result };
-  } catch (err) {
-    if (err instanceof JobberNotConnectedError) return notConnectedState();
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("Jobber notes sync failed:", err);
-    return { errors: {}, message: `Sync failed: ${msg}` };
+  if (jobs && visits) {
+    try {
+      notes = await syncNotes();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("Jobber notes sync failed:", err);
+      phaseErrors.push(`Notes: ${msg}`);
+    }
   }
+
+  revalidatePath("/job-flow/jobs");
+  revalidatePath("/job-flow/calendar");
+  revalidatePath("/job-flow/customers");
+  revalidatePath("/job-flow/jobber");
+
+  return {
+    errors: {},
+    message: phaseErrors.length ? `Sync failed: ${phaseErrors.join(" · ")}` : null,
+    result: { jobs, visits, notes },
+  };
 }

@@ -5,8 +5,6 @@ import { disconnectJobber } from "@/lib/actions/jobber";
 import { JobberSyncButton } from "@/components/jobber-sync-button";
 import {
   JobberJobsSyncButton,
-  JobberVisitsSyncButton,
-  JobberNotesSyncButton,
 } from "@/components/jobber-job-flow-sync-buttons";
 
 export const dynamic = "force-dynamic";
@@ -162,14 +160,12 @@ export default async function JobberPage({
         <section className="mt-6 rounded-lg border border-rule bg-card p-6">
           <h2 className="text-lg font-semibold text-ink">Job Flow syncs</h2>
           <p className="mt-1 text-sm text-ink-dim">
-            Pull Jobs, Visits, and Notes from Jobber. Each runs independently
-            with its own button. The recommended order on a fresh setup is{" "}
-            <em>Customers → Jobs → Visits → Notes</em>.
+            Pull Jobs, Visits, and Notes from Jobber in one go. Run Sync
+            Customers first on a fresh setup so jobs can link to their
+            client.
           </p>
           <div className="mt-4 space-y-3">
             <JobberJobsSyncButton />
-            <JobberVisitsSyncButton />
-            <JobberNotesSyncButton />
           </div>
         </section>
       )}
