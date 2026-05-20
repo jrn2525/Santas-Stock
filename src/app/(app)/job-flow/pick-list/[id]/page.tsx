@@ -3,6 +3,10 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { PrintButton } from "@/components/print-button";
+import {
+  PickListView,
+  lineItemsToPickListLines,
+} from "@/components/job-flow/pick-list-view";
 
 export const dynamic = "force-dynamic";
 
@@ -45,9 +49,7 @@ export default async function PickListDetailPage({
 
   if (!job) notFound();
 
-  const kitLines = job.lineItems.filter((li) => li.kit);
-  const itemLines = job.lineItems.filter((li) => li.item && !li.kit);
-  const unresolvedLines = job.lineItems.filter((li) => !li.item && !li.kit);
+  const pickListLines = lineItemsToPickListLines(job.lineItems);
 
   return (
     <>
@@ -77,129 +79,18 @@ export default async function PickListDetailPage({
         <header>
           <h2 className="text-lg font-semibold text-ink">Pick List</h2>
           <p className="mt-1 text-sm text-ink-dim no-print">
-            Kits with recipe components, plus standalone Items needed for this
-            job.
+            Kits with their recipe components tabbed beneath; standalone Items
+            at the top level.
           </p>
         </header>
 
-        {job.lineItems.length === 0 ? (
-          <p className="mt-6 text-sm text-ink-dim">
-            No line items on this Job. Re-run Sync Jobs after adding line
-            items in Jobber.
-          </p>
-        ) : (
-          <div className="mt-4 space-y-6">
-            {kitLines.length > 0 && (
-              <div>
-                <h3 className="text-xs uppercase tracking-wider text-ink-dim">
-                  Kits
-                </h3>
-                <ul className="mt-2 space-y-3">
-                  {kitLines.map((li) => {
-                    const kit = li.kit!;
-                    const qty = Number(li.quantity);
-                    return (
-                      <li
-                        key={li.id}
-                        className="rounded-md border border-rule bg-canvas p-4 pick-list-kit"
-                      >
-                        <div className="flex items-baseline justify-between gap-2">
-                          <div className="font-medium text-ink">
-                            {kit.name}
-                          </div>
-                          <div className="text-sm font-medium text-ink tabular-nums">
-                            ×{qty}
-                          </div>
-                        </div>
-                        {li.notes && (
-                          <p className="mt-1 text-xs italic text-ink-dim">
-                            {li.notes}
-                          </p>
-                        )}
-                        {kit.items.length > 0 && (
-                          <ul className="mt-3 space-y-1 border-t border-rule pt-3 text-sm">
-                            {kit.items.map((ki) => (
-                              <li
-                                key={ki.itemId}
-                                className="flex justify-between text-ink-dim"
-                              >
-                                <span>{ki.item.name}</span>
-                                <span className="tabular-nums">
-                                  ×{ki.quantity * qty}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            )}
-
-            {itemLines.length > 0 && (
-              <div>
-                <h3 className="text-xs uppercase tracking-wider text-ink-dim">
-                  Items
-                </h3>
-                <ul className="mt-2 space-y-2">
-                  {itemLines.map((li) => {
-                    const item = li.item!;
-                    const qty = Number(li.quantity);
-                    return (
-                      <li
-                        key={li.id}
-                        className="flex items-baseline justify-between rounded-md border border-rule bg-canvas p-3"
-                      >
-                        <div>
-                          <div className="font-medium text-ink">
-                            {item.name}
-                          </div>
-                          {li.notes && (
-                            <p className="mt-1 text-xs italic text-ink-dim">
-                              {li.notes}
-                            </p>
-                          )}
-                        </div>
-                        <div className="text-sm font-medium text-ink tabular-nums">
-                          ×{qty}
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            )}
-
-            {unresolvedLines.length > 0 && (
-              <div>
-                <h3 className="text-xs uppercase tracking-wider text-ink-dim">
-                  Unresolved
-                </h3>
-                <p className="mt-1 text-xs text-ink-dim no-print">
-                  These line items aren&apos;t linked to a local Item or Kit.
-                  Run Inventory → Jobber sync to link them.
-                </p>
-                <ul className="mt-2 space-y-1 text-sm">
-                  {unresolvedLines.map((li) => (
-                    <li
-                      key={li.id}
-                      className="flex justify-between rounded border border-rule bg-canvas px-3 py-2 text-ink-dim"
-                    >
-                      <span>{li.rawName ?? "(unnamed)"}</span>
-                      <span className="tabular-nums">
-                        ×{Number(li.quantity)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        )}
+        <div className="mt-4">
+          <PickListView
+            lines={pickListLines}
+            emptyMessage="No line items on this Job. Re-run Sync Jobs after adding line items in Jobber."
+          />
+        </div>
       </section>
-
     </>
   );
 }
