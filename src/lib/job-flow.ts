@@ -70,3 +70,12 @@ export function nextStage(current: JobStage): JobStage | null {
   if (idx === FLOW_STAGES.length - 1) return null;
   return FLOW_STAGES[idx + 1];
 }
+
+export function prevStage(current: JobStage): JobStage | null {
+  if (current === "NEW") return null;
+  if (current === "COMPLETE" || current === "DEACTIVATED") return "INSPECTION";
+  const order = ["NEW", ...FLOW_STAGES] as JobStage[];
+  const idx = order.indexOf(current);
+  if (idx <= 0) return null;
+  return order[idx - 1];
+}

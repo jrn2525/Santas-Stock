@@ -8,6 +8,7 @@ import {
   FLOW_STAGES,
   STAGE_LABELS,
   isValidTransition,
+  prevStage,
 } from "@/lib/job-flow";
 
 /**
@@ -49,8 +50,11 @@ export function JobFlowChart({
     });
   }
 
+  const prev = prevStage(currentStage);
+  const canRevert = canWrite && prev !== null && !isPending;
+
   return (
-    <section className="rounded-lg border border-rule bg-card p-5">
+    <section className="rounded-lg border border-rule bg-brand/15 p-5">
       <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-dim">
         Job Flow
       </h2>
@@ -98,6 +102,24 @@ export function JobFlowChart({
         <p className="mt-4 text-xs text-ink-dim">
           Job hasn&apos;t started yet — click Allocated to begin.
         </p>
+      )}
+
+      {prev && (
+        <div className="mt-5 border-t border-rule pt-4">
+          <button
+            type="button"
+            onClick={() => handleClick(prev)}
+            disabled={!canRevert}
+            className={`w-full rounded-md border px-3 py-2 text-sm font-medium transition ${
+              canRevert
+                ? "border-rule bg-canvas text-ink hover:border-brand hover:text-brand cursor-pointer"
+                : "border-rule bg-canvas text-ink-dim opacity-50 cursor-not-allowed"
+            }`}
+            title={`Revert to ${STAGE_LABELS[prev]}`}
+          >
+            ← Revert to {STAGE_LABELS[prev]}
+          </button>
+        </div>
       )}
     </section>
   );
