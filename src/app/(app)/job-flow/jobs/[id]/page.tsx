@@ -207,19 +207,6 @@ export default async function JobDetailPage({
             </Card>
           </div>
 
-          <JobNotes
-            jobNotes={jobAndVisitNotes.map((n) => ({
-              id: n.id,
-              body: n.body,
-              noteCreatedAt: n.noteCreatedAt?.toISOString() ?? null,
-            }))}
-            clientNotes={clientNotes.map((n) => ({
-              id: n.id,
-              body: n.body,
-              noteCreatedAt: n.noteCreatedAt?.toISOString() ?? null,
-            }))}
-          />
-
           <section className="rounded-lg border border-rule bg-card p-6 print-block">
             <header>
               <h2 className="text-lg font-semibold text-ink">Pick List</h2>
@@ -235,6 +222,19 @@ export default async function JobDetailPage({
               />
             </div>
           </section>
+
+          <JobNotes
+            jobNotes={jobAndVisitNotes.map((n) => ({
+              id: n.id,
+              body: n.body,
+              noteCreatedAt: n.noteCreatedAt?.toISOString() ?? null,
+            }))}
+            clientNotes={clientNotes.map((n) => ({
+              id: n.id,
+              body: n.body,
+              noteCreatedAt: n.noteCreatedAt?.toISOString() ?? null,
+            }))}
+          />
 
           {(job.description || job.instructions) && (
             <section className="rounded-lg border border-rule bg-card p-6 print-block">
