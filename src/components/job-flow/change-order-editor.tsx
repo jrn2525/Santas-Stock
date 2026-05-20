@@ -143,44 +143,18 @@ export function ChangeOrderEditor({
   return (
     <div className="space-y-6">
       <section className="rounded-lg border border-rule bg-card p-5">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <label htmlFor="reason" className="block text-sm font-medium text-ink">
-              Reason / notes (optional)
-            </label>
-            <input
-              id="reason"
-              type="text"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder='e.g. "Customer added bush wrap" or "Switch to candy cane"'
-              className="mt-1 block w-full rounded-md border border-rule bg-canvas px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-              maxLength={500}
-            />
-          </div>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!hasChanges || isPending}
-            className={`rounded-md px-4 py-2 text-sm font-semibold transition ${
-              hasChanges && !isPending
-                ? "bg-brand text-ink hover:bg-brand-hover"
-                : "cursor-not-allowed bg-canvas text-ink-dim opacity-50"
-            }`}
-          >
-            {isPending ? "Saving…" : "Save Change Order"}
-          </button>
-        </div>
-        {flash && (
-          <p className="mt-3 rounded-md border border-green-700/40 bg-green-900/20 px-3 py-2 text-sm text-green-200">
-            {flash}
-          </p>
-        )}
-        {error && (
-          <p className="mt-3 rounded-md border border-red-700/40 bg-red-900/20 px-3 py-2 text-sm text-red-200">
-            {error}
-          </p>
-        )}
+        <label htmlFor="reason" className="block text-sm font-medium text-ink">
+          Reason / notes (optional)
+        </label>
+        <input
+          id="reason"
+          type="text"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder='e.g. "Customer added bush wrap" or "Switch to candy cane"'
+          className="mt-1 block w-full rounded-md border border-rule bg-canvas px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+          maxLength={500}
+        />
       </section>
 
       <section className="rounded-lg border border-rule bg-card p-5">
@@ -306,6 +280,41 @@ export function ChangeOrderEditor({
               + Add line
             </button>
           </div>
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-rule bg-card p-5">
+        {flash && (
+          <p className="mb-3 rounded-md border border-green-700/40 bg-green-900/20 px-3 py-2 text-sm text-green-200">
+            {flash}
+          </p>
+        )}
+        {error && (
+          <p className="mb-3 rounded-md border border-red-700/40 bg-red-900/20 px-3 py-2 text-sm text-red-200">
+            {error}
+          </p>
+        )}
+        <div className="flex flex-wrap justify-end gap-3">
+          <button
+            type="button"
+            onClick={() => router.push(`/job-flow/jobs/${jobId}`)}
+            disabled={isPending}
+            className="rounded-md border border-rule px-4 py-2 text-sm font-semibold text-ink transition hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!hasChanges || isPending}
+            className={`rounded-md px-4 py-2 text-sm font-semibold transition ${
+              hasChanges && !isPending
+                ? "bg-brand text-ink hover:bg-brand-hover"
+                : "cursor-not-allowed bg-canvas text-ink-dim opacity-50"
+            }`}
+          >
+            {isPending ? "Saving…" : "Save"}
+          </button>
         </div>
       </section>
     </div>
