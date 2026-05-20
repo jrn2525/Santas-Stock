@@ -191,6 +191,7 @@ model Item {
   kitMemberships     KitItem[]
   allocations        Allocation[]
   jobLineItems       JobLineItem[]
+  jobLineShortages   JobLineShortage[]
   replacementEntries ReplacementQueue[]
   maintenanceTickets MaintenanceTicket[]
 
@@ -373,12 +374,37 @@ model JobLineItem {
   notes    String?
   position Int?
 
+  // True once autoAllocate has run for this line (inventory deducted,
+  // shortages logged if any). Flipped back to false by Change Order when
+  // the line's quantity is modified, so allocation re-runs.
+  isAllocated Boolean @default(false)
+
+  shortages JobLineShortage[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([jobId])
   @@index([itemId])
   @@index([kitId])
+}
+
+// Tracks items that a Job line couldn't fully allocate against inventory.
+// Created when autoAllocate runs and there isn't enough stock. Released
+// (decremented or deleted) when stock arrives and the user clicks Release
+// on the Awaiting Stock page.
+model JobLineShortage {
+  id            String      @id @default(cuid())
+  jobLineItemId String
+  jobLineItem   JobLineItem @relation(fields: [jobLineItemId], references: [id], onDelete: Cascade)
+  itemId        String
+  item          Item        @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  quantityShort Int
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([jobLineItemId])
+  @@index([itemId])
 }
 
 model JobberVisit {

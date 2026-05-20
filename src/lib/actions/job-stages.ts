@@ -5,6 +5,7 @@ import type { JobStage } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { assertRoleForAction, WRITE_ROLES, requireUser } from "@/lib/auth-helpers";
 import { isValidTransition } from "@/lib/job-flow";
+import { autoAllocateJob } from "./auto-allocate";
 
 export async function setJobStage(jobId: string, toStage: JobStage) {
   await assertRoleForAction(WRITE_ROLES);
@@ -36,6 +37,13 @@ export async function setJobStage(jobId: string, toStage: JobStage) {
       },
     }),
   ]);
+
+  // Entering ALLOCATED runs auto-allocation. Idempotent — only lines that
+  // haven't been allocated yet get processed, so re-entering this stage
+  // doesn't double-deduct inventory.
+  if (toStage === "ALLOCATED") {
+    await autoAllocateJob(jobId);
+  }
 
   revalidatePath(`/job-flow/jobs/${jobId}`);
 }

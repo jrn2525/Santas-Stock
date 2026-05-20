@@ -118,11 +118,18 @@ export default async function JobDetailPage({
       </header>
 
       {job.isOnHold && (
-        <div className="mt-4 rounded-md border border-yellow-600/60 bg-yellow-500/15 px-4 py-3 text-sm text-yellow-100">
-          <strong className="font-semibold">Awaiting Stock.</strong> This job is
-          waiting on inventory to come in before it can advance. Update stock
-          and release from the Awaiting Stock page (coming soon).
-        </div>
+        <Link
+          href={`/job-flow/jobs/${job.id}/awaiting-stock`}
+          className="mt-4 flex items-start justify-between gap-3 rounded-md border border-yellow-600/60 bg-yellow-500/15 px-4 py-3 text-sm text-yellow-100 transition hover:border-yellow-500 hover:bg-yellow-500/25"
+        >
+          <span>
+            <strong className="font-semibold">Awaiting Stock.</strong> This job
+            is waiting on inventory to come in before it can advance.
+          </span>
+          <span className="text-xs uppercase tracking-wider text-yellow-200">
+            View shortages →
+          </span>
+        </Link>
       )}
 
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
