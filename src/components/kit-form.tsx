@@ -5,10 +5,11 @@ import { useActionState, useState } from "react";
 import { ItemStatus, ProductType } from "@prisma/client";
 import { createKit, updateKit } from "@/lib/actions/kits";
 import { emptyFormState, type FormState } from "@/lib/actions/state";
+import { to2Dp } from "@/lib/format";
 
 type ItemOption = { id: string; name: string };
 
-type KitItemRow = { key: string; itemId: string; quantity: number };
+type KitItemRow = { key: string; itemId: string; quantity: string };
 
 type Kit = {
   id: string;
@@ -55,10 +56,10 @@ export function KitForm({ kit, items }: { kit?: Kit; items: ItemOption[] }) {
       return kit.items.map((ki) => ({
         key: newKey(),
         itemId: ki.itemId,
-        quantity: ki.quantity,
+        quantity: to2Dp(ki.quantity),
       }));
     }
-    return [{ key: newKey(), itemId: "", quantity: 1 }];
+    return [{ key: newKey(), itemId: "", quantity: "1.00" }];
   });
 
   const updateRow = (key: string, patch: Partial<KitItemRow>) => {
@@ -70,7 +71,7 @@ export function KitForm({ kit, items }: { kit?: Kit; items: ItemOption[] }) {
   };
 
   const addRow = () => {
-    setRows((rs) => [...rs, { key: newKey(), itemId: "", quantity: 1 }]);
+    setRows((rs) => [...rs, { key: newKey(), itemId: "", quantity: "1.00" }]);
   };
 
   const submitWithItems = (formData: FormData) => {
@@ -248,9 +249,14 @@ export function KitForm({ kit, items }: { kit?: Kit; items: ItemOption[] }) {
               inputMode="decimal"
               step="0.01"
               min={0}
-              defaultValue={kit?.unitCost?.toString() ?? ""}
+              defaultValue={kit?.unitCost != null ? to2Dp(kit.unitCost) : ""}
               placeholder="0.00"
               readOnly={editing}
+              onBlur={(e) => {
+                if (e.target.value === "") return;
+                const n = Number(e.target.value);
+                if (!Number.isNaN(n)) e.target.value = to2Dp(n);
+              }}
               className={`block w-full rounded-md border border-rule py-2 pl-7 pr-3 text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand ${
                 editing
                   ? "cursor-not-allowed bg-canvas/50 text-ink-dim"
@@ -303,11 +309,23 @@ export function KitForm({ kit, items }: { kit?: Kit; items: ItemOption[] }) {
                 <input
                   id={`qty-${row.key}`}
                   type="number"
-                  min={1}
+                  inputMode="decimal"
+                  step="0.01"
+                  min={0}
                   value={row.quantity}
                   onChange={(e) =>
-                    updateRow(row.key, { quantity: Number(e.target.value) || 1 })
+                    updateRow(row.key, { quantity: e.target.value })
                   }
+                  onBlur={(e) => {
+                    if (e.target.value === "") {
+                      updateRow(row.key, { quantity: "1.00" });
+                      return;
+                    }
+                    const n = Number(e.target.value);
+                    if (!Number.isNaN(n)) {
+                      updateRow(row.key, { quantity: to2Dp(n) });
+                    }
+                  }}
                   className="mt-1 block w-full rounded-md border border-rule bg-canvas px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
                   required
                 />
@@ -458,6 +476,12 @@ function Field({
   min?: number;
   readOnly?: boolean;
 }) {
+  const isNumber = type === "number";
+  const effectiveDefault =
+    isNumber && defaultValue !== undefined && defaultValue !== ""
+      ? to2Dp(defaultValue)
+      : defaultValue;
+
   return (
     <div>
       <label htmlFor={name} className="block text-sm font-medium text-ink">
@@ -468,11 +492,22 @@ function Field({
         id={name}
         name={name}
         type={type}
-        defaultValue={defaultValue}
+        inputMode={isNumber ? "decimal" : undefined}
+        step={isNumber ? "0.01" : undefined}
+        defaultValue={effectiveDefault}
         required={required}
         placeholder={placeholder}
         min={min}
         readOnly={readOnly}
+        onBlur={
+          isNumber
+            ? (e) => {
+                if (e.target.value === "") return;
+                const n = Number(e.target.value);
+                if (!Number.isNaN(n)) e.target.value = to2Dp(n);
+              }
+            : undefined
+        }
         className={`mt-1 block w-full rounded-md border border-rule px-3 py-2 text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand ${
           readOnly ? "cursor-not-allowed bg-canvas/50 text-ink-dim" : "bg-canvas"
         }`}

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { deleteKit } from "@/lib/actions/kits";
 import { DeleteButton } from "@/components/delete-button";
+import { to2Dp } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -77,12 +78,12 @@ export default async function KitsPage() {
                         <span className="text-ink-muted">—</span>
                       ) : (
                         k.items
-                          .map((ki) => `${ki.item.name} ×${ki.quantity}`)
+                          .map((ki) => `${ki.item.name} ×${to2Dp(ki.quantity)}`)
                           .join(", ")
                       )}
                     </td>
                     <td className="px-4 py-3 text-right">{k.items.length}</td>
-                    <td className="px-4 py-3 text-right tabular-nums">{totalQty}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">{to2Dp(totalQty)}</td>
                     <td className="px-4 py-3 text-right">
                       {canWrite && (
                         <div className="flex justify-end gap-3">

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { addDaysET, startOfDayET, todayET } from "@/lib/datetime";
+import { to2Dp } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -112,7 +113,7 @@ export default async function InventoryDashboardPage() {
 
       <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Items" value={items} href="/inventory/items" />
-        <Stat label="Total stock qty" value={totalQty} href="/inventory/items" />
+        <Stat label="Total stock qty" value={to2Dp(totalQty)} href="/inventory/items" />
         <Stat label="Available items" value={available} />
         <Stat label="Allocated items" value={allocated} />
       </section>
@@ -145,7 +146,7 @@ export default async function InventoryDashboardPage() {
                 </Link>
                 <div className="text-xs tabular-nums text-ink-dim">
                   <span className={i.quantity === 0 ? "text-brand font-semibold" : "text-ink"}>
-                    {i.quantity}
+                    {to2Dp(i.quantity)}
                   </span>
                   <span className="opacity-70"> / min {i.minQuantity}</span>
                 </div>
@@ -182,8 +183,8 @@ export default async function InventoryDashboardPage() {
                   {d.name}
                 </Link>
                 <div className="text-xs tabular-nums text-ink">
-                  Need <strong>{d.needed}</strong>, have {d.have},{" "}
-                  <strong className="text-brand">short {d.needed - d.have}</strong>
+                  Need <strong>{to2Dp(d.needed)}</strong>, have {to2Dp(d.have)},{" "}
+                  <strong className="text-brand">short {to2Dp(d.needed - d.have)}</strong>
                 </div>
               </li>
             ))}
@@ -200,7 +201,7 @@ function Stat({
   href,
 }: {
   label: string;
-  value: number;
+  value: number | string;
   href?: string;
 }) {
   const inner = (

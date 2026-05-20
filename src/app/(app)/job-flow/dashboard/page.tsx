@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { JobberJobsSyncButton } from "@/components/jobber-job-flow-sync-buttons";
+import { to2Dp } from "@/lib/format";
 import {
   addDaysET,
   fmtShortDateET,
@@ -330,7 +331,7 @@ export default async function JobFlowDashboardPage() {
                         {d.name}
                       </Link>
                       <div className={`text-xs tabular-nums ${short ? "text-brand" : "text-ink-dim"}`}>
-                        ×{d.needed} <span className="opacity-70">/ {d.have} in stock</span>
+                        ×{to2Dp(d.needed)} <span className="opacity-70">/ {to2Dp(d.have)} in stock</span>
                       </div>
                     </li>
                   );

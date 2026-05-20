@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { deleteItem } from "@/lib/actions/items";
 import { DeleteButton } from "@/components/delete-button";
+import { to2Dp } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -130,7 +131,7 @@ export default async function ItemsPage({
                       {statusLabels[i.status]}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums">{i.quantity}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{to2Dp(i.quantity)}</td>
                   <td className="px-4 py-3 text-ink-dim">{i.homeLocation ?? "—"}</td>
                   <td className="px-4 py-3 text-right">
                     {canWrite && (

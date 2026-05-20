@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { to2Dp } from "@/lib/format";
 
 /**
  * Shared hierarchical Pick List renderer.
@@ -85,7 +86,7 @@ function PickListRow({ line }: { line: PickListLine }) {
         <div className="flex items-center gap-3">
           {line.rowAccessory}
           <span className="text-sm font-medium text-ink tabular-nums whitespace-nowrap">
-            ×{line.quantity}
+            ×{to2Dp(line.quantity)}
           </span>
         </div>
       </div>
@@ -101,7 +102,7 @@ function PickListRow({ line }: { line: PickListLine }) {
               <div className="flex items-center gap-3">
                 {line.componentAccessory?.(c.itemId)}
                 <span className="tabular-nums whitespace-nowrap">
-                  ×{c.quantityPerKit * line.quantity}
+                  ×{to2Dp(c.quantityPerKit * line.quantity)}
                 </span>
               </div>
             </li>

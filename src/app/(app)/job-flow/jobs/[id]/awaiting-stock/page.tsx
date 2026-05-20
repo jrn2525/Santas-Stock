@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireRole, WRITE_ROLES } from "@/lib/auth-helpers";
 import { ReleaseButton } from "@/components/job-flow/release-button";
+import { to2Dp } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -142,7 +143,7 @@ export default async function AwaitingStockPage({
                           )}
                         </span>
                         <span className="tabular-nums whitespace-nowrap text-xs">
-                          short {s.quantityShort} · in stock {s.item.quantity}
+                          short {to2Dp(s.quantityShort)} · in stock {to2Dp(s.item.quantity)}
                           {covered ? " ✓" : ""}
                         </span>
                       </li>

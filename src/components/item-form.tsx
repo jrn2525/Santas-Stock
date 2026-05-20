@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 import { ItemStatus, ProductType } from "@prisma/client";
 import { createItem, updateItem } from "@/lib/actions/items";
 import { emptyFormState, type FormState } from "@/lib/actions/state";
+import { to2Dp } from "@/lib/format";
 
 type Item = {
   id: string;
@@ -249,9 +250,14 @@ export function ItemForm({ item }: { item?: Item }) {
               inputMode="decimal"
               step="0.01"
               min={0}
-              defaultValue={item?.unitCost?.toString() ?? ""}
+              defaultValue={item?.unitCost != null ? to2Dp(item.unitCost) : ""}
               placeholder="0.00"
               readOnly={editing}
+              onBlur={(e) => {
+                if (e.target.value === "") return;
+                const n = Number(e.target.value);
+                if (!Number.isNaN(n)) e.target.value = to2Dp(n);
+              }}
               className={`block w-full rounded-md border border-rule py-2 pl-7 pr-3 text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand ${
                 editing
                   ? "cursor-not-allowed bg-canvas/50 text-ink-dim"
@@ -378,6 +384,15 @@ function Field({
   help?: string;
   readOnly?: boolean;
 }) {
+  // Global UX rule: every numeric input shows 2 decimals and accepts decimals.
+  const isNumber = type === "number";
+  const effectiveStep = isNumber ? (step ?? "0.01") : step;
+  const effectiveDefault =
+    isNumber && defaultValue !== undefined && defaultValue !== ""
+      ? to2Dp(defaultValue)
+      : defaultValue;
+  const inputMode = isNumber ? "decimal" : undefined;
+
   return (
     <div>
       <label htmlFor={name} className="block text-sm font-medium text-ink">
@@ -388,11 +403,22 @@ function Field({
         id={name}
         name={name}
         type={type}
-        defaultValue={defaultValue}
+        inputMode={inputMode}
+        defaultValue={effectiveDefault}
         required={required}
-        step={step}
+        step={effectiveStep}
         min={min}
         readOnly={readOnly}
+        onBlur={
+          isNumber
+            ? (e) => {
+                const v = e.target.value;
+                if (v === "") return;
+                const n = Number(v);
+                if (!Number.isNaN(n)) e.target.value = to2Dp(n);
+              }
+            : undefined
+        }
         className={`mt-1 block w-full rounded-md border border-rule px-3 py-2 text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand ${
           readOnly ? "cursor-not-allowed bg-canvas/50 text-ink-dim" : "bg-canvas"
         }`}
