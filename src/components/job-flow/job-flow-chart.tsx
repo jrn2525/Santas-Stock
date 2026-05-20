@@ -54,8 +54,8 @@ export function JobFlowChart({
   const canRevert = canWrite && prev !== null && !isPending;
 
   return (
-    <section className="rounded-lg border border-rule bg-brand/15 p-5">
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-dim">
+    <section className="rounded-lg border border-white bg-brand/15 p-5">
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-white">
         Job Flow
       </h2>
 
@@ -99,13 +99,13 @@ export function JobFlowChart({
       </div>
 
       {currentStage === "NEW" && (
-        <p className="mt-4 text-xs text-ink-dim">
+        <p className="mt-4 text-xs text-white">
           Job hasn&apos;t started yet — click Allocated to begin.
         </p>
       )}
 
       {prev && (
-        <div className="mt-5 border-t border-rule pt-4">
+        <div className="mt-5 border-t border-white pt-4">
           <button
             type="button"
             onClick={() => handleClick(prev)}
