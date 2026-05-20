@@ -79,3 +79,40 @@ export function prevStage(current: JobStage): JobStage | null {
   if (idx <= 0) return null;
   return order[idx - 1];
 }
+
+export type StagePosition = "past" | "current" | "future";
+
+/**
+ * Where does `stage` sit relative to `currentStage` on the timeline?
+ * - "current": the stage the job is in right now
+ * - "past":    a stage already completed
+ * - "future":  a stage not yet reached (or the unchosen terminal)
+ *
+ * Used by the Job Flow panel to color each button: future = gray,
+ * current = red, past = black.
+ */
+export function getStagePosition(
+  stage: JobStage,
+  currentStage: JobStage,
+): StagePosition {
+  if (stage === currentStage) return "current";
+
+  const order = ["NEW", ...FLOW_STAGES] as JobStage[];
+  const currentIdx = order.indexOf(currentStage);
+  const stageIdx = order.indexOf(stage);
+
+  if (currentIdx >= 0 && stageIdx >= 0) {
+    return stageIdx < currentIdx ? "past" : "future";
+  }
+
+  // currentStage is terminal — every linear pipeline stage is past
+  if (
+    (currentStage === "COMPLETE" || currentStage === "DEACTIVATED") &&
+    stageIdx >= 0
+  ) {
+    return "past";
+  }
+
+  // Anything else (typically the unchosen terminal) hasn't been reached
+  return "future";
+}

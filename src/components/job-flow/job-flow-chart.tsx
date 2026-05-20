@@ -7,6 +7,7 @@ import { setJobStage } from "@/lib/actions/job-stages";
 import {
   FLOW_STAGES,
   STAGE_LABELS,
+  getStagePosition,
   isValidTransition,
   prevStage,
 } from "@/lib/job-flow";
@@ -144,6 +145,7 @@ function StageButton({
 }) {
   const isCurrent = currentStage === stage;
   const showYellow = isCurrent && isOnHold;
+  const position = getStagePosition(stage, currentStage);
 
   let classes = "rounded-md border px-4 py-2 text-sm font-medium transition";
   if (compact) classes += " min-w-[8rem]";
@@ -152,10 +154,12 @@ function StageButton({
   if (showYellow) {
     classes +=
       " border-yellow-500 bg-yellow-500/20 text-yellow-100 ring-2 ring-yellow-500/40";
-  } else if (isCurrent) {
+  } else if (position === "current") {
     classes += " border-brand bg-brand text-ink hover:bg-brand-hover";
-  } else {
+  } else if (position === "past") {
     classes += " border-white bg-canvas text-white";
+  } else {
+    classes += " border-white bg-card text-white";
   }
 
   if (disabled) {
