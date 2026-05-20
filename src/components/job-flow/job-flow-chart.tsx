@@ -112,8 +112,8 @@ export function JobFlowChart({
             disabled={!canRevert}
             className={`w-full rounded-md border px-3 py-2 text-sm font-medium transition ${
               canRevert
-                ? "border-rule bg-canvas text-ink hover:border-brand hover:text-brand cursor-pointer"
-                : "border-rule bg-canvas text-ink-dim opacity-50 cursor-not-allowed"
+                ? "border-white bg-canvas text-white hover:border-brand hover:text-brand cursor-pointer"
+                : "border-white bg-canvas text-white opacity-50 cursor-not-allowed"
             }`}
             title={`Revert to ${STAGE_LABELS[prev]}`}
           >
@@ -153,16 +153,15 @@ function StageButton({
     classes +=
       " border-yellow-500 bg-yellow-500/20 text-yellow-100 ring-2 ring-yellow-500/40";
   } else if (isCurrent) {
-    classes +=
-      " border-red-600 bg-red-600/20 text-red-100 ring-2 ring-red-600/40";
+    classes += " border-brand bg-brand text-ink hover:bg-brand-hover";
   } else {
-    classes += " border-rule bg-canvas text-ink-dim";
+    classes += " border-white bg-canvas text-white";
   }
 
   if (disabled) {
     classes += " cursor-not-allowed opacity-50";
   } else {
-    classes += " hover:border-brand hover:text-ink cursor-pointer";
+    classes += " hover:border-brand cursor-pointer";
   }
 
   return (
@@ -180,7 +179,7 @@ function StageButton({
 
 function Arrow() {
   return (
-    <div className="flex justify-center text-ink-dim" aria-hidden>
+    <div className="flex justify-center text-white" aria-hidden>
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
         <path
           d="M7 2v9m0 0l-3-3m3 3l3-3"
