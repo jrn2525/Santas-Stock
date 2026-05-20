@@ -2,9 +2,17 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireRole, WRITE_ROLES } from "@/lib/auth-helpers";
+import {
+  ChangeOrderEditor,
+  type PickerOption,
+} from "@/components/job-flow/change-order-editor";
 import { STAGE_LABELS } from "@/lib/job-flow";
+import { to2Dp } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
+
+let keyCounter = 0;
+const initKey = () => `init-${++keyCounter}`;
 
 export default async function ChangeOrderPage({
   params,
@@ -14,11 +22,46 @@ export default async function ChangeOrderPage({
   await requireRole(WRITE_ROLES);
   const { id } = await params;
 
-  const job = await prisma.jobberJob.findUnique({
-    where: { id },
-    select: { id: true, title: true, jobNumber: true, currentStage: true },
-  });
+  const [job, items, kits] = await Promise.all([
+    prisma.jobberJob.findUnique({
+      where: { id },
+      include: {
+        lineItems: {
+          orderBy: { position: "asc" },
+          include: {
+            item: { select: { id: true, name: true } },
+            kit: { select: { id: true, name: true } },
+          },
+        },
+      },
+    }),
+    prisma.item.findMany({
+      where: { active: true },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.kit.findMany({
+      where: { active: true },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+
   if (!job) notFound();
+
+  const initialLines = job.lineItems
+    .filter((li) => li.item || li.kit)
+    .map((li) => ({
+      key: initKey(),
+      existingId: li.id,
+      kind: li.kit ? ("kit" as const) : ("item" as const),
+      refId: (li.kit?.id ?? li.item?.id) as string,
+      refName: (li.kit?.name ?? li.item?.name) as string,
+      quantity: to2Dp(li.quantity),
+    }));
+
+  const itemOptions: PickerOption[] = items.map((i) => ({ id: i.id, name: i.name }));
+  const kitOptions: PickerOption[] = kits.map((k) => ({ id: k.id, name: k.name }));
 
   return (
     <>
@@ -33,24 +76,19 @@ export default async function ChangeOrderPage({
         </h1>
         <p className="mt-1 text-sm text-ink-dim">
           {job.jobNumber && <>Job #{job.jobNumber} · </>}
-          Current stage: <span className="text-ink">{STAGE_LABELS[job.currentStage]}</span>
+          Current stage:{" "}
+          <span className="text-ink">{STAGE_LABELS[job.currentStage]}</span>
         </p>
       </header>
 
-      <section className="mt-8 rounded-lg border border-dashed border-rule bg-card p-8 text-center">
-        <h2 className="text-lg font-semibold text-ink">
-          Change Order editor — coming next
-        </h2>
-        <p className="mt-3 text-sm text-ink-dim">
-          This page will let you edit the Pick List for this job at any stage —
-          swap items, add new lines, remove lines, change quantities — with a
-          live diff showing what returns to inventory and what gets pulled.
-        </p>
-        <p className="mt-3 text-sm text-ink-dim">
-          Shipping in the next build slice. For now, this button is wired so
-          the route exists.
-        </p>
-      </section>
+      <div className="mt-6">
+        <ChangeOrderEditor
+          jobId={job.id}
+          initialLines={initialLines}
+          items={itemOptions}
+          kits={kitOptions}
+        />
+      </div>
     </>
   );
 }

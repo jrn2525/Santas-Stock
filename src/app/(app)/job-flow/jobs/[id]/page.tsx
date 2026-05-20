@@ -9,6 +9,7 @@ import {
   PickListView,
   lineItemsToPickListLines,
 } from "@/components/job-flow/pick-list-view";
+import { ChangeOrderHistory } from "@/components/job-flow/change-order-history";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +57,10 @@ export default async function JobDetailPage({
             },
           },
         },
+      },
+      changeOrders: {
+        orderBy: { createdAt: "desc" },
+        include: { createdBy: { select: { name: true } } },
       },
     },
   });
@@ -255,6 +260,19 @@ export default async function JobDetailPage({
                 </div>
               )}
             </section>
+          )}
+
+          {job.changeOrders.length > 0 && (
+            <ChangeOrderHistory
+              entries={job.changeOrders.map((co) => ({
+                id: co.id,
+                atStage: co.atStage,
+                reason: co.reason,
+                createdAt: co.createdAt.toISOString(),
+                createdByName: co.createdBy?.name ?? null,
+                diff: co.diff,
+              }))}
+            />
           )}
         </div>
 

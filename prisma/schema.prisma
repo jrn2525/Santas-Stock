@@ -121,6 +121,7 @@ model User {
   openedTickets        MaintenanceTicket[]      @relation("OpenedBy")
   stageEvents          JobStageEvent[]          @relation("StageEventBy")
   inspectionDecisions  InspectionLineDecision[] @relation("InspectionDecidedBy")
+  changeOrders         ChangeOrder[]            @relation("ChangeOrderCreatedBy")
   auditEntries         AuditLog[]
   jobberConnections    JobberConnection[]
 }
@@ -322,10 +323,11 @@ model JobberJob {
   currentStage JobStage @default(NEW)
   isOnHold     Boolean  @default(false)
 
-  visits      JobberVisit[]
-  notes       JobberNote[]
-  lineItems   JobLineItem[]
-  stageEvents JobStageEvent[]
+  visits       JobberVisit[]
+  notes        JobberNote[]
+  lineItems    JobLineItem[]
+  stageEvents  JobStageEvent[]
+  changeOrders ChangeOrder[]
 
   syncedAt  DateTime?
   createdAt DateTime  @default(now())
@@ -353,6 +355,30 @@ model JobStageEvent {
   byUserId  String?
   byUser    User?     @relation("StageEventBy", fields: [byUserId], references: [id])
   notes     String?
+
+  @@index([jobId])
+}
+
+// A single Change Order applied to a Job's pick list. Tracks what was added,
+// removed, and changed at what stage and by whom, so anyone can scroll back
+// and see "why does this customer's tote have red bulbs?"
+model ChangeOrder {
+  id          String    @id @default(cuid())
+  jobId       String
+  job         JobberJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  atStage     JobStage
+  reason      String?
+  /// JSON: structured summary of the change for display.
+  /// {
+  ///   added:   [{ name, kind, quantity }],
+  ///   removed: [{ name, kind, quantity }],
+  ///   changed: [{ name, kind, fromQty, toQty }],
+  ///   inventoryDeltas: [{ itemName, change }]  // positive = pulled, negative = returned
+  /// }
+  diff        Json
+  createdById String?
+  createdBy   User?     @relation("ChangeOrderCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
 
   @@index([jobId])
 }
