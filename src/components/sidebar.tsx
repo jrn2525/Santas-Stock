@@ -33,6 +33,7 @@ const adminNav: NavItem[] = [
   { href: "/admin/overview", label: "Overview" },
   { href: "/admin/users", label: "Users" },
   { href: "/inventory/import-export", label: "Import / Export" },
+  { href: "/admin/cleanup", label: "Data cleanup" },
 ];
 
 function pickNav(pathname: string): NavItem[] {
