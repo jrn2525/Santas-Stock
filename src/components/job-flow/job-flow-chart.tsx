@@ -113,7 +113,7 @@ export function JobFlowChart({
             className={`w-full rounded-md border px-3 py-2 text-sm font-medium transition ${
               canRevert
                 ? "border-white bg-canvas text-white hover:border-brand hover:text-brand cursor-pointer"
-                : "border-white bg-canvas text-white opacity-50 cursor-not-allowed"
+                : "border-white bg-canvas text-white cursor-not-allowed"
             }`}
             title={`Revert to ${STAGE_LABELS[prev]}`}
           >
@@ -159,7 +159,7 @@ function StageButton({
   }
 
   if (disabled) {
-    classes += " cursor-not-allowed opacity-50";
+    classes += " cursor-not-allowed";
   } else {
     classes += " hover:border-brand cursor-pointer";
   }
