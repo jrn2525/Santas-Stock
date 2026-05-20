@@ -115,11 +115,12 @@ model User {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  allocations          Allocation[]        @relation("AllocatedBy")
-  flaggedReplacements  ReplacementQueue[]  @relation("FlaggedBy")
-  resolvedReplacements ReplacementQueue[]  @relation("ResolvedBy")
-  openedTickets        MaintenanceTicket[] @relation("OpenedBy")
-  stageEvents          JobStageEvent[]     @relation("StageEventBy")
+  allocations          Allocation[]             @relation("AllocatedBy")
+  flaggedReplacements  ReplacementQueue[]       @relation("FlaggedBy")
+  resolvedReplacements ReplacementQueue[]       @relation("ResolvedBy")
+  openedTickets        MaintenanceTicket[]      @relation("OpenedBy")
+  stageEvents          JobStageEvent[]          @relation("StageEventBy")
+  inspectionDecisions  InspectionLineDecision[] @relation("InspectionDecidedBy")
   auditEntries         AuditLog[]
   jobberConnections    JobberConnection[]
 }
@@ -356,6 +357,31 @@ model JobStageEvent {
   @@index([jobId])
 }
 
+enum InspectionDecision {
+  GOOD
+  REPAIRED
+  DEAD
+}
+
+// Per-pick-list-line decision Santa makes during Inspection: each line is
+// either Good (no inventory change), Repaired (replacement parts pulled from
+// inventory and "allocated to kit"), or Dead (entire line subtracted from
+// inventory permanently). appliedDeltas records exactly what was deducted so
+// the change can be reversed if the user clicks a different button.
+model InspectionLineDecision {
+  id              String             @id @default(cuid())
+  jobLineItemId   String             @unique
+  jobLineItem     JobLineItem        @relation(fields: [jobLineItemId], references: [id], onDelete: Cascade)
+  decision        InspectionDecision
+  /// JSON: [{ itemId, quantity }] — the inventory deductions this decision
+  /// caused. Used to reverse the effect when the decision changes.
+  appliedDeltas   Json?
+  decidedAt       DateTime           @default(now())
+  decidedByUserId String?
+  decidedBy       User?              @relation("InspectionDecidedBy", fields: [decidedByUserId], references: [id])
+  updatedAt       DateTime           @updatedAt
+}
+
 // A single line on a Jobber Job. Each line is either a Product (mapped to
 // Item) or a Service (mapped to Kit). If we can't resolve to a local row
 // (deleted product, brand-new product not synced yet), we keep the raw
@@ -382,7 +408,8 @@ model JobLineItem {
   // the line's quantity is modified, so allocation re-runs.
   isAllocated Boolean @default(false)
 
-  shortages JobLineShortage[]
+  shortages          JobLineShortage[]
+  inspectionDecision InspectionLineDecision?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
