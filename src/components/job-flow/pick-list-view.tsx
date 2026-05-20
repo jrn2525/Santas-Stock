@@ -128,7 +128,7 @@ export type PrismaJobLineItem = {
         name: string;
         items: Array<{
           itemId: string;
-          quantity: number;
+          quantity: { toString(): string } | number;
           item: { name: string };
         }>;
       }
@@ -150,7 +150,7 @@ export function lineItemsToPickListLines(
         components: li.kit.items.map((ki) => ({
           itemId: ki.itemId,
           itemName: ki.item.name,
-          quantityPerKit: ki.quantity,
+          quantityPerKit: Number(ki.quantity),
         })),
       };
     }

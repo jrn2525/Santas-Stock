@@ -91,7 +91,7 @@ export default async function InventoryDashboardPage() {
           demandMap.set(ki.item.id, {
             itemId: ki.item.id,
             name: ki.item.name,
-            needed: (ex?.needed ?? 0) + ki.quantity * qty,
+            needed: (ex?.needed ?? 0) + Number(ki.quantity) * qty,
             have: ki.item.quantity,
           });
         }

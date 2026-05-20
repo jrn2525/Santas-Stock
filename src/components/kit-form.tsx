@@ -25,7 +25,7 @@ type Kit = {
   homeLocation: string | null;
   currentLocation: string | null;
   unitCost: { toString(): string } | null;
-  items: { itemId: string; quantity: number }[];
+  items: { itemId: string; quantity: number | { toString(): string } }[];
   jobberProductId: string | null;
 };
 

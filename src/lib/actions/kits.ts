@@ -31,7 +31,8 @@ const optionalProductType = z.preprocess(
 
 const KitItemSchema = z.object({
   itemId: z.string().min(1, "Item is required."),
-  quantity: z.number().int().positive("Quantity must be at least 1."),
+  // Decimal allowed — multi-color kits use fractional ratios like 0.25.
+  quantity: z.number().positive("Quantity must be greater than 0."),
 });
 
 const KitSchema = z.object({

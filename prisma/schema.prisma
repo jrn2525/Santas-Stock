@@ -238,7 +238,10 @@ model Kit {
 model KitItem {
   kitId    String
   itemId   String
-  quantity Int    @default(1)
+  // Decimal so kit recipes can express ratios like 0.25 (a multi-color kit
+  // where each color contributes a fraction of the total). 4 decimal places
+  // handles common ratios like 0.333 cleanly.
+  quantity Decimal @default(1) @db.Decimal(12, 4)
 
   kit  Kit  @relation(fields: [kitId], references: [id], onDelete: Cascade)
   item Item @relation(fields: [itemId], references: [id], onDelete: Cascade)

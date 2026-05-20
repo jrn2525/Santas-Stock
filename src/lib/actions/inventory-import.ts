@@ -124,6 +124,19 @@ function parseInt0(raw: string): number {
   return Math.trunc(n);
 }
 
+/**
+ * Parse a quantity that may be fractional (e.g. kit recipe ratios like 0.25
+ * for "1/4 of each color in a multi-color kit"). Returns a non-negative
+ * float, or 0 on bad input.
+ */
+function parseQty(raw: string): number {
+  const cleaned = raw.replace(/[,\s]/g, "").trim();
+  if (cleaned === "") return 0;
+  const n = Number(cleaned);
+  if (Number.isNaN(n) || n < 0) return 0;
+  return n;
+}
+
 function categoryToTarget(raw: string): "item" | "kit" | null {
   const v = raw.trim().toLowerCase();
   if (v === "product" || v === "products") return "item";
@@ -361,7 +374,7 @@ export async function importInventoryCsv(
       const slot = itemSlots[s];
       const itemName = readCell(cells, slot.nameIdx);
       if (!itemName) continue;
-      const qty = parseInt0(readCell(cells, slot.qtyIdx));
+      const qty = parseQty(readCell(cells, slot.qtyIdx));
       const itemId = itemIdByName.get(itemName);
       if (!itemId) {
         summary.errors.push({

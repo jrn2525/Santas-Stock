@@ -63,7 +63,7 @@ export async function autoAllocateJob(jobId: string): Promise<{
         needs.push({
           itemId: ki.item.id,
           itemQuantity: ki.item.quantity,
-          needed: ki.quantity * qty,
+          needed: Math.ceil(Number(ki.quantity) * qty),
         });
       }
     } else {

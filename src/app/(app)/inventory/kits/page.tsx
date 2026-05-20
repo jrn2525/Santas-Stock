@@ -69,7 +69,7 @@ export default async function KitsPage() {
               </tr>
             ) : (
               kits.map((k) => {
-                const totalQty = k.items.reduce((sum, ki) => sum + ki.quantity, 0);
+                const totalQty = k.items.reduce((sum, ki) => sum + Number(ki.quantity), 0);
                 return (
                   <tr key={k.id} className="text-ink">
                     <td className="px-4 py-3 font-medium">{k.name}</td>
