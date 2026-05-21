@@ -42,10 +42,16 @@ Listed newest-first. Every commit has been pushed to the remote.
 
 The user flagged the Inspection page (`/job-flow/jobs/[id]/inspection`) for an overhaul similar to what we just did on the Deactivate page. To be done:
 
-1. **Rework each line item row's layout** — match the new visual conventions used on the Deactivate page (white text, no gray, no opacity dimming, three-state buttons styled like the Job Flow panel buttons). Each row should read cleanly against the dark background. *Note: the exact "redo" scope wasn't fully specified — confirm with the user before starting whether this is a styling pass only, or a deeper UX rework of the Good/Repaired/Dead controls.*
-2. **Replace per-line auto-save with batch Save / Cancel buttons at the bottom of the page.** Today, each decision saves immediately when the user clicks Good/Repaired/Dead via `setInspectionDecision`. The user wants a Save button at the bottom (like the Change Order and Deactivate pages) plus a Cancel button next to it. That means tracking pending decisions client-side until Save is pressed.
-3. **White out all gray text at the top of the page** — the back link (`← {job.title}`), page subtitle (`Job #N · X of Y lines inspected`), and the instruction callout that explains Good/Repaired/Dead. Pattern is identical to what we did on the Deactivate page (`text-ink-dim` → `text-white`).
-4. **Drop any remaining `opacity-50`** on the inspection form.
+1. **Per-component decisions inside a kit (the big one).** Today, when a pick list line is a kit, marking it Dead/Repaired/Good applies the same decision to the **whole kit** — all components inherit it. The user wants to inspect **each individual component item inside a kit separately** with its own Good/Repaired/Dead choice. A standalone (non-kit) item keeps the single decision it has today.
+   - **Data model change required.** Currently one `InspectionLineDecision` per `JobLineItem`. For kit lines, we need per-component granularity. Two options:
+     - Add a new `InspectionComponentDecision` table keyed on `(jobLineItemId, itemId)` — cleanest, queryable, but a schema migration.
+     - Store per-component decisions inside an existing JSON field on `InspectionLineDecision` (e.g. expand the existing `appliedDeltas` shape into a `componentDecisions` array). No migration, but harder to query later.
+   - **Inventory delta logic** needs to recompute per component instead of per line: for each component, apply its own decision (`DEAD` → deduct `componentQty * lineQty` from that component's inventory; `REPAIRED` → pull replacement parts the user specifies; `GOOD` → no change). Today's `computeDeltasForDead` and the REPAIRED branch in `inspection.ts` do this at the line level — they'll need to walk per component.
+   - **UI rework.** Inspection row for a kit becomes a nested layout: kit name on top, then one row per component with its own three-button control + (for Repaired) the replacement-parts inputs. Standalone item rows keep the single-row UI they have today.
+2. **Rework each row's styling** to match the Deactivate page (white text, no gray, no opacity dimming, white borders). Each row should read cleanly against the dark background.
+3. **Replace per-line auto-save with batch Save / Cancel buttons at the bottom of the page.** Today, each decision saves immediately when the user clicks Good/Repaired/Dead via `setInspectionDecision`. The user wants a Save button at the bottom (like the Change Order and Deactivate pages) plus a Cancel button next to it. That means tracking pending decisions client-side until Save is pressed.
+4. **White out all gray text at the top of the page** — the back link (`← {job.title}`), page subtitle (`Job #N · X of Y lines inspected`), and the instruction callout that explains Good/Repaired/Dead. Pattern is identical to what we did on the Deactivate page (`text-ink-dim` → `text-white`).
+5. **Drop any remaining `opacity-50`** on the inspection form.
 
 Critical files for this work:
 - `src/app/(app)/job-flow/jobs/[id]/inspection/page.tsx`
