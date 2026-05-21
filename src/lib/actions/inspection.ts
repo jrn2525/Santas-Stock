@@ -106,10 +106,17 @@ export async function saveInspectionDecisions(
   const user = await requireUser();
 
   // Load job title so we can drop a useful reason on any ReplacementQueue
-  // rows we create as part of this save.
+  // rows we create as part of this save. Also need clientId / propertyId
+  // so we can find the customer's CustomerKit when adjusting tote
+  // snapshots on DEAD decisions for tote-sourced kit lines.
   const jobMeta = await prisma.jobberJob.findUnique({
     where: { id: jobId },
-    select: { title: true, jobNumber: true },
+    select: {
+      title: true,
+      jobNumber: true,
+      clientId: true,
+      propertyId: true,
+    },
   });
   const jobLabel =
     (jobMeta?.title ?? "(untitled job)") +
@@ -160,6 +167,18 @@ export async function saveInspectionDecisions(
       reason: `${verb} during inspection of ${jobLabel}`,
     });
   };
+
+  // CustomerKitItem snapshot adjustments. When a kit-component decision
+  // transitions INTO or OUT OF DEAD on a tote-sourced kit line, the
+  // customer's CustomerKitItem snapshot needs to track the gain/loss.
+  // Keyed by (kitId, componentItemId) since the actual CustomerKit row
+  // is resolved inside the transaction below.
+  type ToteSnapshotDelta = {
+    kitId: string;
+    componentItemId: string;
+    delta: number; // positive = restore, negative = remove
+  };
+  const toteDeltas: ToteSnapshotDelta[] = [];
 
   // Track which decision records to upsert / delete
   type LineDecisionWrite = {
@@ -289,6 +308,38 @@ export async function saveInspectionDecisions(
           flagForReplacement(comp.componentItemId, flagQty, comp.decision);
         }
 
+        // CustomerKit snapshot tracking. If this kit line was tote-
+        // sourced (kitsFromTote > 0), a DEAD decision permanently
+        // removes those components from the customer's tote snapshot;
+        // reverting away from DEAD restores them. REPAIRED is a no-op
+        // on count — broken units swap for fresh ones, total stays
+        // the same. Computed off the recipe and kitsFromTote so the
+        // delta is deterministic and reversal needs no stored state.
+        if (line.kit && line.kitsFromTote > 0) {
+          const recipeQty = recipeByItemId.get(comp.componentItemId) ?? 0;
+          const snapshotImpact = Math.floor(recipeQty * line.kitsFromTote);
+          if (snapshotImpact > 0) {
+            if (oldCompDecision === "DEAD" && comp.decision !== "DEAD") {
+              // Reversal: components come back to the snapshot
+              toteDeltas.push({
+                kitId: line.kit.id,
+                componentItemId: comp.componentItemId,
+                delta: snapshotImpact,
+              });
+            } else if (
+              oldCompDecision !== "DEAD" &&
+              comp.decision === "DEAD"
+            ) {
+              // Application: components leave the snapshot
+              toteDeltas.push({
+                kitId: line.kit.id,
+                componentItemId: comp.componentItemId,
+                delta: -snapshotImpact,
+              });
+            }
+          }
+        }
+
         if (comp.decision === null) {
           if (existing) {
             deleteComponent.push({
@@ -397,6 +448,77 @@ export async function saveInspectionDecisions(
           flaggedByUserId: user.id,
         },
       });
+    }
+
+    // Apply CustomerKitItem snapshot adjustments. For each (kitId,
+    // componentItemId) pair, find the customer's CustomerKitItem and
+    // apply the net delta (positive = restore, negative = remove,
+    // clamped to >= 0).
+    if (toteDeltas.length > 0 && jobMeta?.clientId) {
+      // Net deltas by (kitId, componentItemId) so multiple decisions
+      // on the same kit/component net out cleanly.
+      const netByKey = new Map<string, ToteSnapshotDelta>();
+      for (const d of toteDeltas) {
+        const key = `${d.kitId}:${d.componentItemId}`;
+        const existing = netByKey.get(key);
+        if (existing) {
+          existing.delta += d.delta;
+        } else {
+          netByKey.set(key, { ...d });
+        }
+      }
+
+      // Group by kitId so we look up each CustomerKit row at most once
+      const byKit = new Map<string, ToteSnapshotDelta[]>();
+      for (const d of netByKey.values()) {
+        const arr = byKit.get(d.kitId) ?? [];
+        arr.push(d);
+        byKit.set(d.kitId, arr);
+      }
+
+      for (const [kitId, deltas] of byKit) {
+        const tote = await tx.customerKit.findFirst({
+          where: {
+            clientId: jobMeta.clientId,
+            propertyId: jobMeta.propertyId ?? null,
+            kitId,
+          },
+          select: { id: true },
+        });
+        if (!tote) continue;
+
+        for (const d of deltas) {
+          if (d.delta === 0) continue;
+          const cki = await tx.customerKitItem.findUnique({
+            where: {
+              customerKitId_itemId: {
+                customerKitId: tote.id,
+                itemId: d.componentItemId,
+              },
+            },
+          });
+          if (!cki) {
+            // Snapshot row doesn't exist (edge case — Year-1 line
+            // that somehow got kitsFromTote > 0). Create if delta
+            // is positive; otherwise skip.
+            if (d.delta > 0) {
+              await tx.customerKitItem.create({
+                data: {
+                  customerKitId: tote.id,
+                  itemId: d.componentItemId,
+                  quantity: d.delta,
+                },
+              });
+            }
+            continue;
+          }
+          const newQty = Math.max(0, cki.quantity + d.delta);
+          await tx.customerKitItem.update({
+            where: { id: cki.id },
+            data: { quantity: newQty },
+          });
+        }
+      }
     }
   });
 
