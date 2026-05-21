@@ -45,6 +45,15 @@ export function JobFlowChart({
   function handleClick(target: JobStage) {
     if (!canWrite) return;
     if (!isValidTransition(currentStage, target)) return;
+
+    // Deactivating requires reviewing return-to-inventory / scrap decisions
+    // per pick list line, so route to the dedicated page instead of
+    // flipping the stage directly.
+    if (target === "DEACTIVATED") {
+      router.push(`/job-flow/jobs/${jobId}/deactivate`);
+      return;
+    }
+
     startTransition(async () => {
       await setJobStage(jobId, target);
       router.refresh();
