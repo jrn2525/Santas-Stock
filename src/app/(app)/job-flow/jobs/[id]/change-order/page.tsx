@@ -9,6 +9,7 @@ import {
 } from "@/components/job-flow/change-order-editor";
 import { STAGE_LABELS } from "@/lib/job-flow";
 import { to2Dp } from "@/lib/format";
+import { PrintButton } from "@/components/print-button";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +50,7 @@ export default async function ChangeOrderPage({
         items: {
           select: {
             quantity: true,
-            item: { select: { name: true } },
+            item: { select: { id: true, name: true } },
           },
           orderBy: { item: { name: "asc" } },
         },
@@ -77,6 +78,7 @@ export default async function ChangeOrderPage({
     kits.map((k) => [
       k.id,
       k.items.map((ki) => ({
+        itemId: ki.item.id,
         itemName: ki.item.name,
         quantityPerKit: Number(ki.quantity),
       })),
@@ -85,20 +87,28 @@ export default async function ChangeOrderPage({
 
   return (
     <>
-      <header>
-        <p className="text-xs uppercase tracking-wider text-white">
-          <Link href={`/job-flow/jobs/${job.id}`} className="hover:text-brand">
-            ← {job.title ?? "Job"}
-          </Link>
-        </p>
-        <h1 className="mt-2 text-3xl font-bold text-brand-hover">
-          Change Order
-        </h1>
-        <p className="mt-1 text-sm text-white">
-          {job.jobNumber && <>Job #{job.jobNumber} · </>}
-          Current stage:{" "}
-          <span className="text-ink">{STAGE_LABELS[job.currentStage]}</span>
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-wider text-white no-print">
+            <Link
+              href={`/job-flow/jobs/${job.id}`}
+              className="hover:text-brand"
+            >
+              ← {job.title ?? "Job"}
+            </Link>
+          </p>
+          <h1 className="mt-2 text-3xl font-bold text-brand-hover">
+            Change Order
+          </h1>
+          <p className="mt-1 text-sm text-white">
+            {job.jobNumber && <>Job #{job.jobNumber} · </>}
+            Current stage:{" "}
+            <span className="text-ink">{STAGE_LABELS[job.currentStage]}</span>
+          </p>
+        </div>
+        <div className="no-print">
+          <PrintButton />
+        </div>
       </header>
 
       <div className="mt-6">
