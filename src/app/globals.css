@@ -23,31 +23,30 @@ body {
 
 /* Print: strip the app chrome and render the page as a clean black-on-white
    document. Hide anything tagged .no-print (the Print button, checkboxes,
-   helper hints) and any note tile that was unchecked. */
+   helper hints) and any note tile that was unchecked. Aggressive reset on
+   every element so the dark-theme styles (white text, white borders, tinted
+   panel backgrounds) don't carry into the printout. */
 @media print {
-  body,
-  header,
-  aside,
-  main,
-  .bg-card,
-  .bg-canvas,
-  .bg-sidebar {
-    background: #ffffff !important;
+  /* Universal reset: everything prints as black on white with black borders.
+     Covers the dark-theme utilities (text-white, border-white, bg-canvas,
+     bg-brand/15, ring-*, the various colored text and tinted backgrounds
+     used by stage / decision badges) that the previous selector list missed. */
+  *,
+  *::before,
+  *::after {
     color: #000000 !important;
-  }
-  .text-ink,
-  .text-ink-dim,
-  .text-ink-muted,
-  .text-brand,
-  .text-brand-hover,
-  .bg-card .text-ink,
-  .bg-card .text-ink-dim,
-  .bg-card .text-ink-muted {
-    color: #000000 !important;
-  }
-  .border-rule {
+    background-color: transparent !important;
+    background-image: none !important;
     border-color: #000000 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
   }
+
+  body,
+  html {
+    background: #ffffff !important;
+  }
+
   /* Hide the app shell — top header bar and sidebar. */
   body > div > header,
   body > div > div > aside {
