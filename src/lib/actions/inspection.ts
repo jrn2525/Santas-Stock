@@ -12,15 +12,29 @@ import {
 /**
  * Per-line inspection decisions.
  *
- * Inventory deltas:
- * - GOOD: no change
- * - DEAD: deduct line.quantity (or componentQty * lineQty for kit components)
- *   from the relevant item's inventory permanently
- * - REPAIRED: deduct the user-specified repair quantity from the relevant
- *   item's inventory (pulled as replacement parts)
+ * Inventory model — items leave the warehouse pool at allocation
+ * (autoAllocateJob decrements Item.quantity by line.quantity at that point).
+ * At inspection time the kit is physically back, so the per-decision
+ * inventory deltas are:
  *
- * Decisions can change. Previously-applied deltas are reversed before the
- * new ones are applied, so flipping Dead -> Good restores inventory.
+ * - GOOD: no change. Items stay deducted (they live with the customer's
+ *   tote for next season; deactivation is the only path that restores
+ *   them to the shared pool).
+ * - DEAD: no change. The items were already deducted at allocation and
+ *   they never came back, so net inventory is correct as-is. Recording
+ *   the decision is purely for the audit trail / future Dead Inventory
+ *   reporting.
+ * - REPAIRED: deduct the user-specified repair quantity from the
+ *   relevant item's inventory — those are fresh replacement parts being
+ *   pulled out of the pool to swap into the returning kit. The broken
+ *   originals stay deducted (they were lost at allocation, same as DEAD).
+ *
+ * Decisions can change. Previously-applied deltas are reversed before
+ * the new ones are applied, so flipping any decision restores inventory
+ * to the correct state. Existing DEAD decisions written under the old
+ * (buggy) double-decrement logic are auto-healed the first time the
+ * user touches them: the reversal of the old non-empty delta refunds
+ * the over-deduction.
  *
  * Item lines store their decision in InspectionLineDecision.
  * Kit lines store one decision per component in InspectionComponentDecision.
@@ -69,13 +83,13 @@ function parseAppliedDeltas(raw: unknown): Delta[] {
 function computeNewDeltas(opts: {
   decision: InspectionDecision | null;
   itemId: string;
-  fullQty: number;
   repairQty?: number;
 }): Delta[] {
-  const { decision, itemId, fullQty, repairQty } = opts;
-  if (decision === "DEAD") {
-    return [{ itemId, quantity: Math.ceil(fullQty) }];
-  }
+  const { decision, itemId, repairQty } = opts;
+  // DEAD and GOOD are both no-ops on inventory: items were already
+  // deducted at allocation, and inspection doesn't return them to the
+  // shared pool. Only REPAIRED moves inventory, by pulling fresh
+  // replacement parts.
   if (decision === "REPAIRED") {
     const q = repairQty ?? 0;
     if (q <= 0) return [];
@@ -136,7 +150,6 @@ export async function saveInspectionDecisions(
   for (const input of inputs) {
     const line = linesById.get(input.jobLineItemId);
     if (!line) continue;
-    const lineQty = Number(line.quantity);
 
     if (input.kind === "item") {
       // Reverse any existing line decision
@@ -159,7 +172,6 @@ export async function saveInspectionDecisions(
           : computeNewDeltas({
               decision: input.decision,
               itemId: input.itemId,
-              fullQty: lineQty,
               repairQty: input.repairQty,
             });
       for (const d of newDeltas) addNet(d.itemId, -d.quantity);
@@ -191,11 +203,6 @@ export async function saveInspectionDecisions(
         line.componentDecisions.map((cd) => [cd.componentItemId, cd]),
       );
 
-      // Recipe quantities so we can compute DEAD deltas
-      const recipeByItemId = new Map(
-        (line.kit?.items ?? []).map((ki) => [ki.itemId, Number(ki.quantity)]),
-      );
-
       const seenComponentIds = new Set<string>();
       for (const comp of input.components) {
         seenComponentIds.add(comp.componentItemId);
@@ -205,15 +212,12 @@ export async function saveInspectionDecisions(
           for (const d of oldDeltas) addNet(d.itemId, d.quantity);
         }
 
-        const recipeQty = recipeByItemId.get(comp.componentItemId) ?? 0;
-        const fullQty = recipeQty * lineQty;
         const newDeltas =
           comp.decision === null
             ? []
             : computeNewDeltas({
                 decision: comp.decision,
                 itemId: comp.componentItemId,
-                fullQty,
                 repairQty: comp.repairQty,
               });
         for (const d of newDeltas) addNet(d.itemId, -d.quantity);
