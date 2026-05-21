@@ -81,7 +81,7 @@ export function ItemForm({ item }: { item?: Item }) {
   return (
     <form action={submitWithWebsites} className="mt-6 max-w-3xl space-y-6">
       {editing && (
-        <div className="rounded-md border border-rule bg-card p-4 text-sm text-ink-dim">
+        <div className="rounded-md border border-rule bg-card p-4 text-sm text-white">
           🔒 <strong className="text-ink">Name</strong>,{" "}
           <strong className="text-ink">Description</strong>, and{" "}
           <strong className="text-ink">Unit Cost</strong> are managed in
