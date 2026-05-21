@@ -155,16 +155,23 @@ export default async function JobDetailPage({
                     <span className="font-medium text-ink">
                       {job.client.name}
                     </span>
-                    {job.client.customerStatus === "EXISTING" && (
+                    {job.client.customerStatus === "EXISTING" ? (
                       <span
                         className="inline-block rounded border border-green-600/40 bg-green-600/10 px-2 py-0.5 text-xs font-medium text-green-200"
                         title={
                           job.client.firstCompletedAt
-                            ? `Returning customer since ${job.client.firstCompletedAt.toLocaleDateString()}`
-                            : "Returning customer"
+                            ? `Existing customer since ${job.client.firstCompletedAt.toLocaleDateString()}`
+                            : "Existing customer — has had at least one job reach Ready"
                         }
                       >
-                        Returning
+                        Existing
+                      </span>
+                    ) : (
+                      <span
+                        className="inline-block rounded border border-blue-500/40 bg-blue-500/10 px-2 py-0.5 text-xs font-medium text-blue-200"
+                        title="New customer — first time through the job flow. Flips to Existing when any of their jobs reach Ready."
+                      >
+                        New
                       </span>
                     )}
                   </div>

@@ -323,24 +323,32 @@ export async function resetJob(
       },
     });
 
-    // Customer status revert. If this job had completed (was contributing
-    // to the client being EXISTING / having a firstCompletedAt), check
-    // whether any *other* jobs for the same client are still completed.
-    //  - None: the client is no longer "returning" — flip customerStatus
-    //    back to NEW and clear firstCompletedAt. The Returning badge
-    //    disappears.
-    //  - One or more: the client legitimately is returning via those
-    //    other jobs; leave customerStatus alone but recompute
-    //    firstCompletedAt to the earliest remaining completion so the
-    //    badge tooltip reflects reality.
-    if (completeHappened) {
+    // Customer-status revert. Always check the client's other jobs at
+    // reset time, regardless of whether THIS job's customerKitsSyncedAt
+    // was set. A job is treated as "completed" if either:
+    //   - currentStage === "COMPLETE" (it sits at the Ready terminal), or
+    //   - customerKitsSyncedAt is non-null (Cut 1+ marker that it
+    //     contributed to the customer becoming EXISTING).
+    // Using either criterion catches legacy data from before Cut 1
+    // landed, when customerKitsSyncedAt didn't exist yet but the
+    // customer was still flipped to EXISTING when a job hit COMPLETE.
+    //   - No other completed jobs -> flip customerStatus back to NEW
+    //     and clear firstCompletedAt. The Existing badge disappears.
+    //   - One or more -> the client legitimately IS existing via
+    //     those other completions; leave customerStatus alone but
+    //     recompute firstCompletedAt to the earliest remaining
+    //     completion date so the badge tooltip reflects reality.
+    {
       const otherCompleted = await tx.jobberJob.findMany({
         where: {
           clientId: job.clientId,
           id: { not: jobId },
-          customerKitsSyncedAt: { not: null },
+          OR: [
+            { currentStage: "COMPLETE" },
+            { customerKitsSyncedAt: { not: null } },
+          ],
         },
-        select: { customerKitsSyncedAt: true },
+        select: { customerKitsSyncedAt: true, createdAt: true },
         orderBy: { customerKitsSyncedAt: "asc" },
       });
       if (otherCompleted.length === 0) {
@@ -352,7 +360,9 @@ export async function resetJob(
           },
         });
       } else {
-        const earliest = otherCompleted[0].customerKitsSyncedAt;
+        const earliest =
+          otherCompleted[0].customerKitsSyncedAt ??
+          otherCompleted[0].createdAt;
         await tx.client.update({
           where: { id: job.clientId },
           data: { firstCompletedAt: earliest },
