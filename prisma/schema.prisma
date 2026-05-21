@@ -494,6 +494,15 @@ model JobLineItem {
   // the line's quantity is modified, so allocation re-runs.
   isAllocated Boolean @default(false)
 
+  /// For kit lines only: how many of this line's quantity were satisfied
+  /// from the customer's existing CustomerKit (their pre-built tote)
+  /// rather than from the shared inventory pool. Set at allocation time
+  /// for EXISTING customers with a matching CustomerKit; stays 0 for
+  /// NEW customers, item lines, and kit lines with no matching tote.
+  /// At COMPLETE, only (quantity - kitsFromTote) is added to the
+  /// CustomerKit count — the tote-sourced kits were already counted.
+  kitsFromTote Int @default(0)
+
   shortages           JobLineShortage[]
   inspectionDecision  InspectionLineDecision?
   componentDecisions  InspectionComponentDecision[]

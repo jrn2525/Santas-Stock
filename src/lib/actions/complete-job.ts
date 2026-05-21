@@ -101,8 +101,14 @@ async function syncCustomerKitsForJob(
   await prisma.$transaction(async (tx) => {
     for (const line of lines) {
       if (!line.kit) continue;
-      const addedKitQty = Math.ceil(Number(line.quantity));
-      if (addedKitQty <= 0) continue;
+      const totalKitQty = Math.ceil(Number(line.quantity));
+      if (totalKitQty <= 0) continue;
+
+      // Year-2 split: kits drawn from the customer's existing tote don't
+      // increase their tote count — they were already there. Only the
+      // freshly built portion (totalKitQty - kitsFromTote) needs to be
+      // added to the CustomerKit + materialized into CustomerKitItem.
+      const freshlyBuiltQty = Math.max(0, totalKitQty - line.kitsFromTote);
 
       // Find or create the CustomerKit for this (client, property, kit)
       const existing = await tx.customerKit.findFirst({
@@ -115,55 +121,66 @@ async function syncCustomerKitsForJob(
 
       let customerKitId: string;
       if (existing) {
+        // Always restore status to IN_STORAGE (the kits came back to
+        // the tote). Only increment quantity by freshly-built count.
         const updated = await tx.customerKit.update({
           where: { id: existing.id },
           data: {
-            quantity: { increment: addedKitQty },
+            quantity:
+              freshlyBuiltQty > 0
+                ? { increment: freshlyBuiltQty }
+                : undefined,
             status: "IN_STORAGE",
           },
           select: { id: true },
         });
         customerKitId = updated.id;
-      } else {
+      } else if (freshlyBuiltQty > 0) {
         const created = await tx.customerKit.create({
           data: {
             clientId,
             propertyId: propertyId ?? undefined,
             kitId: line.kit.id,
-            quantity: addedKitQty,
+            quantity: freshlyBuiltQty,
             status: "IN_STORAGE",
           },
           select: { id: true },
         });
         customerKitId = created.id;
+      } else {
+        // No existing tote, nothing freshly built — shouldn't happen in
+        // practice (you'd only have kitsFromTote > 0 if a CustomerKit
+        // existed), but be defensive.
+        continue;
       }
 
-      // Materialize the per-component snapshot. For each component in
-      // the kit recipe, increment the CustomerKitItem.quantity by
-      // (recipeQty * addedKitQty). The unique constraint on
-      // (customerKitId, itemId) lets us upsert cleanly.
-      for (const ki of line.kit.items) {
-        const addedComponentQty = Math.ceil(
-          Number(ki.quantity) * addedKitQty,
-        );
-        if (addedComponentQty <= 0) continue;
+      // Materialize the per-component snapshot only for the freshly
+      // built portion. Tote-sourced kits already had their components
+      // counted from a prior season's COMPLETE.
+      if (freshlyBuiltQty > 0) {
+        for (const ki of line.kit.items) {
+          const addedComponentQty = Math.ceil(
+            Number(ki.quantity) * freshlyBuiltQty,
+          );
+          if (addedComponentQty <= 0) continue;
 
-        await tx.customerKitItem.upsert({
-          where: {
-            customerKitId_itemId: {
+          await tx.customerKitItem.upsert({
+            where: {
+              customerKitId_itemId: {
+                customerKitId,
+                itemId: ki.itemId,
+              },
+            },
+            create: {
               customerKitId,
               itemId: ki.itemId,
+              quantity: addedComponentQty,
             },
-          },
-          create: {
-            customerKitId,
-            itemId: ki.itemId,
-            quantity: addedComponentQty,
-          },
-          update: {
-            quantity: { increment: addedComponentQty },
-          },
-        });
+            update: {
+              quantity: { increment: addedComponentQty },
+            },
+          });
+        }
       }
 
       synced++;

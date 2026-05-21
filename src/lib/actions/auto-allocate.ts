@@ -8,8 +8,12 @@ import { assertRoleForAction, WRITE_ROLES } from "@/lib/auth-helpers";
  * Runs when a job enters the ALLOCATED stage. For each pick list line:
  *  - Item line: deduct line.quantity from Item.quantity. If short, record
  *    a JobLineShortage for the missing amount and only deduct what's available.
- *  - Kit line: expand the recipe and apply the same per-component logic
- *    (deduct line.quantity * recipe.quantity from each component Item).
+ *  - Kit line:
+ *      - For EXISTING customers with a matching CustomerKit in storage,
+ *        consume from the tote first (kitsFromTote). No shared-pool draw
+ *        for that portion — the customer already owns those kits.
+ *      - For any remaining (line.quantity - kitsFromTote) kits, expand
+ *        the recipe and deduct components from the shared pool as Year 1.
  *  - Unresolved line (no item / no kit, just rawName): skip silently.
  *
  * Idempotent. Lines with isAllocated = true are skipped on re-runs.
@@ -19,12 +23,14 @@ export async function autoAllocateJob(jobId: string): Promise<{
   allocated: number;
   shortages: number;
   skipped: number;
+  fromTote: number;
 }> {
   await assertRoleForAction(WRITE_ROLES);
 
   const job = await prisma.jobberJob.findUnique({
     where: { id: jobId },
     include: {
+      client: { select: { customerStatus: true } },
       lineItems: {
         where: { isAllocated: false },
         include: {
@@ -42,29 +48,56 @@ export async function autoAllocateJob(jobId: string): Promise<{
   });
   if (!job) throw new Error("Job not found");
 
+  const isExistingCustomer = job.client?.customerStatus === "EXISTING";
+
   let allocated = 0;
   let shortages = 0;
   let skipped = 0;
+  let fromTote = 0;
 
   for (const line of job.lineItems) {
     const qty = Math.ceil(Number(line.quantity));
 
-    // Build the list of (itemId, needed) pairs for this line
+    // Kit line + existing customer + matching CustomerKit in storage =
+    // consume from the tote before falling through to recipe expansion.
+    let kitsFromTote = 0;
+    let customerKitIdToFlag: string | null = null;
+    if (line.kit && isExistingCustomer && qty > 0) {
+      const tote = await prisma.customerKit.findFirst({
+        where: {
+          clientId: job.clientId,
+          propertyId: job.propertyId ?? null,
+          kitId: line.kit.id,
+          status: "IN_STORAGE",
+        },
+        select: { id: true, quantity: true },
+      });
+      if (tote && tote.quantity > 0) {
+        kitsFromTote = Math.min(qty, tote.quantity);
+        customerKitIdToFlag = tote.id;
+      }
+    }
+
+    const remainingQty = qty - kitsFromTote;
+
+    // Build the list of (itemId, needed) pairs for the remaining qty
     const needs: Array<{ itemId: string; itemQuantity: number; needed: number }> = [];
 
     if (line.item) {
       needs.push({
         itemId: line.item.id,
         itemQuantity: line.item.quantity,
-        needed: qty,
+        needed: remainingQty,
       });
     } else if (line.kit) {
-      for (const ki of line.kit.items) {
-        needs.push({
-          itemId: ki.item.id,
-          itemQuantity: ki.item.quantity,
-          needed: Math.ceil(Number(ki.quantity) * qty),
-        });
+      if (remainingQty > 0) {
+        for (const ki of line.kit.items) {
+          needs.push({
+            itemId: ki.item.id,
+            itemQuantity: ki.item.quantity,
+            needed: Math.ceil(Number(ki.quantity) * remainingQty),
+          });
+        }
       }
     } else {
       skipped++;
@@ -75,6 +108,7 @@ export async function autoAllocateJob(jobId: string): Promise<{
     // state stays consistent even if something later in the loop fails.
     await prisma.$transaction(async (tx) => {
       for (const need of needs) {
+        if (need.needed <= 0) continue;
         const available = need.itemQuantity;
         const toDeduct = Math.min(available, need.needed);
         const short = need.needed - toDeduct;
@@ -108,13 +142,21 @@ export async function autoAllocateJob(jobId: string): Promise<{
         }
       }
 
+      if (customerKitIdToFlag && kitsFromTote > 0) {
+        await tx.customerKit.update({
+          where: { id: customerKitIdToFlag },
+          data: { status: "OUT_FOR_SEASON" },
+        });
+      }
+
       await tx.jobLineItem.update({
         where: { id: line.id },
-        data: { isAllocated: true },
+        data: { isAllocated: true, kitsFromTote },
       });
     });
 
     allocated++;
+    if (kitsFromTote > 0) fromTote += kitsFromTote;
   }
 
   // Set the on-hold flag based on whether any shortages exist now
@@ -131,7 +173,7 @@ export async function autoAllocateJob(jobId: string): Promise<{
   revalidatePath(`/job-flow/jobs/${jobId}`);
   revalidatePath(`/job-flow/jobs/${jobId}/awaiting-stock`);
   revalidatePath("/inventory/items");
-  return { allocated, shortages, skipped };
+  return { allocated, shortages, skipped, fromTote };
 }
 
 /**
