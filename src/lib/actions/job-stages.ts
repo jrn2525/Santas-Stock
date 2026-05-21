@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { assertRoleForAction, WRITE_ROLES, requireUser } from "@/lib/auth-helpers";
 import { isValidTransition } from "@/lib/job-flow";
 import { autoAllocateJob } from "./auto-allocate";
+import { completeJobForClient } from "./complete-job";
 
 export async function setJobStage(jobId: string, toStage: JobStage) {
   await assertRoleForAction(WRITE_ROLES);
@@ -43,6 +44,12 @@ export async function setJobStage(jobId: string, toStage: JobStage) {
   // doesn't double-deduct inventory.
   if (toStage === "ALLOCATED") {
     await autoAllocateJob(jobId);
+  }
+
+  // Reaching the COMPLETE terminal flips the client to EXISTING if it
+  // isn't already. Idempotent.
+  if (toStage === "COMPLETE") {
+    await completeJobForClient(jobId);
   }
 
   revalidatePath(`/job-flow/jobs/${jobId}`);

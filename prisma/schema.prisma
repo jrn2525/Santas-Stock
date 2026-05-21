@@ -284,6 +284,14 @@ model Client {
   kits       Kit[]
   notes      JobberNote[]
 
+  // NEW: never completed a job in the system. EXISTING: at least one
+  // job has reached the COMPLETE terminal. Used by Year-2 pick-list
+  // branching (existing customers' pre-built kits skip allocation).
+  customerStatus CustomerEra @default(NEW)
+  /// First time this customer's job completed (any job hitting COMPLETE).
+  /// Stays set even if a later job is reverted or deactivated.
+  firstCompletedAt DateTime?
+
   syncedAt  DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -345,6 +353,15 @@ enum JobStage {
   INSPECTION
   COMPLETE
   DEACTIVATED
+}
+
+// Customer-lifetime status. NEW = never had a job complete in the system.
+// EXISTING = has had at least one job hit the COMPLETE terminal stage; their
+// pre-built customer-specific kits can be reused next season without
+// re-allocating from raw inventory.
+enum CustomerEra {
+  NEW
+  EXISTING
 }
 
 model JobStageEvent {

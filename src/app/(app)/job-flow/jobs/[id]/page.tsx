@@ -136,7 +136,23 @@ export default async function JobDetailPage({
             <Card title="Customer">
               {job.client ? (
                 <div className="space-y-1 text-sm">
-                  <div className="font-medium text-ink">{job.client.name}</div>
+                  <div className="flex flex-wrap items-baseline gap-2">
+                    <span className="font-medium text-ink">
+                      {job.client.name}
+                    </span>
+                    {job.client.customerStatus === "EXISTING" && (
+                      <span
+                        className="inline-block rounded border border-green-600/40 bg-green-600/10 px-2 py-0.5 text-xs font-medium text-green-200"
+                        title={
+                          job.client.firstCompletedAt
+                            ? `Returning customer since ${job.client.firstCompletedAt.toLocaleDateString()}`
+                            : "Returning customer"
+                        }
+                      >
+                        Returning
+                      </span>
+                    )}
+                  </div>
                   {job.client.emails.length > 0 && (
                     <div className="text-ink-dim">
                       {job.client.emails.join(", ")}
