@@ -106,9 +106,6 @@ export default async function JobDetailPage({
     <>
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="no-print mb-3">
-            <PrintButton />
-          </div>
           <p className="text-xs uppercase tracking-wider text-ink-dim no-print">
             <Link href="/job-flow/jobs" className="hover:text-ink">
               ← Jobs
@@ -124,6 +121,9 @@ export default async function JobDetailPage({
               <> · Total {moneyFmt.format(Number(job.total))}</>
             )}
           </p>
+        </div>
+        <div className="no-print">
+          <PrintButton />
         </div>
       </header>
 

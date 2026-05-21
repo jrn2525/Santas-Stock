@@ -53,26 +53,30 @@ export default async function PickListDetailPage({
 
   return (
     <>
-      <header>
-        <div className="no-print mb-3">
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-wider text-ink-dim no-print">
+            <Link href="/job-flow/pick-list" className="hover:text-ink">
+              ← Pick List
+            </Link>
+          </p>
+          <h1 className="mt-2 text-3xl font-bold text-brand-hover">
+            {job.title ?? "(untitled job)"}
+          </h1>
+          <p className="mt-1 text-sm text-ink-dim">
+            {job.jobNumber && <>Job #{job.jobNumber} · </>}
+            {job.client?.name ?? "—"}
+            {job.startAt && <> · {dayFmt.format(job.startAt)}</>}
+          </p>
+          {job.property?.address && (
+            <p className="mt-1 text-sm text-ink-dim">
+              {job.property.address}
+            </p>
+          )}
+        </div>
+        <div className="no-print">
           <PrintButton />
         </div>
-        <p className="text-xs uppercase tracking-wider text-ink-dim no-print">
-          <Link href="/job-flow/pick-list" className="hover:text-ink">
-            ← Pick List
-          </Link>
-        </p>
-        <h1 className="mt-2 text-3xl font-bold text-brand-hover">
-          {job.title ?? "(untitled job)"}
-        </h1>
-        <p className="mt-1 text-sm text-ink-dim">
-          {job.jobNumber && <>Job #{job.jobNumber} · </>}
-          {job.client?.name ?? "—"}
-          {job.startAt && <> · {dayFmt.format(job.startAt)}</>}
-        </p>
-        {job.property?.address && (
-          <p className="mt-1 text-sm text-ink-dim">{job.property.address}</p>
-        )}
       </header>
 
       <section className="mt-8 rounded-lg border border-rule bg-card p-6 print-block">
