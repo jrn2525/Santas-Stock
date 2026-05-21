@@ -42,8 +42,8 @@ export async function assertRoleForAction(allowed: Role | Role[]) {
 export const WRITE_ROLES: Role[] = ["ADMIN", "MANAGER"];
 export const ADMIN_ROLES: Role[] = ["ADMIN"];
 
-// Display label for a Role. The third role is stored as USER in the DB but
-// presented to humans as "Crew".
+// Display label for a Role. USER is stored as USER in the DB but
+// presented to humans as "Crew". GUEST is the read-only demo role.
 export function roleLabel(role: Role): string {
   switch (role) {
     case "ADMIN":
@@ -52,5 +52,7 @@ export function roleLabel(role: Role): string {
       return "Manager";
     case "USER":
       return "Crew";
+    case "GUEST":
+      return "Guest";
   }
 }

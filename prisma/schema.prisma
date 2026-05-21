@@ -20,6 +20,7 @@ enum Role {
   ADMIN
   MANAGER
   USER
+  GUEST
 }
 
 enum LifecycleType {

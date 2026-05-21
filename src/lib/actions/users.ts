@@ -79,7 +79,10 @@ export async function createUser(
         name: parsed.data.name.trim(),
         role: parsed.data.role,
         passwordHash,
-        mustChangePassword: true,
+        // GUEST is a shared demo account — skip the forced password
+        // change so it can be handed out and reused as-is. Every other
+        // role bounces to /account/change-password on first login.
+        mustChangePassword: parsed.data.role !== "GUEST",
         active: true,
       },
       select: { id: true },
@@ -153,6 +156,12 @@ export async function updateUser(
         name: parsed.data.name.trim(),
         role: parsed.data.role,
         active: parsed.data.active,
+        // GUEST accounts are shared demos — never bounce them through
+        // /account/change-password. Force the flag off whenever the
+        // role being saved is GUEST.
+        ...(parsed.data.role === "GUEST"
+          ? { mustChangePassword: false }
+          : {}),
       },
     });
   } catch (err) {

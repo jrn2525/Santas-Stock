@@ -90,6 +90,10 @@ export default async function SignInPage({
           Sign in
         </button>
       </form>
+
+      <p className="mt-6 text-center text-xs text-ink-dim">
+        Forgot your password? Contact your administrator to reset it.
+      </p>
     </main>
   );
 }

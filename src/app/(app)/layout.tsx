@@ -4,6 +4,7 @@ import { signOut } from "@/auth";
 import { requireUser, roleLabel } from "@/lib/auth-helpers";
 import { Sidebar } from "@/components/sidebar";
 import { WorkspaceTabs } from "@/components/workspace-tabs";
+import { DemoBanner } from "@/components/demo-banner";
 
 async function signOutAction() {
   "use server";
@@ -58,7 +59,10 @@ export default async function AppLayout({
         <aside className="flex w-56 shrink-0 flex-col border-r border-rule bg-sidebar">
           <Sidebar role={user.role} />
         </aside>
-        <main className="flex-1 px-8 py-8">{children}</main>
+        <main className="flex-1 px-8 py-8">
+          {user.role === "GUEST" && <DemoBanner />}
+          {children}
+        </main>
       </div>
     </div>
   );

@@ -15,6 +15,7 @@ const ROLE_OPTIONS: { value: Role; label: string; help: string }[] = [
   { value: "ADMIN", label: "Admin", help: "Full control, including user management." },
   { value: "MANAGER", label: "Manager", help: "Manages inventory and jobs. No user management." },
   { value: "USER", label: "Crew", help: "Basic access for day-to-day operations." },
+  { value: "GUEST", label: "Guest", help: "Read-only demo account. Can browse but not change anything." },
 ];
 
 const emptyCreateState: CreateUserState = { errors: {}, message: null };

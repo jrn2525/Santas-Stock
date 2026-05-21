@@ -12,7 +12,8 @@ const dateFmt = new Intl.DateTimeFormat("en-US", {
 });
 
 export default async function ReplacementsPage() {
-  await requireUser();
+  const user = await requireUser();
+  const canWrite = user.role === "ADMIN" || user.role === "MANAGER";
 
   const [pending, resolved, pendingAgg] = await Promise.all([
     prisma.replacementQueue.findMany({
@@ -115,13 +116,15 @@ export default async function ReplacementsPage() {
                     ×{to2Dp(r.quantity)}
                   </span>
                 </div>
-                <div className="mt-3">
-                  <ResolveControls
-                    id={r.id}
-                    current={null}
-                    poId={r.poId}
-                  />
-                </div>
+                {canWrite && (
+                  <div className="mt-3">
+                    <ResolveControls
+                      id={r.id}
+                      current={null}
+                      poId={r.poId}
+                    />
+                  </div>
+                )}
               </li>
             ))}
           </ul>
@@ -172,13 +175,15 @@ export default async function ReplacementsPage() {
                     ×{to2Dp(r.quantity)}
                   </span>
                 </div>
-                <div className="mt-3">
-                  <ResolveControls
-                    id={r.id}
-                    current={r.resolution}
-                    poId={r.poId}
-                  />
-                </div>
+                {canWrite && (
+                  <div className="mt-3">
+                    <ResolveControls
+                      id={r.id}
+                      current={r.resolution}
+                      poId={r.poId}
+                    />
+                  </div>
+                )}
               </li>
             ))}
           </ul>
