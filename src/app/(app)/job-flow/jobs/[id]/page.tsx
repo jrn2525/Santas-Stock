@@ -112,14 +112,6 @@ export default async function JobDetailPage({
             )}
           </p>
         </div>
-        {canWrite && (
-          <Link
-            href={`/job-flow/jobs/${job.id}/change-order`}
-            className="no-print rounded-md border border-rule bg-canvas px-4 py-2 text-sm font-medium text-ink hover:border-brand hover:text-brand"
-          >
-            Change Order
-          </Link>
-        )}
       </header>
 
       {job.isOnHold && (
@@ -208,12 +200,22 @@ export default async function JobDetailPage({
           </div>
 
           <section className="rounded-lg border border-rule bg-card p-6 print-block">
-            <header>
-              <h2 className="text-lg font-semibold text-ink">Pick List</h2>
-              <p className="mt-1 text-sm text-ink-dim">
-                Items and Kits this Job needs. For each Kit, the recipe is shown
-                with components tabbed underneath.
-              </p>
+            <header className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="text-lg font-semibold text-ink">Pick List</h2>
+                <p className="mt-1 text-sm text-ink-dim">
+                  Items and Kits this Job needs. For each Kit, the recipe is
+                  shown with components tabbed underneath.
+                </p>
+              </div>
+              {canWrite && (
+                <Link
+                  href={`/job-flow/jobs/${job.id}/change-order`}
+                  className="no-print whitespace-nowrap rounded-md border border-rule bg-canvas px-4 py-2 text-sm font-medium text-ink hover:border-brand hover:text-brand"
+                >
+                  Change Order
+                </Link>
+              )}
             </header>
             <div className="mt-4">
               <PickListView
