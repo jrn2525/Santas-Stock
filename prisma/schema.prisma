@@ -121,6 +121,7 @@ model User {
   openedTickets        MaintenanceTicket[]      @relation("OpenedBy")
   stageEvents          JobStageEvent[]          @relation("StageEventBy")
   inspectionDecisions  InspectionLineDecision[] @relation("InspectionDecidedBy")
+  componentDecisions   InspectionComponentDecision[] @relation("ComponentDecisionBy")
   changeOrders         ChangeOrder[]            @relation("ChangeOrderCreatedBy")
   auditEntries         AuditLog[]
   jobberConnections    JobberConnection[]
@@ -196,6 +197,7 @@ model Item {
   jobLineShortages   JobLineShortage[]
   replacementEntries ReplacementQueue[]
   maintenanceTickets MaintenanceTicket[]
+  componentDecisions InspectionComponentDecision[] @relation("ComponentDecisionItem")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -408,6 +410,31 @@ model InspectionLineDecision {
   updatedAt       DateTime           @updatedAt
 }
 
+// One decision per component inside a kit line. Used when the user wants
+// to inspect each component of a kit independently (some bulbs good, some
+// dead, some need a replacement) instead of applying a single decision to
+// the whole kit. ITEM lines continue to use InspectionLineDecision; KIT
+// lines now use one InspectionComponentDecision per recipe component.
+model InspectionComponentDecision {
+  id              String             @id @default(cuid())
+  jobLineItemId   String
+  jobLineItem     JobLineItem        @relation(fields: [jobLineItemId], references: [id], onDelete: Cascade)
+  componentItemId String
+  componentItem   Item               @relation("ComponentDecisionItem", fields: [componentItemId], references: [id])
+  decision        InspectionDecision
+  /// JSON: [{ itemId, quantity }] — same shape as InspectionLineDecision.appliedDeltas.
+  /// Used to reverse the prior delta before applying a new one.
+  appliedDeltas   Json?
+  decidedAt       DateTime           @default(now())
+  decidedByUserId String?
+  decidedBy       User?              @relation("ComponentDecisionBy", fields: [decidedByUserId], references: [id])
+  updatedAt       DateTime           @updatedAt
+
+  @@unique([jobLineItemId, componentItemId])
+  @@index([jobLineItemId])
+  @@index([componentItemId])
+}
+
 // A single line on a Jobber Job. Each line is either a Product (mapped to
 // Item) or a Service (mapped to Kit). If we can't resolve to a local row
 // (deleted product, brand-new product not synced yet), we keep the raw
@@ -434,8 +461,9 @@ model JobLineItem {
   // the line's quantity is modified, so allocation re-runs.
   isAllocated Boolean @default(false)
 
-  shortages          JobLineShortage[]
-  inspectionDecision InspectionLineDecision?
+  shortages           JobLineShortage[]
+  inspectionDecision  InspectionLineDecision?
+  componentDecisions  InspectionComponentDecision[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
