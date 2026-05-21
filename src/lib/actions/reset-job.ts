@@ -322,6 +322,43 @@ export async function resetJob(
         customerKitsSyncedAt: null,
       },
     });
+
+    // Customer status revert. If this job had completed (was contributing
+    // to the client being EXISTING / having a firstCompletedAt), check
+    // whether any *other* jobs for the same client are still completed.
+    //  - None: the client is no longer "returning" — flip customerStatus
+    //    back to NEW and clear firstCompletedAt. The Returning badge
+    //    disappears.
+    //  - One or more: the client legitimately is returning via those
+    //    other jobs; leave customerStatus alone but recompute
+    //    firstCompletedAt to the earliest remaining completion so the
+    //    badge tooltip reflects reality.
+    if (completeHappened) {
+      const otherCompleted = await tx.jobberJob.findMany({
+        where: {
+          clientId: job.clientId,
+          id: { not: jobId },
+          customerKitsSyncedAt: { not: null },
+        },
+        select: { customerKitsSyncedAt: true },
+        orderBy: { customerKitsSyncedAt: "asc" },
+      });
+      if (otherCompleted.length === 0) {
+        await tx.client.update({
+          where: { id: job.clientId },
+          data: {
+            customerStatus: "NEW",
+            firstCompletedAt: null,
+          },
+        });
+      } else {
+        const earliest = otherCompleted[0].customerKitsSyncedAt;
+        await tx.client.update({
+          where: { id: job.clientId },
+          data: { firstCompletedAt: earliest },
+        });
+      }
+    }
   });
 
   revalidatePath(`/job-flow/jobs/${jobId}`);
