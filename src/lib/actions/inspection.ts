@@ -105,6 +105,16 @@ export async function saveInspectionDecisions(
   await assertRoleForAction(WRITE_ROLES);
   const user = await requireUser();
 
+  // Load job title so we can drop a useful reason on any ReplacementQueue
+  // rows we create as part of this save.
+  const jobMeta = await prisma.jobberJob.findUnique({
+    where: { id: jobId },
+    select: { title: true, jobNumber: true },
+  });
+  const jobLabel =
+    (jobMeta?.title ?? "(untitled job)") +
+    (jobMeta?.jobNumber ? ` #${jobMeta.jobNumber}` : "");
+
   // Load every relevant line in one go with its existing decisions
   const lineIds = inputs.map((i) => i.jobLineItemId);
   const lines = await prisma.jobLineItem.findMany({
@@ -127,6 +137,28 @@ export async function saveInspectionDecisions(
   const netByItem = new Map<string, number>();
   const addNet = (itemId: string, change: number) => {
     netByItem.set(itemId, (netByItem.get(itemId) ?? 0) + change);
+  };
+
+  // ReplacementQueue writes — accumulated during the per-input pass and
+  // written inside the same transaction at the end.
+  type QueueWrite = {
+    itemId: string;
+    quantity: number;
+    reason: string;
+  };
+  const queueWrites: QueueWrite[] = [];
+  const flagForReplacement = (
+    itemId: string,
+    quantity: number,
+    decision: InspectionDecision,
+  ) => {
+    if (quantity <= 0) return;
+    const verb = decision === "DEAD" ? "Dead" : "Repaired";
+    queueWrites.push({
+      itemId,
+      quantity,
+      reason: `${verb} during inspection of ${jobLabel}`,
+    });
   };
 
   // Track which decision records to upsert / delete
@@ -176,6 +208,21 @@ export async function saveInspectionDecisions(
             });
       for (const d of newDeltas) addNet(d.itemId, -d.quantity);
 
+      // Flag the item for replacement when this transitions INTO
+      // DEAD or REPAIRED. Don't double-flag if the decision was
+      // already DEAD or REPAIRED (re-save with same value).
+      const oldItemDecision = line.inspectionDecision?.decision ?? null;
+      if (
+        (input.decision === "DEAD" || input.decision === "REPAIRED") &&
+        oldItemDecision !== input.decision
+      ) {
+        const flagQty =
+          input.decision === "DEAD"
+            ? Math.ceil(Number(line.quantity))
+            : Math.ceil(input.repairQty ?? 0);
+        flagForReplacement(input.itemId, flagQty, input.decision);
+      }
+
       if (input.decision === null) {
         if (line.inspectionDecision) {
           deleteLineForLineIds.push(line.id);
@@ -203,6 +250,12 @@ export async function saveInspectionDecisions(
         line.componentDecisions.map((cd) => [cd.componentItemId, cd]),
       );
 
+      // Recipe component quantities (per-kit), needed when flagging a DEAD
+      // component for replacement at line.quantity scale.
+      const recipeByItemId = new Map(
+        (line.kit?.items ?? []).map((ki) => [ki.itemId, Number(ki.quantity)]),
+      );
+
       const seenComponentIds = new Set<string>();
       for (const comp of input.components) {
         seenComponentIds.add(comp.componentItemId);
@@ -221,6 +274,20 @@ export async function saveInspectionDecisions(
                 repairQty: comp.repairQty,
               });
         for (const d of newDeltas) addNet(d.itemId, -d.quantity);
+
+        // Flag the component for replacement on transition to DEAD or REPAIRED
+        const oldCompDecision = existing?.decision ?? null;
+        if (
+          (comp.decision === "DEAD" || comp.decision === "REPAIRED") &&
+          oldCompDecision !== comp.decision
+        ) {
+          const recipeQty = recipeByItemId.get(comp.componentItemId) ?? 0;
+          const flagQty =
+            comp.decision === "DEAD"
+              ? Math.ceil(recipeQty * Number(line.quantity))
+              : Math.ceil(comp.repairQty ?? 0);
+          flagForReplacement(comp.componentItemId, flagQty, comp.decision);
+        }
 
         if (comp.decision === null) {
           if (existing) {
@@ -319,9 +386,22 @@ export async function saveInspectionDecisions(
         },
       });
     }
+
+    // Write any ReplacementQueue rows accumulated above
+    for (const q of queueWrites) {
+      await tx.replacementQueue.create({
+        data: {
+          itemId: q.itemId,
+          quantity: q.quantity,
+          reason: q.reason,
+          flaggedByUserId: user.id,
+        },
+      });
+    }
   });
 
   revalidatePath(`/job-flow/jobs/${jobId}/inspection`);
   revalidatePath(`/job-flow/jobs/${jobId}`);
   revalidatePath("/inventory/items");
+  revalidatePath("/inventory/replacements");
 }

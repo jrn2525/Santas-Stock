@@ -27,6 +27,7 @@ const inventoryNav: NavItem[] = [
   { href: "/inventory/items", label: "Items" },
   { href: "/inventory/kits", label: "Kits" },
   { href: "/inventory/dead-stock", label: "Dead Stock" },
+  { href: "/inventory/replacements", label: "Replacements" },
   { href: "/inventory/jobber", label: "Jobber", visibleTo: ["ADMIN", "MANAGER"] },
 ];
 

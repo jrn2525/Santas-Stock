@@ -638,6 +638,8 @@ model ReplacementQueue {
   id               String                 @id @default(cuid())
   itemId           String
   item             Item                   @relation(fields: [itemId], references: [id])
+  /// How many units of this item need to be replaced/replenished.
+  quantity         Int                    @default(1)
   reason           String
   flaggedAt        DateTime               @default(now())
   flaggedByUserId  String?
@@ -647,6 +649,9 @@ model ReplacementQueue {
   resolvedAt       DateTime?
   resolvedByUserId String?
   resolvedBy       User?                  @relation("ResolvedBy", fields: [resolvedByUserId], references: [id])
+
+  @@index([itemId])
+  @@index([resolution])
 }
 
 model MaintenanceTicket {
