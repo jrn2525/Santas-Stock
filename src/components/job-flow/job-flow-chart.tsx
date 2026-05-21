@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { JobStage } from "@prisma/client";
 import { setJobStage } from "@/lib/actions/job-stages";
@@ -112,6 +113,30 @@ export function JobFlowChart({
         <p className="mt-4 text-xs text-white">
           Job hasn&apos;t started yet — click Allocated to begin.
         </p>
+      )}
+
+      {(isOnHold || currentStage === "INSPECTION") && (
+        <div className="mt-5 space-y-2 border-t border-white pt-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-white">
+            Next step
+          </p>
+          {isOnHold && (
+            <Link
+              href={`/job-flow/jobs/${jobId}/awaiting-stock`}
+              className="block w-full rounded-md bg-brand px-3 py-2 text-center text-sm font-semibold text-ink transition hover:bg-brand-hover"
+            >
+              View Shortages →
+            </Link>
+          )}
+          {currentStage === "INSPECTION" && (
+            <Link
+              href={`/job-flow/jobs/${jobId}/inspection`}
+              className="block w-full rounded-md bg-brand px-3 py-2 text-center text-sm font-semibold text-ink transition hover:bg-brand-hover"
+            >
+              Open Inspection →
+            </Link>
+          )}
+        </div>
       )}
 
       {prev && (

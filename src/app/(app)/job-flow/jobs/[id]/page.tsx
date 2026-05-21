@@ -129,22 +129,6 @@ export default async function JobDetailPage({
         </Link>
       )}
 
-      {job.currentStage === "INSPECTION" && (
-        <Link
-          href={`/job-flow/jobs/${job.id}/inspection`}
-          className="mt-4 flex items-start justify-between gap-3 rounded-md border border-rule bg-card px-4 py-3 text-sm text-ink transition hover:border-brand"
-        >
-          <span>
-            <strong className="font-semibold">Inspection in progress.</strong>{" "}
-            Open the inspection page to walk each line and mark Good, Repaired,
-            or Dead.
-          </span>
-          <span className="text-xs uppercase tracking-wider text-brand">
-            Go to inspection →
-          </span>
-        </Link>
-      )}
-
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
         {/* LEFT — Job Information cards */}
         <div className="space-y-6">
