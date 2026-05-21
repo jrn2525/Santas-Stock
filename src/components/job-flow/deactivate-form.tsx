@@ -181,7 +181,7 @@ export function DeactivateForm({
 
   return (
     <div className="mt-6 space-y-4">
-      <section className="rounded-md border border-rule bg-card p-4 text-sm text-white">
+      <section className="rounded-md border border-rule bg-card p-4 text-sm text-white no-print">
         For each component, enter how many units to{" "}
         <strong className="text-green-300">return</strong> to inventory.
         The rest is{" "}
@@ -191,7 +191,7 @@ export function DeactivateForm({
         rest.
       </section>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 no-print">
         <button
           type="button"
           onClick={() => setAll("return")}
@@ -222,7 +222,7 @@ export function DeactivateForm({
         ))}
       </ul>
 
-      <section className="rounded-md border border-rule bg-card p-4">
+      <section className="rounded-md border border-rule bg-card p-4 no-print">
         <label
           htmlFor="reason"
           className="block text-sm font-medium text-ink"
@@ -240,9 +240,19 @@ export function DeactivateForm({
         />
       </section>
 
+      {/* Print-only summary of the reason text, when the user has typed
+          something. Hidden on screen since the editable textarea above
+          already shows the value. */}
+      {reason.trim().length > 0 && (
+        <section className="hidden rounded-md border border-rule p-4 print:block">
+          <div className="text-xs uppercase tracking-wider">Reason</div>
+          <p className="mt-1 whitespace-pre-line text-sm">{reason}</p>
+        </section>
+      )}
+
       <section className="rounded-md border border-rule bg-card p-4">
         {error && (
-          <p className="mb-3 rounded-md border border-red-700/40 bg-red-900/20 px-3 py-2 text-sm text-red-200">
+          <p className="mb-3 rounded-md border border-red-700/40 bg-red-900/20 px-3 py-2 text-sm text-red-200 no-print">
             {error}
           </p>
         )}
@@ -257,7 +267,7 @@ export function DeactivateForm({
               scrapping ×{to2Dp(totalScrap)}
             </span>
           </p>
-          <div className="flex flex-wrap justify-end gap-3">
+          <div className="flex flex-wrap justify-end gap-3 no-print">
             <Link
               href={`/job-flow/jobs/${jobId}`}
               className="rounded-md border border-rule bg-canvas px-4 py-2 text-sm font-semibold text-ink hover:border-brand"
@@ -323,7 +333,7 @@ function LineRow({
           <div className="flex items-baseline gap-2 text-sm">
             <label
               htmlFor={`ret-${line.id}`}
-              className="text-white whitespace-nowrap"
+              className="text-white whitespace-nowrap no-print"
             >
               Return:
             </label>
@@ -335,8 +345,11 @@ function LineRow({
               step="0.01"
               value={lineState.itemReturn ?? ""}
               onChange={(e) => onItemReturn(e.target.value)}
-              className="w-24 rounded-md border border-rule bg-canvas px-2 py-1 text-right text-sm text-ink tabular-nums focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+              className="w-24 rounded-md border border-rule bg-canvas px-2 py-1 text-right text-sm text-ink tabular-nums focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand no-print"
             />
+            <span className="hidden text-xs text-green-300 whitespace-nowrap print:inline">
+              Return ×{to2Dp(ret)}
+            </span>
             <span className="text-xs text-red-300 whitespace-nowrap">
               Scrap ×{to2Dp(scrap)}
             </span>
@@ -388,7 +401,7 @@ function LineRow({
                   <div className="flex items-baseline gap-2 text-sm">
                     <label
                       htmlFor={`ret-${line.id}-${c.itemId}`}
-                      className="text-white whitespace-nowrap"
+                      className="text-white whitespace-nowrap no-print"
                     >
                       Return:
                     </label>
@@ -404,8 +417,11 @@ function LineRow({
                       onChange={(e) =>
                         onComponentReturn(c.itemId, e.target.value)
                       }
-                      className="w-24 rounded-md border border-rule bg-canvas px-2 py-1 text-right text-sm text-ink tabular-nums focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+                      className="w-24 rounded-md border border-rule bg-canvas px-2 py-1 text-right text-sm text-ink tabular-nums focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand no-print"
                     />
+                    <span className="hidden text-xs text-green-300 whitespace-nowrap print:inline">
+                      Return ×{to2Dp(ret)}
+                    </span>
                     <span className="text-xs text-red-300 whitespace-nowrap">
                       Scrap ×{to2Dp(scrap)}
                     </span>

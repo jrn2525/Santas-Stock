@@ -7,6 +7,7 @@ import {
   DeactivateForm,
   type DeactivateLine,
 } from "@/components/job-flow/deactivate-form";
+import { PrintButton } from "@/components/print-button";
 
 export const dynamic = "force-dynamic";
 
@@ -63,23 +64,28 @@ export default async function DeactivatePage({
 
   return (
     <>
-      <header>
-        <p className="text-xs uppercase tracking-wider text-white">
-          <Link
-            href={`/job-flow/jobs/${job.id}`}
-            className="hover:text-ink"
-          >
-            ← {job.title ?? "Job"}
-          </Link>
-        </p>
-        <h1 className="mt-2 text-3xl font-bold text-brand-hover">
-          Deactivate Job
-        </h1>
-        <p className="mt-1 text-sm text-white">
-          {job.jobNumber && <>Job #{job.jobNumber} · </>}
-          Choose what happens to each line of allocated inventory before
-          closing this job out.
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-wider text-white no-print">
+            <Link
+              href={`/job-flow/jobs/${job.id}`}
+              className="hover:text-brand"
+            >
+              ← {job.title ?? "Job"}
+            </Link>
+          </p>
+          <h1 className="mt-2 text-3xl font-bold text-brand-hover">
+            Deactivate Job
+          </h1>
+          <p className="mt-1 text-sm text-white">
+            {job.jobNumber && <>Job #{job.jobNumber} · </>}
+            Choose what happens to each line of allocated inventory before
+            closing this job out.
+          </p>
+        </div>
+        <div className="no-print">
+          <PrintButton />
+        </div>
       </header>
 
       {alreadyDeactivated ? (
