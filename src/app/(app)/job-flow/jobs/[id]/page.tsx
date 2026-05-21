@@ -10,6 +10,7 @@ import {
   lineItemsToPickListLines,
 } from "@/components/job-flow/pick-list-view";
 import { ChangeOrderHistory } from "@/components/job-flow/change-order-history";
+import { ResetJobButton } from "@/components/job-flow/reset-job-button";
 
 export const dynamic = "force-dynamic";
 
@@ -122,7 +123,8 @@ export default async function JobDetailPage({
             )}
           </p>
         </div>
-        <div className="no-print">
+        <div className="flex flex-wrap items-center gap-2 no-print">
+          {user.role === "ADMIN" && <ResetJobButton jobId={job.id} />}
           <PrintButton />
         </div>
       </header>
