@@ -62,7 +62,7 @@ export default async function DeactivatePage({
   return (
     <>
       <header>
-        <p className="text-xs uppercase tracking-wider text-ink-dim">
+        <p className="text-xs uppercase tracking-wider text-white">
           <Link
             href={`/job-flow/jobs/${job.id}`}
             className="hover:text-ink"
@@ -73,7 +73,7 @@ export default async function DeactivatePage({
         <h1 className="mt-2 text-3xl font-bold text-brand-hover">
           Deactivate Job
         </h1>
-        <p className="mt-1 text-sm text-ink-dim">
+        <p className="mt-1 text-sm text-white">
           {job.jobNumber && <>Job #{job.jobNumber} · </>}
           Choose what happens to each line of allocated inventory before
           closing this job out.
@@ -81,7 +81,7 @@ export default async function DeactivatePage({
       </header>
 
       {alreadyDeactivated ? (
-        <p className="mt-6 rounded-md border border-rule bg-card p-4 text-sm text-ink-dim">
+        <p className="mt-6 rounded-md border border-rule bg-card p-4 text-sm text-white">
           This job has already been deactivated.{" "}
           <Link
             href={`/job-flow/jobs/${job.id}`}
@@ -97,7 +97,7 @@ export default async function DeactivatePage({
           {job.currentStage}). Move the job to Inspection first.
         </p>
       ) : lines.length === 0 ? (
-        <p className="mt-6 rounded-md border border-rule bg-card p-4 text-sm text-ink-dim">
+        <p className="mt-6 rounded-md border border-rule bg-card p-4 text-sm text-white">
           This job has no pick list lines. There&apos;s nothing to return
           or scrap.
         </p>
