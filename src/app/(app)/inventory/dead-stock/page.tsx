@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { to2Dp } from "@/lib/format";
+import { PrintButton } from "@/components/print-button";
 
 export const dynamic = "force-dynamic";
 
@@ -24,8 +25,68 @@ type Row = {
   latestAt: Date | null;
 };
 
-export default async function DeadStockPage() {
+function parseDateParam(raw: string | undefined): Date | null {
+  if (!raw) return null;
+  const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const [, y, mo, d] = m;
+  const dt = new Date(Number(y), Number(mo) - 1, Number(d));
+  if (isNaN(dt.getTime())) return null;
+  return dt;
+}
+
+function toIsoDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+export default async function DeadStockPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string; range?: string }>;
+}) {
   await requireUser();
+  const sp = await searchParams;
+
+  const now = new Date();
+  const thisYearStart = new Date(now.getFullYear(), 0, 1);
+  const lastYearStart = new Date(now.getFullYear() - 1, 0, 1);
+  const lastYearEnd = new Date(now.getFullYear() - 1, 11, 31);
+
+  // range=all overrides explicit from/to and means "unfiltered"
+  const allTime = sp.range === "all";
+
+  // Defaults: this calendar year (Jan 1 -> today, inclusive)
+  let fromDate = allTime ? null : parseDateParam(sp.from);
+  let toDate = allTime ? null : parseDateParam(sp.to);
+  if (!allTime && !fromDate && !toDate) {
+    fromDate = thisYearStart;
+    toDate = now;
+  }
+  // Push `to` to end-of-day so a date like 2026-12-31 includes that whole day
+  const toDateInclusive = toDate
+    ? new Date(
+        toDate.getFullYear(),
+        toDate.getMonth(),
+        toDate.getDate(),
+        23,
+        59,
+        59,
+        999,
+      )
+    : null;
+
+  const decidedAtFilter =
+    fromDate || toDateInclusive
+      ? {
+          decidedAt: {
+            ...(fromDate ? { gte: fromDate } : {}),
+            ...(toDateInclusive ? { lte: toDateInclusive } : {}),
+          },
+        }
+      : {};
 
   // Pull every DEAD decision, both line-level (item lines) and component-
   // level (kit components). For each, compute the dead quantity from the
@@ -33,7 +94,7 @@ export default async function DeadStockPage() {
   // just the line quantity (for item lines). Aggregate by itemId.
   const [lineDeaths, componentDeaths] = await Promise.all([
     prisma.inspectionLineDecision.findMany({
-      where: { decision: "DEAD" },
+      where: { decision: "DEAD", ...decidedAtFilter },
       orderBy: { decidedAt: "desc" },
       include: {
         jobLineItem: {
@@ -52,7 +113,7 @@ export default async function DeadStockPage() {
       },
     }),
     prisma.inspectionComponentDecision.findMany({
-      where: { decision: "DEAD" },
+      where: { decision: "DEAD", ...decidedAtFilter },
       orderBy: { decidedAt: "desc" },
       include: {
         componentItem: {
@@ -142,24 +203,113 @@ export default async function DeadStockPage() {
   );
   const itemTypesAffected = sortedRows.length;
 
+  // Range label for the header / printout
+  let rangeLabel: string;
+  if (allTime) {
+    rangeLabel = "All time";
+  } else if (fromDate && toDate) {
+    rangeLabel = `${dateFmt.format(fromDate)} – ${dateFmt.format(toDate)}`;
+  } else if (fromDate) {
+    rangeLabel = `${dateFmt.format(fromDate)} onward`;
+  } else if (toDate) {
+    rangeLabel = `Through ${dateFmt.format(toDate)}`;
+  } else {
+    rangeLabel = "All time";
+  }
+
+  const fromInput = fromDate ? toIsoDate(fromDate) : "";
+  const toInput = toDate ? toIsoDate(toDate) : "";
+
   return (
     <>
-      <header>
-        <h1 className="text-3xl font-bold text-brand-hover">Dead Stock</h1>
-        <p className="mt-1 text-sm text-ink-dim">
-          Items lost to inspection Dead decisions across all jobs.
-          Aggregated from the per-line and per-component decisions
-          captured during job inspections.
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-bold text-brand-hover">Dead Stock</h1>
+          <p className="mt-1 text-sm text-ink-dim no-print">
+            Items lost to inspection Dead decisions. Filter by date range
+            for a tax-year snapshot, then Print Report for accounting.
+          </p>
+          <p className="mt-1 hidden text-sm print:block">
+            Dead Stock Report · {rangeLabel}
+          </p>
+        </div>
+        <div className="no-print">
+          <PrintButton />
+        </div>
       </header>
+
+      <form
+        className="mt-6 flex flex-wrap items-end gap-3 no-print"
+        action="/inventory/dead-stock"
+      >
+        <div>
+          <label
+            htmlFor="from"
+            className="block text-xs font-medium text-ink-dim"
+          >
+            From
+          </label>
+          <input
+            id="from"
+            type="date"
+            name="from"
+            defaultValue={fromInput}
+            className="mt-1 rounded-md border border-rule bg-card px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+          />
+        </div>
+        <div>
+          <label
+            htmlFor="to"
+            className="block text-xs font-medium text-ink-dim"
+          >
+            To
+          </label>
+          <input
+            id="to"
+            type="date"
+            name="to"
+            defaultValue={toInput}
+            className="mt-1 rounded-md border border-rule bg-card px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+          />
+        </div>
+        <button
+          type="submit"
+          className="rounded-md border border-brand bg-canvas px-4 py-2 text-sm font-medium text-brand transition hover:bg-brand hover:text-ink"
+        >
+          Apply
+        </button>
+        <div className="flex flex-wrap gap-2">
+          <PresetLink
+            href={`/inventory/dead-stock?from=${toIsoDate(thisYearStart)}&to=${toIsoDate(now)}`}
+            label="This year"
+          />
+          <PresetLink
+            href={`/inventory/dead-stock?from=${toIsoDate(lastYearStart)}&to=${toIsoDate(lastYearEnd)}`}
+            label="Last year"
+          />
+          <PresetLink
+            href={`/inventory/dead-stock?range=all`}
+            label="All time"
+          />
+        </div>
+      </form>
+
+      <p className="mt-3 text-xs text-ink-dim no-print">
+        Currently showing: <strong className="text-ink">{rangeLabel}</strong>
+      </p>
 
       <section className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <StatCard label="Units lost" value={to2Dp(totalDeadUnits)} />
-        <StatCard label="Item types affected" value={itemTypesAffected.toString()} />
+        <StatCard
+          label="Item types affected"
+          value={itemTypesAffected.toString()}
+        />
         <StatCard
           label="Estimated loss"
           value={totalLoss > 0 ? moneyFmt.format(totalLoss) : "—"}
-          hint={totalLoss > 0 ? undefined : "Set unit cost on items to compute"}
+          hint={
+            totalLoss > 0 ? undefined : "Set unit cost on items to compute"
+          }
         />
       </section>
 
@@ -171,6 +321,7 @@ export default async function DeadStockPage() {
               <th className="px-4 py-3">SKU</th>
               <th className="px-4 py-3 text-right">Units lost</th>
               <th className="px-4 py-3 text-right">Decisions</th>
+              <th className="px-4 py-3 text-right">Unit cost</th>
               <th className="px-4 py-3 text-right">Est. loss</th>
               <th className="px-4 py-3">Latest</th>
             </tr>
@@ -179,11 +330,10 @@ export default async function DeadStockPage() {
             {sortedRows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   className="px-4 py-12 text-center text-ink-dim"
                 >
-                  No dead stock recorded yet. Once items are marked Dead
-                  during inspection, they&apos;ll aggregate here.
+                  No dead stock recorded in this date range.
                 </td>
               </tr>
             ) : (
@@ -205,6 +355,9 @@ export default async function DeadStockPage() {
                     {r.decisionCount}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">
+                    {r.unitCost != null ? moneyFmt.format(r.unitCost) : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums">
                     {r.unitCost != null
                       ? moneyFmt.format(r.totalDead * r.unitCost)
                       : "—"}
@@ -216,13 +369,32 @@ export default async function DeadStockPage() {
               ))
             )}
           </tbody>
+          {sortedRows.length > 0 && (
+            <tfoot className="bg-card text-sm font-semibold text-ink">
+              <tr>
+                <td className="px-4 py-3" colSpan={2}>
+                  Total
+                </td>
+                <td className="px-4 py-3 text-right tabular-nums">
+                  {to2Dp(totalDeadUnits)}
+                </td>
+                <td className="px-4 py-3" />
+                <td className="px-4 py-3" />
+                <td className="px-4 py-3 text-right tabular-nums">
+                  {totalLoss > 0 ? moneyFmt.format(totalLoss) : "—"}
+                </td>
+                <td className="px-4 py-3" />
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
 
       {sortedRows.length > 0 && (
-        <p className="mt-3 text-xs text-ink-dim">
+        <p className="mt-3 text-xs text-ink-dim no-print">
           Showing {sortedRows.length}{" "}
-          {sortedRows.length === 1 ? "item" : "items"}. Sorted by units lost.
+          {sortedRows.length === 1 ? "item" : "items"}. Sorted by units
+          lost.
         </p>
       )}
     </>
@@ -248,5 +420,16 @@ function StatCard({
       </div>
       {hint && <div className="mt-1 text-xs text-ink-dim">{hint}</div>}
     </div>
+  );
+}
+
+function PresetLink({ href, label }: { href: string; label: string }) {
+  return (
+    <Link
+      href={href}
+      className="rounded-md border border-rule bg-canvas px-3 py-2 text-xs font-medium text-ink hover:border-brand"
+    >
+      {label}
+    </Link>
   );
 }
