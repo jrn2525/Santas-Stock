@@ -227,9 +227,8 @@ export function CleanupSection({
             </h3>
             <p className="mt-2 text-sm text-ink-dim">
               About to delete <strong className="text-ink">{modal.count}</strong>{" "}
-              {title.toLowerCase()}. References on Job line items and
-              Allocations will be nulled out (the rows themselves survive). This
-              cannot be undone.
+              {title.toLowerCase()}. References on Job line items will be
+              nulled out (the rows themselves survive). This cannot be undone.
             </p>
             <p className="mt-4 text-sm text-ink">
               Type{" "}

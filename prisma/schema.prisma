@@ -72,15 +72,6 @@ enum KitStatus {
   RETIRED
 }
 
-enum AllocationStatus {
-  RESERVED_ON_SALE
-  RESERVED
-  OUT
-  RETURNED
-  SHORT
-  MISSING
-}
-
 enum ReplacementResolution {
   REPAIR
   REPLACE_FROM_STOCK
@@ -115,7 +106,6 @@ model User {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  allocations          Allocation[]             @relation("AllocatedBy")
   flaggedReplacements  ReplacementQueue[]       @relation("FlaggedBy")
   resolvedReplacements ReplacementQueue[]       @relation("ResolvedBy")
   openedTickets        MaintenanceTicket[]      @relation("OpenedBy")
@@ -123,7 +113,6 @@ model User {
   inspectionDecisions  InspectionLineDecision[] @relation("InspectionDecidedBy")
   componentDecisions   InspectionComponentDecision[] @relation("ComponentDecisionBy")
   changeOrders         ChangeOrder[]            @relation("ChangeOrderCreatedBy")
-  auditEntries         AuditLog[]
   jobberConnections    JobberConnection[]
 }
 
@@ -192,7 +181,6 @@ model Item {
   jobberProductId String? @unique
 
   kitMemberships     KitItem[]
-  allocations        Allocation[]
   jobLineItems       JobLineItem[]
   jobLineShortages   JobLineShortage[]
   replacementEntries ReplacementQueue[]
@@ -233,7 +221,6 @@ model Kit {
   jobberProductId String? @unique
 
   items        KitItem[]
-  allocations  Allocation[]
   jobLineItems JobLineItem[]
   customerKits CustomerKit[]
 
@@ -545,7 +532,6 @@ model JobberVisit {
   endAt        DateTime?
   status       String
 
-  allocations Allocation[]
   notes       JobberNote[]
 
   syncedAt  DateTime?
@@ -577,62 +563,7 @@ model JobberNote {
   @@index([visitId])
 }
 
-// ---------- Vehicles, allocations, maintenance ----------
-
-model Vehicle {
-  id              String    @id @default(cuid())
-  name            String
-  plate           String?
-  vin             String?   @unique
-  make            String?
-  model           String?
-  year            Int?
-  capacity        String?
-  registrationExp DateTime?
-  insuranceExp    DateTime?
-  odometer        Int?
-  status          String?
-  photos          String[]  @default([])
-
-  allocations Allocation[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Allocation {
-  id            String       @id @default(cuid())
-  kitId         String?
-  kit           Kit?         @relation(fields: [kitId], references: [id])
-  itemId        String?
-  item          Item?        @relation(fields: [itemId], references: [id])
-  jobberVisitId String?
-  jobberVisit   JobberVisit? @relation(fields: [jobberVisitId], references: [id])
-  vehicleId     String?
-  vehicle       Vehicle?     @relation(fields: [vehicleId], references: [id])
-
-  allocatedAt       DateTime  @default(now())
-  checkedOutAt      DateTime?
-  checkedInAt       DateTime?
-  allocatedByUserId String?
-  allocatedBy       User?     @relation("AllocatedBy", fields: [allocatedByUserId], references: [id])
-
-  seasonId String?
-  season   Season? @relation(fields: [seasonId], references: [id])
-
-  status AllocationStatus @default(RESERVED)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Season {
-  id          String       @id @default(cuid())
-  name        String       @unique
-  startDate   DateTime
-  endDate     DateTime
-  allocations Allocation[]
-}
+// ---------- Maintenance + replacement ----------
 
 model ReplacementQueue {
   id               String                 @id @default(cuid())
@@ -669,24 +600,7 @@ model MaintenanceTicket {
   closedAt       DateTime?
 }
 
-// ---------- Audit + sync + custom fields ----------
-
-model AuditLog {
-  id         String   @id @default(cuid())
-  userId     String?
-  user       User?    @relation(fields: [userId], references: [id])
-  action     String
-  entityType String
-  entityId   String
-  beforeJson Json?
-  afterJson  Json?
-  ip         String?
-  userAgent  String?
-  occurredAt DateTime @default(now())
-
-  @@index([entityType, entityId])
-  @@index([occurredAt])
-}
+// ---------- Sync + custom fields ----------
 
 model SyncEvent {
   id          String     @id @default(cuid())

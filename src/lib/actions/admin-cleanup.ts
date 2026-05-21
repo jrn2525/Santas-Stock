@@ -17,10 +17,6 @@ export async function bulkDeleteItems(ids: string[]): Promise<CleanupResult> {
       where: { itemId: { in: ids } },
       data: { itemId: null },
     });
-    await tx.allocation.updateMany({
-      where: { itemId: { in: ids } },
-      data: { itemId: null },
-    });
     await tx.kitItem.deleteMany({ where: { itemId: { in: ids } } });
     const res = await tx.item.deleteMany({ where: { id: { in: ids } } });
     return res.count;
@@ -39,10 +35,6 @@ export async function deleteAllItems(): Promise<CleanupResult> {
     await tx.maintenanceTicket.deleteMany({});
     await tx.replacementQueue.deleteMany({});
     await tx.jobLineItem.updateMany({
-      where: { itemId: { not: null } },
-      data: { itemId: null },
-    });
-    await tx.allocation.updateMany({
       where: { itemId: { not: null } },
       data: { itemId: null },
     });
@@ -66,10 +58,6 @@ export async function bulkDeleteKits(ids: string[]): Promise<CleanupResult> {
       where: { kitId: { in: ids } },
       data: { kitId: null },
     });
-    await tx.allocation.updateMany({
-      where: { kitId: { in: ids } },
-      data: { kitId: null },
-    });
     await tx.kitItem.deleteMany({ where: { kitId: { in: ids } } });
     const res = await tx.kit.deleteMany({ where: { id: { in: ids } } });
     return res.count;
@@ -86,10 +74,6 @@ export async function deleteAllKits(): Promise<CleanupResult> {
 
   const deleted = await prisma.$transaction(async (tx) => {
     await tx.jobLineItem.updateMany({
-      where: { kitId: { not: null } },
-      data: { kitId: null },
-    });
-    await tx.allocation.updateMany({
       where: { kitId: { not: null } },
       data: { kitId: null },
     });

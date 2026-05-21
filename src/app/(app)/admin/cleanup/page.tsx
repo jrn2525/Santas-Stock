@@ -98,8 +98,8 @@ export default async function CleanupPage({
         <p className="mt-1 text-sm text-ink-dim">
           Surgically delete Items and Kits from the database. Use this when a
           CSV import created bad rows, or when you need to start a section
-          fresh. Job line items and Allocations referencing deleted rows are
-          preserved with their references nulled out.
+          fresh. Job line items referencing deleted rows are preserved with
+          their references nulled out.
         </p>
       </header>
 
