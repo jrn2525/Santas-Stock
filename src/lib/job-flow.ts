@@ -23,7 +23,7 @@ export const STAGE_LABELS: Record<JobStage, string> = {
   STAGED: "Staged",
   INSTALLED: "Installed",
   INSPECTION: "Inspection",
-  COMPLETE: "Built",
+  COMPLETE: "Complete",
   DEACTIVATED: "Deactivated",
 };
 

@@ -90,7 +90,7 @@ export function JobFlowChart({
         <div className="flex w-full justify-center gap-3">
           <StageButton
             stage="COMPLETE"
-            label="Built"
+            label="Complete"
             currentStage={currentStage}
             isOnHold={false}
             disabled={!canWrite || isPending || !isValidTransition(currentStage, "COMPLETE")}
