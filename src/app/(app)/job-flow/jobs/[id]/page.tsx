@@ -89,6 +89,19 @@ export default async function JobDetailPage({
 
   const pickListLines = lineItemsToPickListLines(job.lineItems);
 
+  // Customer tote summary: how many kit copies this client has across
+  // all CustomerKit rows. Cheap aggregate so the Customer card can
+  // surface "Has N kits in storage" at a glance.
+  const customerKitAgg = job.clientId
+    ? await prisma.customerKit.aggregate({
+        where: { clientId: job.clientId },
+        _sum: { quantity: true },
+        _count: { _all: true },
+      })
+    : null;
+  const totalKitsInTote = customerKitAgg?._sum.quantity ?? 0;
+  const totalKitTypes = customerKitAgg?._count._all ?? 0;
+
   return (
     <>
       <header className="flex flex-wrap items-start justify-between gap-3">
@@ -166,6 +179,13 @@ export default async function JobDetailPage({
                   {job.property?.address && (
                     <div className="mt-2 text-ink-dim">
                       {job.property.address}
+                    </div>
+                  )}
+                  {totalKitsInTote > 0 && (
+                    <div className="mt-2 text-xs text-green-200">
+                      In tote: {totalKitsInTote} kit
+                      {totalKitsInTote === 1 ? "" : "s"} across{" "}
+                      {totalKitTypes} type{totalKitTypes === 1 ? "" : "s"}
                     </div>
                   )}
                 </div>

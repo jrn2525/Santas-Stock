@@ -198,6 +198,7 @@ model Item {
   replacementEntries ReplacementQueue[]
   maintenanceTickets MaintenanceTicket[]
   componentDecisions InspectionComponentDecision[] @relation("ComponentDecisionItem")
+  customerKitItems   CustomerKitItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -234,6 +235,7 @@ model Kit {
   items        KitItem[]
   allocations  Allocation[]
   jobLineItems JobLineItem[]
+  customerKits CustomerKit[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -279,10 +281,11 @@ model Client {
   serviceCountry String?
   serviceZip     String?
 
-  properties Property[]
-  jobs       JobberJob[]
-  kits       Kit[]
-  notes      JobberNote[]
+  properties   Property[]
+  jobs         JobberJob[]
+  kits         Kit[]
+  notes        JobberNote[]
+  customerKits CustomerKit[]
 
   // NEW: never completed a job in the system. EXISTING: at least one
   // job has reached the COMPLETE terminal. Used by Year-2 pick-list
@@ -304,8 +307,9 @@ model Property {
   client           Client @relation(fields: [clientId], references: [id])
   address          String
 
-  jobs JobberJob[]
-  kits Kit[]
+  jobs         JobberJob[]
+  kits         Kit[]
+  customerKits CustomerKit[]
 
   syncedAt  DateTime?
   createdAt DateTime  @default(now())
@@ -332,6 +336,11 @@ model JobberJob {
 
   currentStage JobStage @default(NEW)
   isOnHold     Boolean  @default(false)
+
+  /// Set the first time this job reaches COMPLETE and we successfully
+  /// rolled its kits into the client's CustomerKit records. Used to keep
+  /// the sync idempotent across revert -> re-complete cycles.
+  customerKitsSyncedAt DateTime?
 
   visits       JobberVisit[]
   notes        JobberNote[]
@@ -362,6 +371,13 @@ enum JobStage {
 enum CustomerEra {
   NEW
   EXISTING
+}
+
+// Lifecycle of a customer-specific kit sitting in a tote.
+enum CustomerKitStatus {
+  IN_STORAGE
+  OUT_FOR_SEASON
+  RETIRED
 }
 
 model JobStageEvent {
@@ -692,3 +708,56 @@ model CustomFieldValue {
   @@id([entityType, entityId, fieldDefId])
   @@index([entityType, entityId])
 }
+
+// Persistent record of a customer-specific kit that lives in a customer's
+// tote year over year. Created at COMPLETE of any job that has kit lines;
+// reused as inventory in subsequent seasons so existing customers don't
+// have to re-allocate the kits they already own.
+//
+// quantity counts how many physical copies of this kit type the customer
+// has across all their seasons. Year-2 allocation will subtract from this
+// count first (skipping raw inventory) before pulling from the shared pool.
+model CustomerKit {
+  id              String   @id @default(cuid())
+  clientId        String
+  client          Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  /// Optional property scoping. Multi-property customers can have separate
+  /// totes per house. When null, the kit belongs to the client as a whole.
+  propertyId      String?
+  property        Property? @relation(fields: [propertyId], references: [id])
+  kitId           String
+  kit             Kit      @relation(fields: [kitId], references: [id])
+
+  quantity        Int      @default(1)
+  storageLocation String?
+  status          CustomerKitStatus @default(IN_STORAGE)
+
+  items           CustomerKitItem[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([clientId])
+  @@index([propertyId])
+  @@index([kitId])
+}
+
+// Per-component physical snapshot of a CustomerKit. Quantities can drift
+// from the kit recipe over time (a bulb dies and is replaced with a
+// slightly different model, etc.) so we store the actual count instead
+// of recomputing from the recipe.
+model CustomerKitItem {
+  id            String      @id @default(cuid())
+  customerKitId String
+  customerKit   CustomerKit @relation(fields: [customerKitId], references: [id], onDelete: Cascade)
+  itemId        String
+  item          Item        @relation(fields: [itemId], references: [id])
+  quantity      Int         @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([customerKitId, itemId])
+  @@index([itemId])
+}
+
