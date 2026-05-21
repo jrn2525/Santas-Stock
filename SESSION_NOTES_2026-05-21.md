@@ -38,25 +38,21 @@ Listed newest-first. Every commit has been pushed to the remote.
 
 **Job detail page section order** changed to: Customer + Calendar (top grid) → **Pick List** → Notes → Details. Pick List used to sit under Notes; users wanted the pick list visible first since it's what they scan when opening a job.
 
-## Inspection page — TODO for next session
+## Inspection page — DONE (commit `8c49733`)
 
-The user flagged the Inspection page (`/job-flow/jobs/[id]/inspection`) for an overhaul similar to what we just did on the Deactivate page. To be done:
+Shipped tonight as the last commit of the session. All four items from the TODO got built plus a Print Report button:
 
-1. **Per-component decisions inside a kit (the big one).** Today, when a pick list line is a kit, marking it Dead/Repaired/Good applies the same decision to the **whole kit** — all components inherit it. The user wants to inspect **each individual component item inside a kit separately** with its own Good/Repaired/Dead choice. A standalone (non-kit) item keeps the single decision it has today.
-   - **Data model change required.** Currently one `InspectionLineDecision` per `JobLineItem`. For kit lines, we need per-component granularity. Two options:
-     - Add a new `InspectionComponentDecision` table keyed on `(jobLineItemId, itemId)` — cleanest, queryable, but a schema migration.
-     - Store per-component decisions inside an existing JSON field on `InspectionLineDecision` (e.g. expand the existing `appliedDeltas` shape into a `componentDecisions` array). No migration, but harder to query later.
-   - **Inventory delta logic** needs to recompute per component instead of per line: for each component, apply its own decision (`DEAD` → deduct `componentQty * lineQty` from that component's inventory; `REPAIRED` → pull replacement parts the user specifies; `GOOD` → no change). Today's `computeDeltasForDead` and the REPAIRED branch in `inspection.ts` do this at the line level — they'll need to walk per component.
-   - **UI rework.** Inspection row for a kit becomes a nested layout: kit name on top, then one row per component with its own three-button control + (for Repaired) the replacement-parts inputs. Standalone item rows keep the single-row UI they have today.
-2. **Rework each row's styling** to match the Deactivate page (white text, no gray, no opacity dimming, white borders). Each row should read cleanly against the dark background.
-3. **Replace per-line auto-save with batch Save / Cancel buttons at the bottom of the page.** Today, each decision saves immediately when the user clicks Good/Repaired/Dead via `setInspectionDecision`. The user wants a Save button at the bottom (like the Change Order and Deactivate pages) plus a Cancel button next to it. That means tracking pending decisions client-side until Save is pressed.
-4. **White out all gray text at the top of the page** — the back link (`← {job.title}`), page subtitle (`Job #N · X of Y lines inspected`), and the instruction callout that explains Good/Repaired/Dead. Pattern is identical to what we did on the Deactivate page (`text-ink-dim` → `text-white`).
-5. **Drop any remaining `opacity-50`** on the inspection form.
+1. **Per-component decisions inside kits.** Kit lines now expand to show each component item with its own Good/Repaired/Dead control. New `InspectionComponentDecision` table (one row per `(jobLineItemId, componentItemId)`) stores these alongside the existing `InspectionLineDecision` (still used for standalone item lines). Schema auto-applies on Railway start.
+2. **Batch Save / Cancel at the bottom of the page.** The page is now a client form (`src/components/job-flow/inspection-form.tsx`) that holds pending decisions in React state. Save calls a single batched `saveInspectionDecisions` server action that reverses every previously-applied delta, applies the new ones, and upserts the decision rows in one transaction. Cancel discards and returns to the job page. Inventory only moves on Save.
+3. **Print Report button.** Top right of the page, calls `window.print()`. All interactive controls are `no-print` so the printed output reads as a clean report — each line shows its current decision via a "Marked: X" tag that's hidden on screen.
+4. **White out + drop opacity-50.** Back link, subtitle, instruction box body, component sub-rows, status text — all white. No `text-ink-dim` or `opacity-50` left in the page.
 
-Critical files for this work:
-- `src/app/(app)/job-flow/jobs/[id]/inspection/page.tsx`
-- `src/components/job-flow/inspection-row.tsx`
-- `src/lib/actions/inspection.ts` (if batching changes the server action shape)
+If tomorrow's user wants to test this:
+- Open a job, move it to INSPECTION
+- Confirm the panel's Next Step button routes to /inspection
+- Walk a kit line, mark each component differently, hit Save
+- Verify inventory adjusted only after Save
+- Hit Print Report and confirm the printable view reads cleanly
 
 ## Other open items (still on the master plan)
 
