@@ -10,6 +10,11 @@ import { to2Dp } from "@/lib/format";
 
 export type PickerOption = { id: string; name: string };
 
+export type KitRecipeMap = Record<
+  string,
+  Array<{ itemName: string; quantityPerKit: number }>
+>;
+
 type EditableLine = {
   /** Stable React key (independent of refId so duplicates work) */
   key: string;
@@ -29,11 +34,13 @@ export function ChangeOrderEditor({
   initialLines,
   items,
   kits,
+  kitRecipes,
 }: {
   jobId: string;
   initialLines: EditableLine[];
   items: PickerOption[];
   kits: PickerOption[];
+  kitRecipes: KitRecipeMap;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -159,48 +166,77 @@ export function ChangeOrderEditor({
 
       <section className="rounded-lg border border-rule bg-card p-5">
         <h2 className="text-lg font-semibold text-ink">Pick list</h2>
-        <p className="mt-1 text-xs text-ink-dim">
+        <p className="mt-1 text-xs text-white">
           Edit quantities, remove lines, or add new lines below. Inventory
           adjusts automatically when you save.
         </p>
 
         <ul className="mt-4 space-y-2">
           {lines.length === 0 ? (
-            <li className="rounded-md border border-dashed border-rule bg-canvas p-4 text-center text-sm text-ink-dim">
+            <li className="rounded-md border border-dashed border-rule bg-canvas p-4 text-center text-sm text-white">
               No lines on this job. Add one below.
             </li>
           ) : (
-            lines.map((line) => (
-              <li
-                key={line.key}
-                className="flex flex-wrap items-center gap-3 rounded-md border border-rule bg-canvas p-3"
-              >
-                <span className="flex-1 truncate">
-                  <span className="font-medium text-ink">{line.refName}</span>
-                  <span className="ml-2 text-xs uppercase tracking-wider text-ink-dim">
-                    {line.kind}
-                  </span>
-                </span>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  step="0.01"
-                  min={0}
-                  value={line.quantity}
-                  onChange={(e) => updateQty(line.key, e.target.value)}
-                  onBlur={(e) => formatQtyOnBlur(line.key, e.target.value)}
-                  className="w-28 rounded-md border border-rule bg-canvas px-3 py-1.5 text-right text-sm text-ink tabular-nums focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-                />
-                <button
-                  type="button"
-                  onClick={() => removeLine(line.key)}
-                  className="text-xs font-medium text-red-300 hover:text-red-200"
-                  title="Remove this line"
+            lines.map((line) => {
+              const recipe = line.kind === "kit" ? kitRecipes[line.refId] : null;
+              const lineQty = Number(line.quantity);
+              return (
+                <li
+                  key={line.key}
+                  className="rounded-md border border-rule bg-canvas p-3"
                 >
-                  Remove
-                </button>
-              </li>
-            ))
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="flex-1 truncate">
+                      <span className="font-medium text-ink">
+                        {line.refName}
+                      </span>
+                      <span className="ml-2 text-xs uppercase tracking-wider text-white">
+                        {line.kind}
+                      </span>
+                    </span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      min={0}
+                      value={line.quantity}
+                      onChange={(e) => updateQty(line.key, e.target.value)}
+                      onBlur={(e) =>
+                        formatQtyOnBlur(line.key, e.target.value)
+                      }
+                      className="w-28 rounded-md border border-rule bg-canvas px-3 py-1.5 text-right text-sm text-ink tabular-nums focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeLine(line.key)}
+                      className="text-xs font-medium text-red-300 hover:text-red-200"
+                      title="Remove this line"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  {recipe && recipe.length > 0 && (
+                    <ul className="mt-2 ml-4 space-y-0.5 border-l border-white pl-3 text-xs text-white">
+                      {recipe.map((c, i) => (
+                        <li
+                          key={i}
+                          className="flex items-baseline justify-between gap-3"
+                        >
+                          <span className="truncate">{c.itemName}</span>
+                          <span className="tabular-nums whitespace-nowrap">
+                            ×
+                            {to2Dp(
+                              c.quantityPerKit *
+                                (isNaN(lineQty) ? 0 : lineQty),
+                            )}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              );
+            })
           )}
         </ul>
 
@@ -208,7 +244,7 @@ export function ChangeOrderEditor({
           <h3 className="text-sm font-medium text-ink">Add a line</h3>
           <div className="mt-3 flex flex-wrap items-end gap-3">
             <div>
-              <label htmlFor="picker-kind" className="block text-xs font-medium text-ink-dim">
+              <label htmlFor="picker-kind" className="block text-xs font-medium text-white">
                 Kind
               </label>
               <select
@@ -225,7 +261,7 @@ export function ChangeOrderEditor({
               </select>
             </div>
             <div className="min-w-[18rem] flex-1">
-              <label htmlFor="picker-name" className="block text-xs font-medium text-ink-dim">
+              <label htmlFor="picker-name" className="block text-xs font-medium text-white">
                 {pickerKind === "item" ? "Item" : "Kit"}
               </label>
               <input
@@ -245,7 +281,7 @@ export function ChangeOrderEditor({
               </datalist>
             </div>
             <div>
-              <label htmlFor="picker-qty" className="block text-xs font-medium text-ink-dim">
+              <label htmlFor="picker-qty" className="block text-xs font-medium text-white">
                 Quantity
               </label>
               <input
@@ -271,10 +307,15 @@ export function ChangeOrderEditor({
               type="button"
               onClick={addLine}
               disabled={!pickerMatch}
+              title={
+                pickerMatch
+                  ? "Add this line to the pick list"
+                  : `Type a ${pickerKind} name first`
+              }
               className={`rounded-md px-3 py-2 text-sm font-medium transition ${
                 pickerMatch
                   ? "border border-brand text-brand hover:bg-brand hover:text-ink"
-                  : "border border-rule text-ink-dim opacity-50 cursor-not-allowed"
+                  : "border border-white bg-canvas text-white cursor-not-allowed"
               }`}
             >
               + Add line
@@ -299,7 +340,7 @@ export function ChangeOrderEditor({
             type="button"
             onClick={() => router.push(`/job-flow/jobs/${jobId}`)}
             disabled={isPending}
-            className="rounded-md border border-rule px-4 py-2 text-sm font-semibold text-ink transition hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-md border border-rule bg-canvas px-4 py-2 text-sm font-semibold text-ink transition hover:border-brand disabled:cursor-not-allowed"
           >
             Cancel
           </button>
@@ -307,10 +348,17 @@ export function ChangeOrderEditor({
             type="button"
             onClick={handleSave}
             disabled={!hasChanges || isPending}
+            title={
+              isPending
+                ? "Saving…"
+                : hasChanges
+                  ? "Apply the change order"
+                  : "No changes to save"
+            }
             className={`rounded-md px-4 py-2 text-sm font-semibold transition ${
               hasChanges && !isPending
                 ? "bg-brand text-ink hover:bg-brand-hover"
-                : "cursor-not-allowed bg-canvas text-ink-dim opacity-50"
+                : "cursor-not-allowed bg-canvas text-white"
             }`}
           >
             {isPending ? "Saving…" : "Save"}

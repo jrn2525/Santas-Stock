@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole, WRITE_ROLES } from "@/lib/auth-helpers";
 import {
   ChangeOrderEditor,
+  type KitRecipeMap,
   type PickerOption,
 } from "@/components/job-flow/change-order-editor";
 import { STAGE_LABELS } from "@/lib/job-flow";
@@ -42,7 +43,17 @@ export default async function ChangeOrderPage({
     }),
     prisma.kit.findMany({
       where: { active: true },
-      select: { id: true, name: true },
+      select: {
+        id: true,
+        name: true,
+        items: {
+          select: {
+            quantity: true,
+            item: { select: { name: true } },
+          },
+          orderBy: { item: { name: "asc" } },
+        },
+      },
       orderBy: { name: "asc" },
     }),
   ]);
@@ -62,19 +73,28 @@ export default async function ChangeOrderPage({
 
   const itemOptions: PickerOption[] = items.map((i) => ({ id: i.id, name: i.name }));
   const kitOptions: PickerOption[] = kits.map((k) => ({ id: k.id, name: k.name }));
+  const kitRecipes: KitRecipeMap = Object.fromEntries(
+    kits.map((k) => [
+      k.id,
+      k.items.map((ki) => ({
+        itemName: ki.item.name,
+        quantityPerKit: Number(ki.quantity),
+      })),
+    ]),
+  );
 
   return (
     <>
       <header>
-        <p className="text-xs uppercase tracking-wider text-ink-dim">
-          <Link href={`/job-flow/jobs/${job.id}`} className="hover:text-ink">
+        <p className="text-xs uppercase tracking-wider text-white">
+          <Link href={`/job-flow/jobs/${job.id}`} className="hover:text-brand">
             ← {job.title ?? "Job"}
           </Link>
         </p>
         <h1 className="mt-2 text-3xl font-bold text-brand-hover">
           Change Order
         </h1>
-        <p className="mt-1 text-sm text-ink-dim">
+        <p className="mt-1 text-sm text-white">
           {job.jobNumber && <>Job #{job.jobNumber} · </>}
           Current stage:{" "}
           <span className="text-ink">{STAGE_LABELS[job.currentStage]}</span>
@@ -87,6 +107,7 @@ export default async function ChangeOrderPage({
           initialLines={initialLines}
           items={itemOptions}
           kits={kitOptions}
+          kitRecipes={kitRecipes}
         />
       </div>
     </>
