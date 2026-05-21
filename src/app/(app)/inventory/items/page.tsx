@@ -119,7 +119,14 @@ export default async function ItemsPage({
             ) : (
               items.map((i) => (
                 <tr key={i.id} className="text-ink">
-                  <td className="px-4 py-3 font-medium">{i.name}</td>
+                  <td className="px-4 py-3 font-medium">
+                    <Link
+                      href={`/inventory/items/${i.id}`}
+                      className="hover:text-brand"
+                    >
+                      {i.name}
+                    </Link>
+                  </td>
                   <td className="px-4 py-3 text-ink-dim">{i.description}</td>
                   <td className="px-4 py-3 text-ink-dim">
                     {i.productType ? productTypeLabels[i.productType] : "—"}
