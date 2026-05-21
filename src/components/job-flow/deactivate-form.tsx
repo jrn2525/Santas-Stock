@@ -9,12 +9,29 @@ import {
 } from "@/lib/actions/deactivate";
 import { to2Dp } from "@/lib/format";
 
+export type DeactivateComponent = {
+  itemId: string;
+  name: string;
+  /** Recipe quantity per kit. Allocated total per kit line = this × lineQty. */
+  quantityPerKit: number;
+};
+
 export type DeactivateLine = {
   id: string;
   name: string;
   quantity: number;
   kind: "kit" | "item" | "unresolved";
-  components: { name: string; quantity: number }[];
+  /** Only set when kind === "item". */
+  itemId?: string;
+  /** Only set when kind === "kit". */
+  components: DeactivateComponent[];
+};
+
+type LineState = {
+  // For kind === "item": single return qty
+  itemReturn?: string;
+  // For kind === "kit": one return qty per component, keyed by itemId
+  componentReturns?: Record<string, string>;
 };
 
 export function DeactivateForm({
@@ -26,48 +43,128 @@ export function DeactivateForm({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [returns, setReturns] = useState<Record<string, string>>(() => {
-    const init: Record<string, string> = {};
-    for (const l of lines) init[l.id] = to2Dp(l.quantity);
-    return init;
-  });
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  // Default each input to "Return all"
+  const [state, setState] = useState<Record<string, LineState>>(() => {
+    const init: Record<string, LineState> = {};
+    for (const l of lines) {
+      if (l.kind === "item") {
+        init[l.id] = { itemReturn: to2Dp(l.quantity) };
+      } else if (l.kind === "kit") {
+        const comp: Record<string, string> = {};
+        for (const c of l.components) {
+          comp[c.itemId] = to2Dp(c.quantityPerKit * l.quantity);
+        }
+        init[l.id] = { componentReturns: comp };
+      } else {
+        init[l.id] = {};
+      }
+    }
+    return init;
+  });
 
   const { totalReturn, totalScrap } = useMemo(() => {
     let r = 0;
     let s = 0;
     for (const l of lines) {
       if (l.kind === "unresolved") continue;
-      const raw = Number(returns[l.id] ?? 0);
-      const ret = Math.max(0, Math.min(l.quantity, isNaN(raw) ? 0 : raw));
-      r += ret;
-      s += l.quantity - ret;
+      if (l.kind === "item") {
+        const ret = parseRet(state[l.id]?.itemReturn, l.quantity);
+        r += ret;
+        s += l.quantity - ret;
+      } else {
+        for (const c of l.components) {
+          const allocated = Math.ceil(c.quantityPerKit * l.quantity);
+          const ret = parseRet(
+            state[l.id]?.componentReturns?.[c.itemId],
+            allocated,
+          );
+          r += ret;
+          s += allocated - ret;
+        }
+      }
     }
     return { totalReturn: r, totalScrap: s };
-  }, [lines, returns]);
+  }, [lines, state]);
 
-  function setOne(id: string, val: string) {
-    setReturns((p) => ({ ...p, [id]: val }));
+  function setItemReturn(lineId: string, raw: string) {
+    setState((p) => ({
+      ...p,
+      [lineId]: { ...p[lineId], itemReturn: raw },
+    }));
+  }
+
+  function setComponentReturn(
+    lineId: string,
+    componentItemId: string,
+    raw: string,
+  ) {
+    setState((p) => ({
+      ...p,
+      [lineId]: {
+        ...p[lineId],
+        componentReturns: {
+          ...p[lineId]?.componentReturns,
+          [componentItemId]: raw,
+        },
+      },
+    }));
   }
 
   function setAll(mode: "return" | "scrap") {
-    const next: Record<string, string> = {};
+    const next: Record<string, LineState> = {};
     for (const l of lines) {
-      next[l.id] = mode === "return" ? to2Dp(l.quantity) : "0";
+      if (l.kind === "item") {
+        next[l.id] = {
+          itemReturn: mode === "return" ? to2Dp(l.quantity) : "0",
+        };
+      } else if (l.kind === "kit") {
+        const comp: Record<string, string> = {};
+        for (const c of l.components) {
+          comp[c.itemId] =
+            mode === "return" ? to2Dp(c.quantityPerKit * l.quantity) : "0";
+        }
+        next[l.id] = { componentReturns: comp };
+      } else {
+        next[l.id] = {};
+      }
     }
-    setReturns(next);
+    setState(next);
   }
 
   function handleSubmit() {
     setError(null);
-    const decisions: DeactivateDecision[] = lines
-      .filter((l) => l.kind !== "unresolved")
-      .map((l) => {
-        const raw = Number(returns[l.id] ?? 0);
-        const ret = Math.max(0, Math.min(l.quantity, isNaN(raw) ? 0 : raw));
-        return { jobLineItemId: l.id, returnQty: ret };
-      });
+    const decisions: DeactivateDecision[] = [];
+
+    for (const l of lines) {
+      if (l.kind === "unresolved") continue;
+      if (l.kind === "item") {
+        if (!l.itemId) continue;
+        const ret = parseRet(state[l.id]?.itemReturn, l.quantity);
+        decisions.push({
+          jobLineItemId: l.id,
+          kind: "item",
+          itemId: l.itemId,
+          returnQty: ret,
+        });
+      } else {
+        const comps = l.components.map((c) => {
+          const allocated = Math.ceil(c.quantityPerKit * l.quantity);
+          const ret = parseRet(
+            state[l.id]?.componentReturns?.[c.itemId],
+            allocated,
+          );
+          return { componentItemId: c.itemId, returnQty: ret };
+        });
+        decisions.push({
+          jobLineItemId: l.id,
+          kind: "kit",
+          components: comps,
+        });
+      }
+    }
 
     startTransition(async () => {
       try {
@@ -85,12 +182,13 @@ export function DeactivateForm({
   return (
     <div className="mt-6 space-y-4">
       <section className="rounded-md border border-rule bg-card p-4 text-sm text-white">
-        For each line, enter how many to{" "}
-        <strong className="text-green-300">return</strong> to inventory. The
-        rest is{" "}
-        <strong className="text-red-300">scrapped</strong> and stays out of
-        inventory. For kit lines, the component items are restored based on
-        the kit recipe.
+        For each component, enter how many units to{" "}
+        <strong className="text-green-300">return</strong> to inventory.
+        The rest is{" "}
+        <strong className="text-red-300">scrapped</strong> and stays out
+        of inventory. Kit components are listed individually so you can
+        split a kit&apos;s contents — return the usable parts, scrap the
+        rest.
       </section>
 
       <div className="flex flex-wrap gap-2">
@@ -111,72 +209,17 @@ export function DeactivateForm({
       </div>
 
       <ul className="space-y-3">
-        {lines.map((l) => {
-          const total = l.quantity;
-          const raw = Number(returns[l.id] ?? 0);
-          const ret = isNaN(raw) ? 0 : Math.max(0, Math.min(total, raw));
-          const scrap = total - ret;
-          const unresolved = l.kind === "unresolved";
-          return (
-            <li
-              key={l.id}
-              className="rounded-md border border-rule bg-canvas p-4"
-            >
-              <div className="flex flex-wrap items-baseline justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="font-semibold text-ink">{l.name}</div>
-                  <div className="text-xs text-white">
-                    {l.kind === "kit"
-                      ? "Kit"
-                      : l.kind === "item"
-                        ? "Item"
-                        : "Unresolved — cannot return"}{" "}
-                    · Allocated ×{to2Dp(total)}
-                  </div>
-                </div>
-                <div className="flex items-baseline gap-2 text-sm">
-                  <label
-                    htmlFor={`ret-${l.id}`}
-                    className="text-white whitespace-nowrap"
-                  >
-                    Return:
-                  </label>
-                  <input
-                    id={`ret-${l.id}`}
-                    type="number"
-                    min={0}
-                    max={total}
-                    step="0.01"
-                    value={returns[l.id] ?? ""}
-                    onChange={(e) => setOne(l.id, e.target.value)}
-                    disabled={unresolved}
-                    className="w-24 rounded-md border border-rule bg-canvas px-2 py-1 text-right text-sm text-ink tabular-nums focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-                  />
-                  <span className="text-xs text-red-300 whitespace-nowrap">
-                    Scrap ×{to2Dp(scrap)}
-                  </span>
-                </div>
-              </div>
-
-              {l.kind === "kit" && l.components.length > 0 && (
-                <ul className="mt-2 ml-6 space-y-0.5 border-l border-rule pl-3 text-xs text-white">
-                  {l.components.map((c, idx) => (
-                    <li
-                      key={idx}
-                      className="flex items-baseline justify-between gap-3"
-                    >
-                      <span className="truncate">{c.name}</span>
-                      <span className="tabular-nums whitespace-nowrap">
-                        ×{to2Dp(c.quantity * ret)} returning · ×
-                        {to2Dp(c.quantity * scrap)} scrapped
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          );
-        })}
+        {lines.map((l) => (
+          <LineRow
+            key={l.id}
+            line={l}
+            lineState={state[l.id] ?? {}}
+            onItemReturn={(raw) => setItemReturn(l.id, raw)}
+            onComponentReturn={(cid, raw) =>
+              setComponentReturn(l.id, cid, raw)
+            }
+          />
+        ))}
       </ul>
 
       <section className="rounded-md border border-rule bg-card p-4">
@@ -234,4 +277,151 @@ export function DeactivateForm({
       </section>
     </div>
   );
+}
+
+function LineRow({
+  line,
+  lineState,
+  onItemReturn,
+  onComponentReturn,
+}: {
+  line: DeactivateLine;
+  lineState: LineState;
+  onItemReturn: (raw: string) => void;
+  onComponentReturn: (componentItemId: string, raw: string) => void;
+}) {
+  if (line.kind === "unresolved") {
+    return (
+      <li className="rounded-md border border-rule bg-canvas p-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="font-semibold text-white">{line.name}</div>
+            <div className="text-xs italic text-white">
+              Unresolved line — cannot return or scrap.
+            </div>
+          </div>
+          <span className="text-sm font-medium text-white tabular-nums whitespace-nowrap">
+            ×{to2Dp(line.quantity)}
+          </span>
+        </div>
+      </li>
+    );
+  }
+
+  if (line.kind === "item") {
+    const ret = parseRet(lineState.itemReturn, line.quantity);
+    const scrap = line.quantity - ret;
+    return (
+      <li className="rounded-md border border-rule bg-canvas p-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="font-semibold text-white">{line.name}</div>
+            <div className="text-xs text-white">
+              Item · Allocated ×{to2Dp(line.quantity)}
+            </div>
+          </div>
+          <div className="flex items-baseline gap-2 text-sm">
+            <label
+              htmlFor={`ret-${line.id}`}
+              className="text-white whitespace-nowrap"
+            >
+              Return:
+            </label>
+            <input
+              id={`ret-${line.id}`}
+              type="number"
+              min={0}
+              max={line.quantity}
+              step="0.01"
+              value={lineState.itemReturn ?? ""}
+              onChange={(e) => onItemReturn(e.target.value)}
+              className="w-24 rounded-md border border-rule bg-canvas px-2 py-1 text-right text-sm text-ink tabular-nums focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+            />
+            <span className="text-xs text-red-300 whitespace-nowrap">
+              Scrap ×{to2Dp(scrap)}
+            </span>
+          </div>
+        </div>
+      </li>
+    );
+  }
+
+  // Kit
+  return (
+    <li className="rounded-md border border-rule bg-canvas p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="font-semibold text-white">{line.name}</div>
+          <div className="text-xs text-white">
+            Kit · {to2Dp(line.quantity)} kit
+            {line.quantity === 1 ? "" : "s"} allocated
+          </div>
+        </div>
+        <span className="text-sm font-medium text-white tabular-nums whitespace-nowrap">
+          ×{to2Dp(line.quantity)}
+        </span>
+      </div>
+
+      {line.components.length > 0 && (
+        <ul className="mt-3 space-y-2 border-l border-white pl-3">
+          {line.components.map((c) => {
+            const allocated = Math.ceil(c.quantityPerKit * line.quantity);
+            const ret = parseRet(
+              lineState.componentReturns?.[c.itemId],
+              allocated,
+            );
+            const scrap = allocated - ret;
+            return (
+              <li
+                key={c.itemId}
+                className="rounded-md border border-rule bg-canvas p-3"
+              >
+                <div className="flex flex-wrap items-baseline justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-white">
+                      {c.name}
+                    </div>
+                    <div className="text-xs text-white">
+                      Allocated ×{to2Dp(allocated)}
+                    </div>
+                  </div>
+                  <div className="flex items-baseline gap-2 text-sm">
+                    <label
+                      htmlFor={`ret-${line.id}-${c.itemId}`}
+                      className="text-white whitespace-nowrap"
+                    >
+                      Return:
+                    </label>
+                    <input
+                      id={`ret-${line.id}-${c.itemId}`}
+                      type="number"
+                      min={0}
+                      max={allocated}
+                      step="0.01"
+                      value={
+                        lineState.componentReturns?.[c.itemId] ?? ""
+                      }
+                      onChange={(e) =>
+                        onComponentReturn(c.itemId, e.target.value)
+                      }
+                      className="w-24 rounded-md border border-rule bg-canvas px-2 py-1 text-right text-sm text-ink tabular-nums focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+                    />
+                    <span className="text-xs text-red-300 whitespace-nowrap">
+                      Scrap ×{to2Dp(scrap)}
+                    </span>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+function parseRet(raw: string | undefined, max: number): number {
+  const n = Number(raw ?? 0);
+  if (isNaN(n) || n < 0) return 0;
+  return Math.min(max, n);
 }

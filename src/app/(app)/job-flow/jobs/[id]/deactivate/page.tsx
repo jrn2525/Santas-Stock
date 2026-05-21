@@ -51,10 +51,12 @@ export default async function DeactivatePage({
       "(unnamed line)",
     quantity: Number(li.quantity),
     kind: li.kit ? "kit" : li.item ? "item" : "unresolved",
+    itemId: li.item?.id,
     components: li.kit
       ? li.kit.items.map((ki) => ({
+          itemId: ki.itemId,
           name: ki.item.name,
-          quantity: Number(ki.quantity),
+          quantityPerKit: Number(ki.quantity),
         }))
       : [],
   }));
