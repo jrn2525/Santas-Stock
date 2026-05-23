@@ -184,7 +184,10 @@ export async function deactivateJob(
       if (totalKitDecrement > 0) {
         const componentDecrements = new Map<string, number>();
         for (const ki of line.kit.items) {
-          const dec = Math.floor(Number(ki.quantity) * totalKitDecrement);
+          // Use Math.ceil to match the rounding used by complete-job.ts's
+          // snapshot materialization (Math.ceil). Mixed ceil/floor causes
+          // fractional-recipe drift over time.
+          const dec = Math.ceil(Number(ki.quantity) * totalKitDecrement);
           if (dec > 0) {
             componentDecrements.set(ki.itemId, dec);
           }

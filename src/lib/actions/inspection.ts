@@ -317,7 +317,10 @@ export async function saveInspectionDecisions(
         // delta is deterministic and reversal needs no stored state.
         if (line.kit && line.kitsFromTote > 0) {
           const recipeQty = recipeByItemId.get(comp.componentItemId) ?? 0;
-          const snapshotImpact = Math.floor(recipeQty * line.kitsFromTote);
+          // Math.ceil matches complete-job.ts's snapshot materialization;
+          // mixed ceil/floor across the lifecycle drifts fractional-recipe
+          // snapshots upward over time.
+          const snapshotImpact = Math.ceil(recipeQty * line.kitsFromTote);
           if (snapshotImpact > 0) {
             if (oldCompDecision === "DEAD" && comp.decision !== "DEAD") {
               // Reversal: components come back to the snapshot

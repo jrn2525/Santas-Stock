@@ -33,12 +33,16 @@ import {
  *  - Job state: currentStage -> NEW, isOnHold -> false,
  *    customerKitsSyncedAt -> null.
  *  - Per-line flags: isAllocated -> false, kitsFromTote -> 0.
+ *  - ChangeOrder rows for this job are deleted — their inventoryDeltas
+ *    would otherwise claim deductions that the reset just unwound,
+ *    making the audit log misleading. The reset takes the job back to
+ *    "as imported," which means as if no change orders had ever fired.
  *
- * Intentionally NOT touched (per the spec):
+ * Intentionally NOT touched:
  *  - JobLineItem rows themselves (the pick list as it currently is
  *    survives; re-sync from Jobber to reset that too).
- *  - ChangeOrder rows (audit log).
- *  - Client.customerStatus / firstCompletedAt.
+ *  - Client.customerStatus / firstCompletedAt (handled below — see
+ *    customer-status revert step).
  *  - ReplacementQueue rows (no jobId FK to safely identify them).
  *
  * Throws if the confirmation token isn't exactly "RESET" so the action
@@ -206,7 +210,11 @@ export async function resetJob(
           (ki) => ki.itemId === compDec.componentItemId,
         );
         if (!recipe) continue;
-        const decremented = Math.floor(Number(recipe.quantity) * fromTote);
+        // Math.ceil matches the inspection.ts and complete-job.ts
+        // rounding so the reset exactly mirrors the original
+        // snapshot decrement. Mixed ceil/floor would leave the
+        // CustomerKitItem with stray fractional residue.
+        const decremented = Math.ceil(Number(recipe.quantity) * fromTote);
         addCompDelta(plan, compDec.componentItemId, decremented);
       }
     }
@@ -306,6 +314,12 @@ export async function resetJob(
 
     // Wipe stage timeline
     await tx.jobStageEvent.deleteMany({ where: { jobId } });
+
+    // Wipe ChangeOrder rows for this job. Their inventoryDeltas JSON
+    // describes deductions that the reset just put back; keeping the
+    // log entries would make them lie. The job goes back to "as
+    // imported," which is pre-any-change-orders.
+    await tx.changeOrder.deleteMany({ where: { jobId } });
 
     // Reset per-line flags
     await tx.jobLineItem.updateMany({
