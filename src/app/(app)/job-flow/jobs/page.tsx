@@ -3,8 +3,11 @@ import type { JobStage, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { STAGE_LABELS } from "@/lib/job-flow";
+import { Pagination, parsePageParam } from "@/components/pagination";
 
 export const dynamic = "force-dynamic";
+
+const PAGE_SIZE = 50;
 
 const dateFmt = new Intl.DateTimeFormat("en-US", {
   dateStyle: "medium",
@@ -41,10 +44,15 @@ function stageBadgeStyle(stage: JobStage): string {
 export default async function JobsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; stage?: string; customers?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    stage?: string;
+    customers?: string;
+    page?: string;
+  }>;
 }) {
   await requireUser();
-  const { q, stage, customers } = await searchParams;
+  const { q, stage, customers, page: pageParam } = await searchParams;
   const query = q?.trim() ?? "";
   const stageFilter =
     stage && STAGE_OPTIONS.includes(stage as JobStage)
@@ -53,6 +61,7 @@ export default async function JobsPage({
   // customers filter: "active" (default), "inactive", or "all"
   const customerFilter =
     customers === "inactive" || customers === "all" ? customers : "active";
+  const page = parsePageParam(pageParam);
 
   const andClauses: Prisma.JobberJobWhereInput[] = [];
   if (query) {
@@ -80,15 +89,19 @@ export default async function JobsPage({
   const where: Prisma.JobberJobWhereInput =
     andClauses.length > 0 ? { AND: andClauses } : {};
 
-  const jobs = await prisma.jobberJob.findMany({
-    where,
-    orderBy: [{ startAt: "desc" }, { createdAt: "desc" }],
-    include: {
-      client: { select: { id: true, name: true, active: true } },
-      property: { select: { address: true } },
-    },
-    take: 500,
-  });
+  const [jobs, total] = await Promise.all([
+    prisma.jobberJob.findMany({
+      where,
+      orderBy: [{ startAt: "desc" }, { createdAt: "desc" }],
+      include: {
+        client: { select: { id: true, name: true, active: true } },
+        property: { select: { address: true } },
+      },
+      take: PAGE_SIZE,
+      skip: (page - 1) * PAGE_SIZE,
+    }),
+    prisma.jobberJob.count({ where }),
+  ]);
 
   return (
     <>
@@ -267,12 +280,19 @@ export default async function JobsPage({
         </table>
       </div>
 
-      {jobs.length > 0 && (
-        <p className="mt-3 text-xs text-ink-dim">
-          Showing {jobs.length} {jobs.length === 1 ? "job" : "jobs"}
-          {jobs.length === 500 && " (capped at 500 — narrow the search)"}.
-        </p>
-      )}
+      <Pagination
+        page={page}
+        total={total}
+        pageSize={PAGE_SIZE}
+        baseUrl="/job-flow/jobs"
+        preserved={Object.fromEntries(
+          Object.entries({
+            q: query,
+            stage: stageFilter ?? "",
+            customers: customerFilter === "active" ? "" : customerFilter,
+          }).filter(([, v]) => v !== ""),
+        )}
+      />
     </>
   );
 }

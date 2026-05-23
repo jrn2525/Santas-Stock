@@ -4,22 +4,35 @@ import { requireUser } from "@/lib/auth-helpers";
 import { deleteKit } from "@/lib/actions/kits";
 import { DeleteButton } from "@/components/delete-button";
 import { to2Dp } from "@/lib/format";
+import { Pagination, parsePageParam } from "@/components/pagination";
 
 export const dynamic = "force-dynamic";
 
-export default async function KitsPage() {
+const PAGE_SIZE = 50;
+
+export default async function KitsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const user = await requireUser();
   const canWrite = user.role === "ADMIN" || user.role === "MANAGER";
+  const { page: pageParam } = await searchParams;
+  const page = parsePageParam(pageParam);
 
-  const kits = await prisma.kit.findMany({
-    orderBy: [{ name: "asc" }],
-    include: {
-      items: {
-        select: { quantity: true, item: { select: { name: true } } },
+  const [kits, total] = await Promise.all([
+    prisma.kit.findMany({
+      orderBy: [{ name: "asc" }],
+      include: {
+        items: {
+          select: { quantity: true, item: { select: { name: true } } },
+        },
       },
-    },
-    take: 200,
-  });
+      take: PAGE_SIZE,
+      skip: (page - 1) * PAGE_SIZE,
+    }),
+    prisma.kit.count(),
+  ]);
 
   return (
     <>
@@ -110,6 +123,14 @@ export default async function KitsPage() {
           </tbody>
         </table>
       </div>
+
+      <Pagination
+        page={page}
+        total={total}
+        pageSize={PAGE_SIZE}
+        baseUrl="/inventory/kits"
+        preserved={{}}
+      />
     </>
   );
 }

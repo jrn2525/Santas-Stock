@@ -1,12 +1,15 @@
 import Link from "next/link";
-import { ItemStatus, ProductType } from "@prisma/client";
+import { ItemStatus, type Prisma, ProductType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { deleteItem } from "@/lib/actions/items";
 import { DeleteButton } from "@/components/delete-button";
 import { to2Dp } from "@/lib/format";
+import { Pagination, parsePageParam } from "@/components/pagination";
 
 export const dynamic = "force-dynamic";
+
+const PAGE_SIZE = 50;
 
 const statusLabels: Record<ItemStatus, string> = {
   AVAILABLE: "Available",
@@ -27,28 +30,35 @@ const productTypeLabels: Record<ProductType, string> = {
 export default async function ItemsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; page?: string }>;
 }) {
   const user = await requireUser();
   const canWrite = user.role === "ADMIN" || user.role === "MANAGER";
-  const { q } = await searchParams;
+  const { q, page: pageParam } = await searchParams;
   const query = q?.trim() ?? "";
+  const page = parsePageParam(pageParam);
 
-  const items = await prisma.item.findMany({
-    where: query
-      ? {
-          OR: [
-            { name: { contains: query, mode: "insensitive" } },
-            { description: { contains: query, mode: "insensitive" } },
-            { sku: { contains: query, mode: "insensitive" } },
-            { homeLocation: { contains: query, mode: "insensitive" } },
-            { currentLocation: { contains: query, mode: "insensitive" } },
-          ],
-        }
-      : undefined,
-    orderBy: [{ name: "asc" }],
-    take: 200,
-  });
+  const where: Prisma.ItemWhereInput | undefined = query
+    ? {
+        OR: [
+          { name: { contains: query, mode: "insensitive" } },
+          { description: { contains: query, mode: "insensitive" } },
+          { sku: { contains: query, mode: "insensitive" } },
+          { homeLocation: { contains: query, mode: "insensitive" } },
+          { currentLocation: { contains: query, mode: "insensitive" } },
+        ],
+      }
+    : undefined;
+
+  const [items, total] = await Promise.all([
+    prisma.item.findMany({
+      where,
+      orderBy: [{ name: "asc" }],
+      take: PAGE_SIZE,
+      skip: (page - 1) * PAGE_SIZE,
+    }),
+    prisma.item.count({ where }),
+  ]);
 
   return (
     <>
@@ -56,7 +66,7 @@ export default async function ItemsPage({
         <div>
           <h1 className="text-3xl font-bold text-brand-hover">Items</h1>
           <p className="mt-1 text-sm text-ink-dim">
-            Master inventory. Showing up to 200 results.
+            Master inventory.
           </p>
         </div>
         {canWrite && (
@@ -165,6 +175,14 @@ export default async function ItemsPage({
           </tbody>
         </table>
       </div>
+
+      <Pagination
+        page={page}
+        total={total}
+        pageSize={PAGE_SIZE}
+        baseUrl="/inventory/items"
+        preserved={query ? { q: query } : {}}
+      />
     </>
   );
 }

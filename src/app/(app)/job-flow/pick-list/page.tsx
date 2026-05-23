@@ -1,75 +1,200 @@
 import Link from "next/link";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
+import { Pagination, parsePageParam } from "@/components/pagination";
 
 export const dynamic = "force-dynamic";
 
-const dateFmt = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
+const PAGE_SIZE = 50;
+
+const dateFmt = new Intl.DateTimeFormat("en-US", {
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+});
+
+function startOfDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function addDays(d: Date, n: number): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+}
 
 export default async function PickListIndexPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; range?: string; page?: string }>;
 }) {
   await requireUser();
-  const { q } = await searchParams;
+  const { q, range, page: pageParam } = await searchParams;
   const query = q?.trim() ?? "";
+  // Date window: "week" (next 7 days, default) / "month" / "all"
+  const dateRange =
+    range === "month" || range === "all" ? range : "week";
+  const page = parsePageParam(pageParam);
 
-  const jobs = await prisma.jobberJob.findMany({
-    where: query
-      ? {
-          OR: [
-            { title: { contains: query, mode: "insensitive" } },
-            { jobNumber: { contains: query, mode: "insensitive" } },
-            { client: { name: { contains: query, mode: "insensitive" } } },
-          ],
-        }
-      : undefined,
-    orderBy: [{ startAt: "desc" }, { createdAt: "desc" }],
-    include: {
-      client: { select: { name: true } },
-      property: { select: { address: true } },
-    },
-    take: 500,
-  });
+  const now = new Date();
+  const todayStart = startOfDay(now);
+  const weekEnd = addDays(todayStart, 7);
+  const monthEnd = addDays(todayStart, 30);
+
+  const andClauses: Prisma.JobberJobWhereInput[] = [];
+  if (query) {
+    andClauses.push({
+      OR: [
+        { title: { contains: query, mode: "insensitive" } },
+        { jobNumber: { contains: query, mode: "insensitive" } },
+        {
+          client: {
+            is: { name: { contains: query, mode: "insensitive" } },
+          },
+        },
+      ],
+    });
+  }
+  // Default behaviour: only show jobs from active customers — pick
+  // lists for deactivated customers are noise on this view.
+  andClauses.push({ client: { is: { active: true } } });
+
+  if (dateRange === "week") {
+    andClauses.push({
+      startAt: { gte: todayStart, lt: weekEnd },
+    });
+  } else if (dateRange === "month") {
+    andClauses.push({
+      startAt: { gte: todayStart, lt: monthEnd },
+    });
+  }
+  // "all": no date filter
+
+  const where: Prisma.JobberJobWhereInput =
+    andClauses.length > 0 ? { AND: andClauses } : {};
+
+  // Default sort: upcoming soonest first. For "all" mode, fall back to
+  // newest-first so the user sees the latest jobs at the top.
+  const orderBy: Prisma.JobberJobOrderByWithRelationInput[] =
+    dateRange === "all"
+      ? [{ startAt: "desc" }, { createdAt: "desc" }]
+      : [{ startAt: "asc" }];
+
+  const [jobs, total] = await Promise.all([
+    prisma.jobberJob.findMany({
+      where,
+      orderBy,
+      include: {
+        client: { select: { name: true } },
+        property: { select: { address: true } },
+      },
+      take: PAGE_SIZE,
+      skip: (page - 1) * PAGE_SIZE,
+    }),
+    prisma.jobberJob.count({ where }),
+  ]);
+
+  const rangeLabel =
+    dateRange === "week"
+      ? "Next 7 days"
+      : dateRange === "month"
+        ? "Next 30 days"
+        : "All time";
 
   return (
     <>
       <header>
         <h1 className="text-3xl font-bold text-brand-hover">Pick List</h1>
         <p className="mt-1 text-sm text-ink-dim">
-          Click a job to view its pick list and print.
+          Jobs you&apos;ll need to pick for, ordered by the next
+          scheduled visit. Click any row to open the printable pick
+          list for that job.
         </p>
       </header>
 
-      <form className="mt-6 max-w-md" action="/job-flow/pick-list">
-        <input
-          type="search"
-          name="q"
-          defaultValue={query}
-          placeholder="Search by job title, number, or customer..."
-          className="w-full rounded-md border border-rule bg-card px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-        />
+      <form
+        className="mt-6 flex flex-wrap items-end gap-3"
+        action="/job-flow/pick-list"
+      >
+        <div className="min-w-[18rem] flex-1">
+          <label
+            htmlFor="pl-search"
+            className="block text-xs font-medium text-ink-dim"
+          >
+            Search
+          </label>
+          <input
+            id="pl-search"
+            type="search"
+            name="q"
+            defaultValue={query}
+            placeholder="Job title, number, or customer..."
+            className="mt-1 block w-full rounded-md border border-rule bg-card px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+          />
+        </div>
+        <div>
+          <label
+            htmlFor="pl-range"
+            className="block text-xs font-medium text-ink-dim"
+          >
+            Window
+          </label>
+          <select
+            id="pl-range"
+            name="range"
+            defaultValue={dateRange}
+            className="mt-1 rounded-md border border-rule bg-card px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+          >
+            <option value="week">Next 7 days</option>
+            <option value="month">Next 30 days</option>
+            <option value="all">All time</option>
+          </select>
+        </div>
+        <button
+          type="submit"
+          className="rounded-md border border-brand bg-canvas px-4 py-2 text-sm font-medium text-brand transition hover:bg-brand hover:text-ink"
+        >
+          Apply
+        </button>
+        {(query || dateRange !== "week") && (
+          <Link
+            href="/job-flow/pick-list"
+            className="rounded-md border border-rule bg-canvas px-4 py-2 text-sm font-medium text-ink hover:border-brand"
+          >
+            Clear
+          </Link>
+        )}
       </form>
+
+      <p className="mt-3 text-xs text-ink-dim">
+        Window: <strong className="text-ink">{rangeLabel}</strong> ·
+        Active customers only
+      </p>
 
       <div className="mt-4 overflow-hidden rounded-lg border border-rule">
         <table className="w-full text-sm">
           <thead className="bg-card text-left text-xs uppercase tracking-wider text-ink-dim">
             <tr>
+              <th className="px-4 py-3">Scheduled</th>
               <th className="px-4 py-3">Job #</th>
               <th className="px-4 py-3">Title</th>
               <th className="px-4 py-3">Customer</th>
               <th className="px-4 py-3">Property</th>
-              <th className="px-4 py-3">Scheduled</th>
-              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3 text-right">Pick list</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-rule bg-canvas">
             {jobs.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-12 text-center text-ink-dim">
+                <td
+                  colSpan={6}
+                  className="px-4 py-12 text-center text-ink-dim"
+                >
                   {query ? (
                     <>No jobs matched &ldquo;{query}&rdquo;.</>
+                  ) : dateRange === "week" ? (
+                    <>No jobs scheduled in the next 7 days.</>
+                  ) : dateRange === "month" ? (
+                    <>No jobs scheduled in the next 30 days.</>
                   ) : (
                     <>
                       No jobs yet.{" "}
@@ -87,6 +212,9 @@ export default async function PickListIndexPage({
             ) : (
               jobs.map((j) => (
                 <tr key={j.id} className="text-ink hover:bg-card/40">
+                  <td className="px-4 py-3 text-ink-dim whitespace-nowrap">
+                    {j.startAt ? dateFmt.format(j.startAt) : "—"}
+                  </td>
                   <td className="px-4 py-3 text-ink-dim">
                     <Link href={`/job-flow/pick-list/${j.id}`}>
                       {j.jobNumber ?? "—"}
@@ -104,16 +232,33 @@ export default async function PickListIndexPage({
                   <td className="px-4 py-3 text-ink-dim">
                     {j.property?.address ?? "—"}
                   </td>
-                  <td className="px-4 py-3 text-ink-dim">
-                    {j.startAt ? dateFmt.format(j.startAt) : "—"}
+                  <td className="px-4 py-3 text-right">
+                    <Link
+                      href={`/job-flow/pick-list/${j.id}`}
+                      className="text-xs font-medium text-brand hover:text-brand-hover"
+                    >
+                      View / Print →
+                    </Link>
                   </td>
-                  <td className="px-4 py-3 text-ink-dim">{j.status || "—"}</td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
       </div>
+
+      <Pagination
+        page={page}
+        total={total}
+        pageSize={PAGE_SIZE}
+        baseUrl="/job-flow/pick-list"
+        preserved={Object.fromEntries(
+          Object.entries({
+            q: query,
+            range: dateRange === "week" ? "" : dateRange,
+          }).filter(([, v]) => v !== ""),
+        )}
+      />
     </>
   );
 }
