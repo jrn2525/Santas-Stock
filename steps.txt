@@ -1,7 +1,0 @@
-Step 7. In your incognito browser window, paste this URL into the address bar and press Enter:
-
-https://santas-stock-santas-stock-dev.up.railway.app/jobber
-
-Step 8. Scroll down to the Customer sync card, click the red Sync now button.
-Step 9. Wait for the result line under the button (5-60 seconds).
-Step 10. Paste the result line in chat - "Synced X customers" or any error.
