@@ -80,13 +80,18 @@ export async function autoAllocateJob(jobId: string): Promise<{
 
     const remainingQty = qty - kitsFromTote;
 
-    // Build the list of (itemId, needed) pairs for the remaining qty
-    const needs: Array<{ itemId: string; itemQuantity: number; needed: number }> = [];
+    // Build the list of (itemId, needed) pairs for the remaining qty.
+    // We deliberately drop the `itemQuantity` we read above — the
+    // available count is re-fetched INSIDE the per-line transaction so
+    // two lines on the same job (or two kits sharing a component) can't
+    // both think the full original stock is available. Without this,
+    // multiple lines hitting the same item drive inventory negative
+    // because Prisma `decrement` doesn't clamp at zero.
+    const needs: Array<{ itemId: string; needed: number }> = [];
 
     if (line.item) {
       needs.push({
         itemId: line.item.id,
-        itemQuantity: line.item.quantity,
         needed: remainingQty,
       });
     } else if (line.kit) {
@@ -94,7 +99,6 @@ export async function autoAllocateJob(jobId: string): Promise<{
         for (const ki of line.kit.items) {
           needs.push({
             itemId: ki.item.id,
-            itemQuantity: ki.item.quantity,
             needed: Math.ceil(Number(ki.quantity) * remainingQty),
           });
         }
@@ -109,7 +113,16 @@ export async function autoAllocateJob(jobId: string): Promise<{
     await prisma.$transaction(async (tx) => {
       for (const need of needs) {
         if (need.needed <= 0) continue;
-        const available = need.itemQuantity;
+
+        // Re-read the item's current stock INSIDE the transaction so
+        // earlier lines in this same allocation pass (or concurrent
+        // writes from other jobs) are reflected. The previously-loaded
+        // job.lineItems[*].item.quantity is too stale to trust.
+        const fresh = await tx.item.findUnique({
+          where: { id: need.itemId },
+          select: { quantity: true },
+        });
+        const available = fresh?.quantity ?? 0;
         const toDeduct = Math.min(available, need.needed);
         const short = need.needed - toDeduct;
 
@@ -190,32 +203,44 @@ export async function releaseAwaitingStock(jobId: string): Promise<{
 
   const shortages = await prisma.jobLineShortage.findMany({
     where: { jobLineItem: { jobId } },
-    include: { item: { select: { id: true, quantity: true } } },
+    select: { id: true, itemId: true, quantityShort: true },
   });
 
   let released = 0;
   let stillShort = 0;
 
   for (const s of shortages) {
-    const available = s.item.quantity;
-    const toDeduct = Math.min(available, s.quantityShort);
-    const remaining = s.quantityShort - toDeduct;
+    // Re-read the item's current stock inside the transaction so
+    // earlier shortages in this pass don't get stale "available"
+    // numbers. Same staleness pattern as autoAllocateJob.
+    const result = await prisma.$transaction(async (tx) => {
+      const fresh = await tx.item.findUnique({
+        where: { id: s.itemId },
+        select: { quantity: true },
+      });
+      const available = fresh?.quantity ?? 0;
+      const toDeduct = Math.min(available, s.quantityShort);
+      const remaining = s.quantityShort - toDeduct;
 
-    if (toDeduct > 0) {
-      await prisma.$transaction([
-        prisma.item.update({
+      if (toDeduct > 0) {
+        await tx.item.update({
           where: { id: s.itemId },
           data: { quantity: { decrement: toDeduct } },
-        }),
-        remaining > 0
-          ? prisma.jobLineShortage.update({
-              where: { id: s.id },
-              data: { quantityShort: remaining },
-            })
-          : prisma.jobLineShortage.delete({ where: { id: s.id } }),
-      ]);
-      released++;
-    }
+        });
+        if (remaining > 0) {
+          await tx.jobLineShortage.update({
+            where: { id: s.id },
+            data: { quantityShort: remaining },
+          });
+        } else {
+          await tx.jobLineShortage.delete({ where: { id: s.id } });
+        }
+      }
+      return { toDeduct, remaining };
+    });
+
+    if (result.toDeduct > 0) released++;
+    const remaining = result.remaining;
 
     if (remaining > 0) {
       stillShort++;
