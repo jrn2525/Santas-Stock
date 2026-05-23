@@ -18,6 +18,9 @@ dist/
 .env.test.local
 .env.production.local
 
+# scratch / secrets-prone notes
+*.txt
+
 # logs
 npm-debug.log*
 yarn-debug.log*
