@@ -93,6 +93,9 @@ async function syncCustomerKitsForJob(
           items: { select: { itemId: true, quantity: true } },
         },
       },
+      componentDecisions: {
+        select: { componentItemId: true, decision: true },
+      },
     },
   });
 
@@ -154,14 +157,31 @@ async function syncCustomerKitsForJob(
         continue;
       }
 
+      // Components that Inspection marked DEAD don't actually reach the
+      // customer's tote — they physically didn't survive. Subtract them
+      // from each component's materialization so the CustomerKitItem
+      // snapshot reflects what's actually in the tote, not a hopeful
+      // recipe-based count. The dead components were already accounted
+      // for at allocation (they were debited from the pool then), so the
+      // pool math doesn't change; only the tote snapshot does.
+      const deadByComponent = new Set<string>(
+        line.componentDecisions
+          .filter((cd) => cd.decision === "DEAD")
+          .map((cd) => cd.componentItemId),
+      );
+
       // Materialize the per-component snapshot only for the freshly
       // built portion. Tote-sourced kits already had their components
       // counted from a prior season's COMPLETE.
       if (freshlyBuiltQty > 0) {
         for (const ki of line.kit.items) {
-          const addedComponentQty = Math.ceil(
+          const fullAdded = Math.ceil(
             Number(ki.quantity) * freshlyBuiltQty,
           );
+          // Skip components marked DEAD — they don't enter the tote.
+          const addedComponentQty = deadByComponent.has(ki.itemId)
+            ? 0
+            : fullAdded;
           if (addedComponentQty <= 0) continue;
 
           await tx.customerKitItem.upsert({
