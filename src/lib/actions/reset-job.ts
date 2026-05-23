@@ -360,9 +360,20 @@ export async function resetJob(
           },
         });
       } else {
-        const earliest =
-          otherCompleted[0].customerKitsSyncedAt ??
-          otherCompleted[0].createdAt;
+        // Compute the true earliest "completed-at" across remaining
+        // jobs. Postgres ASC sorts NULLs last, so we can't rely on
+        // orderBy alone — pre-Cut-1 legacy completed jobs have
+        // customerKitsSyncedAt=null and would land at the end of the
+        // sort even if they're chronologically older than the
+        // post-Cut-1 rows. Fall back to createdAt for legacy rows,
+        // then min across all of them in app code.
+        let earliest: Date | null = null;
+        for (const j of otherCompleted) {
+          const t = j.customerKitsSyncedAt ?? j.createdAt;
+          if (earliest === null || t.getTime() < earliest.getTime()) {
+            earliest = t;
+          }
+        }
         await tx.client.update({
           where: { id: job.clientId },
           data: { firstCompletedAt: earliest },

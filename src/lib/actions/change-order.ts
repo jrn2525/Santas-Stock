@@ -64,11 +64,16 @@ export async function applyChangeOrder(
 
   // Build "previouslyDeducted" map: itemId -> qty that was actually pulled
   // from inventory on this job. For each allocated line, the deducted amount
-  // is (line.quantity * componentQty) - sumOfShortagesForThisItem.
+  // is (FRESH portion * componentQty) - sumOfShortagesForThisItem, where
+  // FRESH = lineQty - kitsFromTote. The tote-sourced portion of a Year-2
+  // line never touched the shared pool, so it must be excluded from the
+  // diff math — otherwise Change Order would refund tote-sourced
+  // components that were never deducted.
   const previouslyDeducted = new Map<string, number>();
   for (const line of currentLines) {
     if (!line.isAllocated) continue;
     const lineQty = Math.ceil(Number(line.quantity));
+    const fresh = Math.max(0, lineQty - line.kitsFromTote);
     const shortagesByItem = new Map<string, number>();
     for (const s of line.shortages) {
       shortagesByItem.set(s.itemId, (shortagesByItem.get(s.itemId) ?? 0) + s.quantityShort);
@@ -81,9 +86,9 @@ export async function applyChangeOrder(
         line.item.id,
         (previouslyDeducted.get(line.item.id) ?? 0) + deducted,
       );
-    } else if (line.kit) {
+    } else if (line.kit && fresh > 0) {
       for (const ki of line.kit.items) {
-        const need = Math.ceil(Number(ki.quantity) * lineQty);
+        const need = Math.ceil(Number(ki.quantity) * fresh);
         const short = shortagesByItem.get(ki.item.id) ?? 0;
         const deducted = Math.max(0, need - short);
         previouslyDeducted.set(
@@ -114,7 +119,30 @@ export async function applyChangeOrder(
   const itemMap = new Map(itemsById.map((i) => [i.id, i]));
   const kitMap = new Map(kitsById.map((k) => [k.id, k]));
 
-  // Compute "newNeeded" map: itemId -> qty needed for the new pick list state
+  // Map of existing JobLineItem id -> kitsFromTote, so we can preserve
+  // the tote-tracking on lines that carry over with the same existingId.
+  // Lines without an existingId are genuinely new (or are item lines
+  // decomposed from a customized kit) and start with kitsFromTote=0.
+  const existingKitsFromToteById = new Map<string, number>();
+  for (const line of currentLines) {
+    existingKitsFromToteById.set(line.id, line.kitsFromTote);
+  }
+  // Clamp helper: kitsFromTote can never exceed the line's new quantity.
+  const carriedKitsFromTote = (
+    inputLineId: string | undefined,
+    newQty: number,
+  ): number => {
+    if (!inputLineId) return 0;
+    const prior = existingKitsFromToteById.get(inputLineId) ?? 0;
+    return Math.min(prior, newQty);
+  };
+
+  // Compute "newNeeded" map: itemId -> qty needed for the new pick list
+  // state. For kit lines, only the FRESH portion (newQty - carried-over
+  // kitsFromTote) draws from the shared pool. Without this subtraction, a
+  // change order that leaves a Year-2 kit line at the same quantity would
+  // generate a non-zero diff (because previouslyDeducted excluded tote
+  // but newNeeded would include it).
   const newNeeded = new Map<string, number>();
   for (const line of newLines) {
     const qty = Math.ceil(Number(line.quantity));
@@ -126,8 +154,11 @@ export async function applyChangeOrder(
     } else {
       const k = kitMap.get(line.refId);
       if (!k) throw new Error(`Unknown kit ${line.refId}`);
+      const fromTote = carriedKitsFromTote(line.id, qty);
+      const fresh = qty - fromTote;
+      if (fresh <= 0) continue;
       for (const ki of k.items) {
-        const need = Math.ceil(Number(ki.quantity) * qty);
+        const need = Math.ceil(Number(ki.quantity) * fresh);
         newNeeded.set(ki.item.id, (newNeeded.get(ki.item.id) ?? 0) + need);
       }
     }
@@ -231,21 +262,99 @@ export async function applyChangeOrder(
       }
     }
 
-    // 2. Replace JobLineItem rows. Inspection decisions and shortages cascade
-    // via the schema's onDelete rules.
-    await tx.jobLineItem.deleteMany({ where: { jobId } });
+    // 2. Reconcile JobLineItem rows. We can't blanket-delete and recreate
+    // because that destroys per-line metadata (kitsFromTote, inspection
+    // decision children, prior shortages). Instead:
+    //   - Lines with an `id` in the input that match a current row:
+    //     UPDATE in place. Preserve kitsFromTote (clamped to newQty).
+    //   - Lines without an `id`, or with an `id` that doesn't match:
+    //     CREATE as fresh.
+    //   - Current rows whose id isn't in the input: DELETE.
+    //     Inspection decisions and shortages still cascade away via the
+    //     schema onDelete rules.
+    const surviveIds = new Set<string>();
+    for (const l of newLines) {
+      if (l.id && existingKitsFromToteById.has(l.id)) surviveIds.add(l.id);
+    }
+    const toDelete = currentLines
+      .filter((cl) => !surviveIds.has(cl.id))
+      .map((cl) => cl.id);
+    if (toDelete.length > 0) {
+      await tx.jobLineItem.deleteMany({ where: { id: { in: toDelete } } });
+    }
     for (let i = 0; i < newLines.length; i++) {
       const line = newLines[i];
-      await tx.jobLineItem.create({
-        data: {
-          jobId,
-          itemId: line.kind === "item" ? line.refId : null,
-          kitId: line.kind === "kit" ? line.refId : null,
-          quantity: line.quantity,
-          position: i,
-          isAllocated: true, // we just applied the deltas above
-        },
+      const newQty = Math.ceil(Number(line.quantity));
+      if (line.id && existingKitsFromToteById.has(line.id)) {
+        const carriedFromTote =
+          line.kind === "kit" ? carriedKitsFromTote(line.id, newQty) : 0;
+        await tx.jobLineItem.update({
+          where: { id: line.id },
+          data: {
+            itemId: line.kind === "item" ? line.refId : null,
+            kitId: line.kind === "kit" ? line.refId : null,
+            quantity: line.quantity,
+            position: i,
+            isAllocated: true,
+            kitsFromTote: carriedFromTote,
+          },
+        });
+      } else {
+        await tx.jobLineItem.create({
+          data: {
+            jobId,
+            itemId: line.kind === "item" ? line.refId : null,
+            kitId: line.kind === "kit" ? line.refId : null,
+            quantity: line.quantity,
+            position: i,
+            isAllocated: true,
+            kitsFromTote: 0,
+          },
+        });
+      }
+    }
+
+    // 2b. For kit lines that were FULLY removed (the kit type no longer
+    // appears anywhere in the new pick list), restore the customer's
+    // CustomerKit status to IN_STORAGE. The tote contents themselves
+    // don't change — the customer keeps the kit, this job just no longer
+    // claims it. Quantity decrement happens at deactivation, not here.
+    const removedKitIds = currentLines
+      .filter(
+        (cl) =>
+          cl.kit !== null &&
+          cl.kitsFromTote > 0 &&
+          !surviveIds.has(cl.id) &&
+          // No remaining (surviving or new) line still references this kit
+          !newLines.some(
+            (nl) => nl.kind === "kit" && nl.refId === cl.kit?.id,
+          ),
+      )
+      .map((cl) => cl.kit!.id);
+    if (removedKitIds.length > 0) {
+      // Look up the JobberJob's client + property once for the tote query
+      const jobMeta = await tx.jobberJob.findUnique({
+        where: { id: jobId },
+        select: { clientId: true, propertyId: true },
       });
+      if (jobMeta) {
+        for (const kitId of removedKitIds) {
+          const tote = await tx.customerKit.findFirst({
+            where: {
+              clientId: jobMeta.clientId,
+              propertyId: jobMeta.propertyId ?? null,
+              kitId,
+            },
+            select: { id: true },
+          });
+          if (tote) {
+            await tx.customerKit.update({
+              where: { id: tote.id },
+              data: { status: "IN_STORAGE" },
+            });
+          }
+        }
+      }
     }
 
     // 3. Attribute each shortage to a line that uses that item (directly

@@ -66,6 +66,7 @@ export async function deactivateJob(
       clientId: true,
       propertyId: true,
       currentStage: true,
+      customerKitsSyncedAt: true,
       lineItems: {
         include: {
           item: { select: { id: true } },
@@ -126,7 +127,13 @@ export async function deactivateJob(
         );
       }
     } else if (line.kit && decision?.kind === "kit") {
-      // Per-component return/scrap decisions
+      // Per-component return/scrap decisions. The allocated component
+      // count is the full recipe × lineQty regardless of whether the
+      // line was Year-1, Year-2, or completed-then-reverted — at
+      // deactivation the customer is leaving, so everything they had
+      // (tote-sourced or freshly built) is physically returning to the
+      // warehouse. Components the user marks Return go back into the
+      // shared pool; Scrap leaves them permanently gone.
       const compDecisions = new Map<string, number>(
         decision.components.map((c) => [c.componentItemId, c.returnQty]),
       );
@@ -134,6 +141,7 @@ export async function deactivateJob(
         const allocatedForComp = Math.ceil(
           Number(ki.quantity) * lineQty,
         );
+        if (allocatedForComp <= 0) continue;
         const requestedRet = Math.max(0, compDecisions.get(ki.itemId) ?? 0);
         const ret = Math.min(requestedRet, allocatedForComp);
         const scrap = allocatedForComp - ret;
@@ -148,8 +156,7 @@ export async function deactivateJob(
       }
     } else if (line.kit && !decision) {
       // No decision provided for this kit line — treat as fully scrapped
-      // so the counts in the audit note line up. (Shouldn't happen via
-      // the UI; defensive only.)
+      // so the counts in the audit note line up.
       for (const ki of line.kit.items) {
         totalScrapped += Math.ceil(Number(ki.quantity) * lineQty);
       }
@@ -157,23 +164,38 @@ export async function deactivateJob(
       totalScrapped += lineQty;
     }
 
-    // Year-2 tote cleanup: regardless of return/scrap split per component,
-    // any kit instance that came from the tote at allocation is leaving
-    // the customer's tote permanently.
-    if (line.kit && line.kitsFromTote > 0) {
-      const componentDecrements = new Map<string, number>();
-      for (const ki of line.kit.items) {
-        const dec = Math.floor(Number(ki.quantity) * line.kitsFromTote);
-        if (dec > 0) {
-          componentDecrements.set(ki.itemId, dec);
+    // Tote cleanup. Two sources of "kits in this customer's tote at
+    // deactivation time":
+    //   1. kitsFromTote: kits that came FROM the tote at allocation
+    //      (Year-2 reuse). These are in tote with status OUT_FOR_SEASON.
+    //   2. If the job had reached COMPLETE before being reverted
+    //      (customerKitsSyncedAt set), the freshly-built portion was
+    //      added to the tote at that time. line.quantity - kitsFromTote
+    //      kits live in the tote thanks to that COMPLETE.
+    // The customer is leaving; everything in their tote for this kit
+    // type goes away. So decrement by the sum of both sources.
+    const completeHappened = job.customerKitsSyncedAt !== null;
+    if (line.kit) {
+      const fromTote = line.kitsFromTote;
+      const completeAdded = completeHappened
+        ? Math.max(0, lineQty - line.kitsFromTote)
+        : 0;
+      const totalKitDecrement = fromTote + completeAdded;
+      if (totalKitDecrement > 0) {
+        const componentDecrements = new Map<string, number>();
+        for (const ki of line.kit.items) {
+          const dec = Math.floor(Number(ki.quantity) * totalKitDecrement);
+          if (dec > 0) {
+            componentDecrements.set(ki.itemId, dec);
+          }
         }
+        toteUpdates.push({
+          kitId: line.kit.id,
+          kitDecrement: totalKitDecrement,
+          componentDecrements,
+        });
+        totalKitsRemovedFromTote += totalKitDecrement;
       }
-      toteUpdates.push({
-        kitId: line.kit.id,
-        kitDecrement: line.kitsFromTote,
-        componentDecrements,
-      });
-      totalKitsRemovedFromTote += line.kitsFromTote;
     }
   }
 
@@ -244,7 +266,14 @@ export async function deactivateJob(
 
     await tx.jobberJob.update({
       where: { id: jobId },
-      data: { currentStage: "DEACTIVATED" },
+      data: {
+        currentStage: "DEACTIVATED",
+        // Clear the COMPLETE-sync marker so if the job is later reverted
+        // out of DEACTIVATED and back through to COMPLETE, the kit sync
+        // re-runs (instead of no-op'ing because the flag is still set
+        // from a prior completion that we just unwound).
+        customerKitsSyncedAt: null,
+      },
     });
     await tx.jobStageEvent.create({
       data: {
