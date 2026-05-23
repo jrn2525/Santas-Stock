@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #070b0d;
+  --foreground: #ffffff;
+}
+
+html,
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* All text inside a card panel renders white for readability against the
+   dark gray card background. */
+.bg-card .text-ink,
+.bg-card .text-ink-dim,
+.bg-card .text-ink-muted {
+  color: #ffffff;
+}
+
+/* Print: strip the app chrome and render the page as a clean black-on-white
+   document. Hide anything tagged .no-print (the Print button, checkboxes,
+   helper hints) and any note tile that was unchecked. Aggressive reset on
+   every element so the dark-theme styles (white text, white borders, tinted
+   panel backgrounds) don't carry into the printout. */
+@media print {
+  /* Universal reset: everything prints as black on white with black borders.
+     Covers the dark-theme utilities (text-white, border-white, bg-canvas,
+     bg-brand/15, ring-*, the various colored text and tinted backgrounds
+     used by stage / decision badges) that the previous selector list missed. */
+  *,
+  *::before,
+  *::after {
+    color: #000000 !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    border-color: #000000 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  body,
+  html {
+    background: #ffffff !important;
+  }
+
+  /* Hide the app shell — top header bar and sidebar. */
+  body > div > header,
+  body > div > div > aside {
+    display: none !important;
+  }
+  /* Strip <main>'s padding so the printout fills the page. */
+  body > div > div > main {
+    padding: 0 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  /* Notes the user unchecked are omitted from the printout. */
+  .note-unchecked {
+    display: none !important;
+  }
+  /* Keep each kit's recipe together when paginating — don't split a
+     kit header from its component list. Sections themselves (Pick
+     List, Notes, Details) DO flow across pages so the printout
+     packs tightly with no wasted whitespace. */
+  .pick-list-kit {
+    break-inside: avoid;
+  }
+
+  /* Job detail page collapses its right-column grid in print since
+     the Job Flow panel is no-print — without this override the grid
+     leaves a 320px gap on the right of every printed page. */
+  [class*="grid-cols-[1fr_320px]"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Trim vertical spacing on cards / sections so content packs
+     tighter when printed. Screen padding is generous for the
+     dark-theme cards; print doesn't need it. */
+  .bg-card,
+  .bg-canvas {
+    padding: 0.75rem !important;
+  }
+
+  /* Reduce big top-margins between sections in print. The screen
+     uses mt-6 / mt-8 (1.5rem / 2rem) between major panels; in print
+     half of that is plenty. */
+  [class*="mt-8"] {
+    margin-top: 0.75rem !important;
+  }
+  [class*="mt-6"] {
+    margin-top: 0.5rem !important;
+  }
+
+  /* Give headings a little breathing room with the content above
+     while still keeping things compact. */
+  h2 {
+    break-after: avoid;
+  }
+  h1, h2, h3 {
+    orphans: 2;
+    widows: 2;
+  }
+}

@@ -1,0 +1,701 @@
+// Santa's Stock — Prisma schema
+// Based on §5 of inventory-app-feature-research.pdf
+//
+// Phase 1 includes the core tables; Phase 2+ adds kits, allocations,
+// vehicles, maintenance, etc. They're all defined here so migrations
+// stay coherent, but only a subset is wired into the UI in Phase 1.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Enums ----------
+
+enum Role {
+  ADMIN
+  MANAGER
+  USER
+  GUEST
+}
+
+enum LifecycleType {
+  RENTAL_SEASONAL
+  SOLD_PERMANENT
+  INSTALLED_YEAR_ROUND
+}
+
+// Product type for Item — Christmas decor, landscape lighting, or
+// permanent year-round lighting/fixtures.
+enum ProductType {
+  CHRISTMAS
+  LANDSCAPE
+  PERMANENT
+}
+
+// ConditionGrade is kept in the schema (used by ReplacementQueue and other
+// models) but no longer surfaced on Item — re-introduced in a later phase.
+enum ConditionGrade {
+  A
+  B
+  C
+  RETIRED
+}
+
+// LocationType is kept in the schema for future planning — it's no longer
+// surfaced anywhere because Item now stores its locations as free text.
+enum LocationType {
+  WAREHOUSE
+  AISLE
+  RACK
+  BIN
+  VEHICLE
+}
+
+enum ItemStatus {
+  AVAILABLE
+  ALLOCATED
+}
+
+enum KitType {
+  TEMPLATE
+  CUSTOMER
+}
+
+enum KitStatus {
+  DRAFT
+  READY
+  DEPLOYED
+  RETIRED
+}
+
+enum ReplacementResolution {
+  REPAIR
+  REPLACE_FROM_STOCK
+  PURCHASE_ORDER
+}
+
+enum MaintenanceStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  RETIRED
+}
+
+enum SyncStatus {
+  PENDING
+  PROCESSED
+  FAILED
+}
+
+// ---------- Core ----------
+
+model User {
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  name               String
+  role               Role      @default(USER)
+  jobberUserId       String?   @unique
+  active             Boolean   @default(true)
+  passwordHash       String?
+  mustChangePassword Boolean   @default(false)
+  lastLoginAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  flaggedReplacements  ReplacementQueue[]       @relation("FlaggedBy")
+  resolvedReplacements ReplacementQueue[]       @relation("ResolvedBy")
+  openedTickets        MaintenanceTicket[]      @relation("OpenedBy")
+  stageEvents          JobStageEvent[]          @relation("StageEventBy")
+  inspectionDecisions  InspectionLineDecision[] @relation("InspectionDecidedBy")
+  componentDecisions   InspectionComponentDecision[] @relation("ComponentDecisionBy")
+  changeOrders         ChangeOrder[]            @relation("ChangeOrderCreatedBy")
+  jobberConnections    JobberConnection[]
+}
+
+// Single-tenant Jobber OAuth connection. There should only be zero or one
+// row in this table at any time — the admin disconnects to wipe and
+// reconnect. Tokens are stored in plain text; acceptable for the trust
+// model of an internal single-franchise app, revisit before multi-tenant.
+model JobberConnection {
+  id              String   @id @default(cuid())
+  jobberAccountId String?
+  accountName     String?
+  accessToken     String
+  refreshToken    String
+  expiresAt       DateTime
+  scopes          String[] @default([])
+  connectedById   String?
+  connectedBy     User?    @relation(fields: [connectedById], references: [id])
+  connectedAt     DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Item is the master inventory record. As of the latest revision it's
+// flat — description, product type, and locations are stored inline as
+// text/enums rather than as relations. Per-unit serial tracking, kits,
+// and a structured Location catalog will return in later phases.
+model Item {
+  id  String  @id @default(cuid())
+  sku String?
+
+  name        String
+  description String
+
+  manufacturer String?
+  model        String?
+
+  productType ProductType?
+
+  status      ItemStatus @default(AVAILABLE)
+  active      Boolean    @default(true)
+  quantity    Int        @default(0)
+  /// Low-stock threshold. Items with quantity <= minQuantity surface on the dashboard.
+  minQuantity Int        @default(0)
+  unitCost    Decimal?   @map("purchaseCost") @db.Decimal(12, 2)
+
+  homeLocation    String?
+  currentLocation String?
+
+  purchaseDate DateTime?
+
+  // Lifecycle, retirement, photos, and custom fields are kept in the
+  // schema so later phases can light them up without another migration,
+  // but they're not on the form right now.
+  lifecycleType            LifecycleType?
+  retirementMaxSeasons     Int?
+  retirementMaxRepairs     Int?
+  retirementConditionFloor ConditionGrade?
+
+  seasonsDeployed  Int     @default(0)
+  repairCount      Int     @default(0)
+  retirementStatus String?
+
+  photos       String[] @default([])
+  websites     String[] @default([])
+  customFields Json?
+
+  jobberProductId String? @unique
+
+  kitMemberships     KitItem[]
+  jobLineItems       JobLineItem[]
+  jobLineShortages   JobLineShortage[]
+  replacementEntries ReplacementQueue[]
+  maintenanceTickets MaintenanceTicket[]
+  componentDecisions InspectionComponentDecision[] @relation("ComponentDecisionItem")
+  customerKitItems   CustomerKitItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Kit {
+  id           String       @id @default(cuid())
+  name         String
+  description  String       @default("")
+  sku          String?
+  manufacturer String?
+  model        String?
+  productType  ProductType?
+  unitCost     Decimal?     @db.Decimal(12, 2)
+  active       Boolean      @default(true)
+  kitType      KitType?
+  status       ItemStatus   @default(AVAILABLE)
+  quantity     Int          @default(0)
+
+  clientId   String?
+  client     Client?   @relation(fields: [clientId], references: [id])
+  propertyId String?
+  property   Property? @relation(fields: [propertyId], references: [id])
+
+  // Home location is now free text, matching Item. Was a relation to the
+  // dropped Location model.
+  homeLocation    String?
+  currentLocation String?
+
+  photos String[] @default([])
+
+  jobberProductId String? @unique
+
+  items        KitItem[]
+  jobLineItems JobLineItem[]
+  customerKits CustomerKit[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model KitItem {
+  kitId    String
+  itemId   String
+  // Decimal so kit recipes can express ratios like 0.25 (a multi-color kit
+  // where each color contributes a fraction of the total). 4 decimal places
+  // handles common ratios like 0.333 cleanly.
+  quantity Decimal @default(1) @db.Decimal(12, 4)
+
+  kit  Kit  @relation(fields: [kitId], references: [id], onDelete: Cascade)
+  item Item @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@id([kitId, itemId])
+}
+
+// ---------- Jobber-mirrored ----------
+
+model Client {
+  id             String @id @default(cuid())
+  jobberClientId String @unique
+
+  // Display name derived during sync from companyName || "firstName lastName".
+  // Kept as a single column so list views can sort and search uniformly.
+  name String
+
+  // Identity fields — exactly the set requested for sync from Jobber.
+  firstName   String?
+  lastName    String?
+  companyName String?
+  emails      String[] @default([])
+  phones      String[] @default([])
+  tags        String[] @default([])
+
+  // Service address — denormalized from the customer's primary property
+  // so the customer card can display it without a join.
+  serviceStreet1 String?
+  serviceCity    String?
+  serviceState   String?
+  serviceCountry String?
+  serviceZip     String?
+
+  properties   Property[]
+  jobs         JobberJob[]
+  kits         Kit[]
+  notes        JobberNote[]
+  customerKits CustomerKit[]
+
+  // NEW: never completed a job in the system. EXISTING: at least one
+  // job has reached the COMPLETE terminal. Used by Year-2 pick-list
+  // branching (existing customers' pre-built kits skip allocation).
+  customerStatus CustomerEra @default(NEW)
+  /// First time this customer's job completed (any job hitting COMPLETE).
+  /// Stays set even if a later job is reverted or deactivated.
+  firstCompletedAt DateTime?
+
+  /// Customer-level active flag. Defaults true; manually flipped to
+  /// false via the Customer detail page when a customer is gone and
+  /// shouldn't show up on the active Jobs list by default. Distinct
+  /// from job-level DEACTIVATED stage — a customer can have one
+  /// deactivated job and still be active overall.
+  active           Boolean   @default(true)
+  deactivatedAt    DateTime?
+  deactivationReason String?
+
+  syncedAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Property {
+  id               String @id @default(cuid())
+  jobberPropertyId String @unique
+  clientId         String
+  client           Client @relation(fields: [clientId], references: [id])
+  address          String
+
+  jobs         JobberJob[]
+  kits         Kit[]
+  customerKits CustomerKit[]
+
+  syncedAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model JobberJob {
+  id          String @id @default(cuid())
+  jobberJobId String @unique
+
+  title        String?
+  jobNumber    String?
+  description  String?
+  instructions String?
+  total        Decimal?  @db.Decimal(12, 2)
+  startAt      DateTime?
+  endAt        DateTime?
+
+  clientId   String
+  client     Client    @relation(fields: [clientId], references: [id])
+  propertyId String?
+  property   Property? @relation(fields: [propertyId], references: [id])
+  status     String
+
+  currentStage JobStage @default(NEW)
+  isOnHold     Boolean  @default(false)
+
+  /// Set the first time this job reaches COMPLETE and we successfully
+  /// rolled its kits into the client's CustomerKit records. Used to keep
+  /// the sync idempotent across revert -> re-complete cycles.
+  customerKitsSyncedAt DateTime?
+
+  visits       JobberVisit[]
+  notes        JobberNote[]
+  lineItems    JobLineItem[]
+  stageEvents  JobStageEvent[]
+  changeOrders ChangeOrder[]
+
+  syncedAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+enum JobStage {
+  NEW
+  ALLOCATED
+  BUILT
+  STAGED
+  INSTALLED
+  INSPECTION
+  COMPLETE
+  DEACTIVATED
+}
+
+// Customer-lifetime status. NEW = never had a job complete in the system.
+// EXISTING = has had at least one job hit the COMPLETE terminal stage; their
+// pre-built customer-specific kits can be reused next season without
+// re-allocating from raw inventory.
+enum CustomerEra {
+  NEW
+  EXISTING
+}
+
+// Lifecycle of a customer-specific kit sitting in a tote.
+enum CustomerKitStatus {
+  IN_STORAGE
+  OUT_FOR_SEASON
+  RETIRED
+}
+
+model JobStageEvent {
+  id        String    @id @default(cuid())
+  jobId     String
+  job       JobberJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  fromStage JobStage?
+  toStage   JobStage
+  at        DateTime  @default(now())
+  byUserId  String?
+  byUser    User?     @relation("StageEventBy", fields: [byUserId], references: [id])
+  notes     String?
+
+  @@index([jobId])
+}
+
+// A single Change Order applied to a Job's pick list. Tracks what was added,
+// removed, and changed at what stage and by whom, so anyone can scroll back
+// and see "why does this customer's tote have red bulbs?"
+model ChangeOrder {
+  id          String    @id @default(cuid())
+  jobId       String
+  job         JobberJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  atStage     JobStage
+  reason      String?
+  /// JSON: structured summary of the change for display.
+  /// {
+  ///   added:   [{ name, kind, quantity }],
+  ///   removed: [{ name, kind, quantity }],
+  ///   changed: [{ name, kind, fromQty, toQty }],
+  ///   inventoryDeltas: [{ itemName, change }]  // positive = pulled, negative = returned
+  /// }
+  diff        Json
+  createdById String?
+  createdBy   User?     @relation("ChangeOrderCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
+
+  @@index([jobId])
+}
+
+enum InspectionDecision {
+  GOOD
+  REPAIRED
+  DEAD
+}
+
+// Per-pick-list-line decision Santa makes during Inspection: each line is
+// either Good (no inventory change), Repaired (replacement parts pulled from
+// inventory and "allocated to kit"), or Dead (entire line subtracted from
+// inventory permanently). appliedDeltas records exactly what was deducted so
+// the change can be reversed if the user clicks a different button.
+model InspectionLineDecision {
+  id              String             @id @default(cuid())
+  jobLineItemId   String             @unique
+  jobLineItem     JobLineItem        @relation(fields: [jobLineItemId], references: [id], onDelete: Cascade)
+  decision        InspectionDecision
+  /// JSON: [{ itemId, quantity }] — the inventory deductions this decision
+  /// caused. Used to reverse the effect when the decision changes.
+  appliedDeltas   Json?
+  decidedAt       DateTime           @default(now())
+  decidedByUserId String?
+  decidedBy       User?              @relation("InspectionDecidedBy", fields: [decidedByUserId], references: [id])
+  updatedAt       DateTime           @updatedAt
+}
+
+// One decision per component inside a kit line. Used when the user wants
+// to inspect each component of a kit independently (some bulbs good, some
+// dead, some need a replacement) instead of applying a single decision to
+// the whole kit. ITEM lines continue to use InspectionLineDecision; KIT
+// lines now use one InspectionComponentDecision per recipe component.
+model InspectionComponentDecision {
+  id              String             @id @default(cuid())
+  jobLineItemId   String
+  jobLineItem     JobLineItem        @relation(fields: [jobLineItemId], references: [id], onDelete: Cascade)
+  componentItemId String
+  componentItem   Item               @relation("ComponentDecisionItem", fields: [componentItemId], references: [id])
+  decision        InspectionDecision
+  /// JSON: [{ itemId, quantity }] — same shape as InspectionLineDecision.appliedDeltas.
+  /// Used to reverse the prior delta before applying a new one.
+  appliedDeltas   Json?
+  decidedAt       DateTime           @default(now())
+  decidedByUserId String?
+  decidedBy       User?              @relation("ComponentDecisionBy", fields: [decidedByUserId], references: [id])
+  updatedAt       DateTime           @updatedAt
+
+  @@unique([jobLineItemId, componentItemId])
+  @@index([jobLineItemId])
+  @@index([componentItemId])
+}
+
+// A single line on a Jobber Job. Each line is either a Product (mapped to
+// Item) or a Service (mapped to Kit). If we can't resolve to a local row
+// (deleted product, brand-new product not synced yet), we keep the raw
+// name as a fallback so the Pick List still has something to show.
+model JobLineItem {
+  id               String    @id @default(cuid())
+  jobberLineItemId String?   @unique
+  jobId            String
+  job              JobberJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  itemId String?
+  item   Item?   @relation(fields: [itemId], references: [id])
+  kitId  String?
+  kit    Kit?    @relation(fields: [kitId], references: [id])
+
+  rawName String?
+
+  quantity Decimal @default(1) @db.Decimal(12, 2)
+  notes    String?
+  position Int?
+
+  // True once autoAllocate has run for this line (inventory deducted,
+  // shortages logged if any). Flipped back to false by Change Order when
+  // the line's quantity is modified, so allocation re-runs.
+  isAllocated Boolean @default(false)
+
+  /// For kit lines only: how many of this line's quantity were satisfied
+  /// from the customer's existing CustomerKit (their pre-built tote)
+  /// rather than from the shared inventory pool. Set at allocation time
+  /// for EXISTING customers with a matching CustomerKit; stays 0 for
+  /// NEW customers, item lines, and kit lines with no matching tote.
+  /// At COMPLETE, only (quantity - kitsFromTote) is added to the
+  /// CustomerKit count — the tote-sourced kits were already counted.
+  kitsFromTote Int @default(0)
+
+  shortages           JobLineShortage[]
+  inspectionDecision  InspectionLineDecision?
+  componentDecisions  InspectionComponentDecision[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([jobId])
+  @@index([itemId])
+  @@index([kitId])
+}
+
+// Tracks items that a Job line couldn't fully allocate against inventory.
+// Created when autoAllocate runs and there isn't enough stock. Released
+// (decremented or deleted) when stock arrives and the user clicks Release
+// on the Awaiting Stock page.
+model JobLineShortage {
+  id            String      @id @default(cuid())
+  jobLineItemId String
+  jobLineItem   JobLineItem @relation(fields: [jobLineItemId], references: [id], onDelete: Cascade)
+  itemId        String
+  item          Item        @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  quantityShort Int
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([jobLineItemId])
+  @@index([itemId])
+}
+
+model JobberVisit {
+  id            String    @id @default(cuid())
+  jobberVisitId String    @unique
+  jobId         String
+  job           JobberJob @relation(fields: [jobId], references: [id])
+
+  title        String?
+  instructions String?
+  startAt      DateTime?
+  endAt        DateTime?
+  status       String
+
+  notes       JobberNote[]
+
+  syncedAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model JobberNote {
+  id            String    @id @default(cuid())
+  jobberNoteId  String    @unique
+  body          String
+  isInternal    Boolean   @default(false)
+  noteCreatedAt DateTime?
+
+  // A note belongs to exactly one parent (client, job, or visit).
+  clientId String?
+  client   Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  jobId    String?
+  job      JobberJob?   @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  visitId  String?
+  visit    JobberVisit? @relation(fields: [visitId], references: [id], onDelete: SetNull)
+
+  syncedAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([clientId])
+  @@index([jobId])
+  @@index([visitId])
+}
+
+// ---------- Maintenance + replacement ----------
+
+model ReplacementQueue {
+  id               String                 @id @default(cuid())
+  itemId           String
+  item             Item                   @relation(fields: [itemId], references: [id])
+  /// How many units of this item need to be replaced/replenished.
+  quantity         Int                    @default(1)
+  reason           String
+  flaggedAt        DateTime               @default(now())
+  flaggedByUserId  String?
+  flaggedBy        User?                  @relation("FlaggedBy", fields: [flaggedByUserId], references: [id])
+  resolution       ReplacementResolution?
+  poId             String?
+  resolvedAt       DateTime?
+  resolvedByUserId String?
+  resolvedBy       User?                  @relation("ResolvedBy", fields: [resolvedByUserId], references: [id])
+
+  @@index([itemId])
+  @@index([resolution])
+}
+
+model MaintenanceTicket {
+  id             String            @id @default(cuid())
+  itemId         String
+  item           Item              @relation(fields: [itemId], references: [id])
+  openedAt       DateTime          @default(now())
+  openedByUserId String?
+  openedBy       User?             @relation("OpenedBy", fields: [openedByUserId], references: [id])
+  status         MaintenanceStatus @default(OPEN)
+  description    String
+  photos         String[]          @default([])
+  partsUsed      Json?
+  laborMinutes   Int?
+  closedAt       DateTime?
+}
+
+// ---------- Sync + custom fields ----------
+
+model SyncEvent {
+  id          String     @id @default(cuid())
+  source      String     @default("jobber")
+  eventType   String
+  payload     Json
+  processedAt DateTime?
+  status      SyncStatus @default(PENDING)
+  error       String?
+  createdAt   DateTime   @default(now())
+
+  @@index([status, createdAt])
+}
+
+model CustomFieldDef {
+  id        String             @id @default(cuid())
+  appliesTo String
+  name      String
+  type      String
+  options   Json?
+  values    CustomFieldValue[]
+
+  @@unique([appliesTo, name])
+}
+
+model CustomFieldValue {
+  entityType String
+  entityId   String
+  fieldDefId String
+  fieldDef   CustomFieldDef @relation(fields: [fieldDefId], references: [id], onDelete: Cascade)
+  value      Json
+
+  @@id([entityType, entityId, fieldDefId])
+  @@index([entityType, entityId])
+}
+
+// Persistent record of a customer-specific kit that lives in a customer's
+// tote year over year. Created at COMPLETE of any job that has kit lines;
+// reused as inventory in subsequent seasons so existing customers don't
+// have to re-allocate the kits they already own.
+//
+// quantity counts how many physical copies of this kit type the customer
+// has across all their seasons. Year-2 allocation will subtract from this
+// count first (skipping raw inventory) before pulling from the shared pool.
+model CustomerKit {
+  id              String   @id @default(cuid())
+  clientId        String
+  client          Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  /// Optional property scoping. Multi-property customers can have separate
+  /// totes per house. When null, the kit belongs to the client as a whole.
+  propertyId      String?
+  property        Property? @relation(fields: [propertyId], references: [id])
+  kitId           String
+  kit             Kit      @relation(fields: [kitId], references: [id])
+
+  quantity        Int      @default(1)
+  storageLocation String?
+  status          CustomerKitStatus @default(IN_STORAGE)
+
+  items           CustomerKitItem[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([clientId])
+  @@index([propertyId])
+  @@index([kitId])
+}
+
+// Per-component physical snapshot of a CustomerKit. Quantities can drift
+// from the kit recipe over time (a bulb dies and is replaced with a
+// slightly different model, etc.) so we store the actual count instead
+// of recomputing from the recipe.
+model CustomerKitItem {
+  id            String      @id @default(cuid())
+  customerKitId String
+  customerKit   CustomerKit @relation(fields: [customerKitId], references: [id], onDelete: Cascade)
+  itemId        String
+  item          Item        @relation(fields: [itemId], references: [id])
+  quantity      Int         @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([customerKitId, itemId])
+  @@index([itemId])
+}
+

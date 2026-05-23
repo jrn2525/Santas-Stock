@@ -1,0 +1,531 @@
+import Link from "next/link";
+import type { JobStage } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/auth-helpers";
+import { JobberJobsSyncButton } from "@/components/jobber-job-flow-sync-buttons";
+import { to2Dp } from "@/lib/format";
+import { STAGE_LABELS } from "@/lib/job-flow";
+import {
+  addDaysET,
+  fmtShortDateET,
+  fmtTimeET,
+  formatDateParam,
+  getETParts,
+  isAllDayVisit,
+  isSameETDay,
+  startOfDayET,
+  todayET,
+} from "@/lib/datetime";
+
+export const dynamic = "force-dynamic";
+
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+const TERMINAL_STAGES: JobStage[] = ["COMPLETE", "DEACTIVATED"];
+
+function stageBadgeStyle(stage: JobStage): string {
+  if (TERMINAL_STAGES.includes(stage)) {
+    return "border-rule bg-canvas text-ink-dim";
+  }
+  if (stage === "NEW") {
+    return "border-rule bg-canvas text-white";
+  }
+  return "border-brand/40 bg-brand/15 text-ink";
+}
+
+export default async function JobFlowDashboardPage() {
+  await requireUser();
+
+  const now = new Date();
+  const today = todayET();
+  const todayStart = startOfDayET(today);
+  const tomorrowStart = addDaysET(todayStart, 1);
+  const weekEnd = addDaysET(todayStart, 7);
+
+  // Visit data
+  const [todayVisits, weekVisits, onHoldCount, lastVisitSync] =
+    await Promise.all([
+      prisma.jobberVisit.findMany({
+        where: { startAt: { gte: todayStart, lt: tomorrowStart } },
+        orderBy: { startAt: "asc" },
+        include: {
+          job: {
+            select: {
+              id: true,
+              title: true,
+              jobNumber: true,
+              status: true,
+              currentStage: true,
+              isOnHold: true,
+              client: { select: { name: true } },
+              property: { select: { address: true } },
+            },
+          },
+        },
+      }),
+      prisma.jobberVisit.findMany({
+        where: { startAt: { gte: todayStart, lt: weekEnd } },
+        select: { id: true, startAt: true, jobId: true },
+        orderBy: { startAt: "asc" },
+      }),
+      prisma.jobberJob.count({ where: { isOnHold: true } }),
+      prisma.jobberVisit.findFirst({
+        orderBy: { syncedAt: "desc" },
+        select: { syncedAt: true },
+      }),
+    ]);
+
+  // Deduplicate today's visits by job — one row per job, even if it has
+  // multiple visits today. Each entry carries the earliest start and
+  // latest end across those visits.
+  type TodayJob = {
+    jobId: string;
+    title: string | null;
+    jobNumber: string | null;
+    currentStage: JobStage;
+    isOnHold: boolean;
+    clientName: string | null;
+    propertyAddress: string | null;
+    earliestStart: Date | null;
+    latestEnd: Date | null;
+    allDay: boolean;
+    visitCount: number;
+  };
+  const todayJobsMap = new Map<string, TodayJob>();
+  for (const v of todayVisits) {
+    const existing = todayJobsMap.get(v.job.id);
+    const allDay =
+      v.startAt != null && isAllDayVisit(v.startAt, v.endAt);
+    if (existing) {
+      if (v.startAt && (!existing.earliestStart || v.startAt < existing.earliestStart)) {
+        existing.earliestStart = v.startAt;
+      }
+      if (v.endAt && (!existing.latestEnd || v.endAt > existing.latestEnd)) {
+        existing.latestEnd = v.endAt;
+      }
+      existing.allDay = existing.allDay || allDay;
+      existing.visitCount++;
+    } else {
+      todayJobsMap.set(v.job.id, {
+        jobId: v.job.id,
+        title: v.job.title,
+        jobNumber: v.job.jobNumber,
+        currentStage: v.job.currentStage,
+        isOnHold: v.job.isOnHold,
+        clientName: v.job.client?.name ?? null,
+        propertyAddress: v.job.property?.address ?? null,
+        earliestStart: v.startAt,
+        latestEnd: v.endAt,
+        allDay,
+        visitCount: 1,
+      });
+    }
+  }
+  const todayJobs = Array.from(todayJobsMap.values()).sort((a, b) => {
+    const aT = a.earliestStart?.getTime() ?? Number.MAX_SAFE_INTEGER;
+    const bT = b.earliestStart?.getTime() ?? Number.MAX_SAFE_INTEGER;
+    return aT - bT;
+  });
+
+  // Aggregate materials demand from jobs with upcoming visits.
+  const upcomingJobIds = Array.from(
+    new Set(weekVisits.map((v) => v.jobId)),
+  );
+
+  const upcomingJobs = upcomingJobIds.length
+    ? await prisma.jobberJob.findMany({
+        where: { id: { in: upcomingJobIds } },
+        select: {
+          id: true,
+          lineItems: {
+            select: {
+              quantity: true,
+              item: { select: { id: true, name: true, quantity: true } },
+              kit: {
+                select: {
+                  name: true,
+                  quantity: true,
+                  items: {
+                    select: {
+                      quantity: true,
+                      item: { select: { id: true, name: true, quantity: true } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      })
+    : [];
+
+  type Demand = { itemId: string; name: string; needed: number; have: number };
+  const demandMap = new Map<string, Demand>();
+  for (const job of upcomingJobs) {
+    for (const li of job.lineItems) {
+      const qty = Number(li.quantity);
+      if (li.item) {
+        const ex = demandMap.get(li.item.id);
+        demandMap.set(li.item.id, {
+          itemId: li.item.id,
+          name: li.item.name,
+          needed: (ex?.needed ?? 0) + qty,
+          have: li.item.quantity,
+        });
+      } else if (li.kit) {
+        for (const ki of li.kit.items) {
+          const ex = demandMap.get(ki.item.id);
+          demandMap.set(ki.item.id, {
+            itemId: ki.item.id,
+            name: ki.item.name,
+            needed: (ex?.needed ?? 0) + Number(ki.quantity) * qty,
+            have: ki.item.quantity,
+          });
+        }
+      }
+    }
+  }
+  const demand = Array.from(demandMap.values()).sort((a, b) => b.needed - a.needed);
+  const shortages = demand.filter((d) => d.needed > d.have);
+
+  // Week strip — counts per day.
+  const weekStrip = Array.from({ length: 7 }, (_, i) => {
+    const d = addDaysET(todayStart, i);
+    const next = addDaysET(d, 1);
+    const count = weekVisits.filter(
+      (v) => v.startAt && v.startAt >= d && v.startAt < next,
+    ).length;
+    return { date: d, count };
+  });
+
+  const lastSyncLabel = lastVisitSync?.syncedAt
+    ? relativeTime(lastVisitSync.syncedAt, now)
+    : "Never";
+
+  return (
+    <>
+      <header>
+        <h1 className="text-3xl font-bold text-brand-hover">Dashboard</h1>
+        <p className="mt-1 text-sm text-ink-dim">
+          What&apos;s happening today, this week, and what you need to pull. Times in ET.
+        </p>
+      </header>
+
+      {/* Stat strip */}
+      <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Stat
+          label="Today's visits"
+          value={todayVisits.length}
+          href={`/job-flow/calendar?view=day&date=${formatDateParam(today)}`}
+        />
+        <Stat
+          label="This week's visits"
+          value={weekVisits.length}
+          href={`/job-flow/calendar?view=week&date=${formatDateParam(today)}`}
+        />
+        <Stat
+          label="Jobs this week"
+          value={upcomingJobIds.length}
+          href="/job-flow/jobs"
+        />
+        <Stat
+          label="Awaiting Stock"
+          value={onHoldCount}
+          href="/job-flow/job-flows"
+        />
+      </section>
+
+      {/* Sync now */}
+      <section className="mt-6 rounded-lg border border-rule bg-card p-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-lg font-semibold text-ink">Data freshness</h2>
+          <span className="text-xs text-ink-dim">
+            Last sync: <span className="text-ink">{lastSyncLabel}</span>
+          </span>
+        </div>
+        <div className="mt-3">
+          <JobberJobsSyncButton />
+        </div>
+      </section>
+
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Today's schedule */}
+        <Card title="Today">
+          {todayVisits.length === 0 ? (
+            <p className="text-sm text-ink-dim">No visits scheduled today.</p>
+          ) : (
+            <ul className="divide-y divide-rule">
+              {todayVisits.map((v) => (
+                <li key={v.id} className="py-2">
+                  <Link
+                    href={`/job-flow/jobs/${v.job.id}`}
+                    className="block hover:bg-canvas/50 -mx-2 px-2 py-1 rounded"
+                  >
+                    <div className="flex items-baseline justify-between gap-2">
+                      <div className="font-medium text-ink truncate">
+                        {v.job.client?.name ?? v.title ?? "(visit)"}
+                      </div>
+                      <div className="shrink-0 text-xs tabular-nums text-ink-dim">
+                        {v.startAt && isAllDayVisit(v.startAt, v.endAt)
+                          ? "All day"
+                          : v.startAt
+                            ? fmtTimeET(v.startAt) +
+                              (v.endAt ? ` – ${fmtTimeET(v.endAt)}` : "")
+                            : ""}
+                      </div>
+                    </div>
+                    <div className="text-xs text-ink-dim truncate">
+                      {v.job.jobNumber && <>Job #{v.job.jobNumber} · </>}
+                      {v.job.property?.address ?? v.job.title ?? ""}
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        {/* Week strip */}
+        <Card title="This week">
+          <div className="grid grid-cols-7 gap-1">
+            {weekStrip.map(({ date, count }) => {
+              const isToday = isSameETDay(date, today);
+              const max = Math.max(...weekStrip.map((s) => s.count), 1);
+              const heightPct = (count / max) * 100;
+              return (
+                <Link
+                  key={formatDateParam(date)}
+                  href={`/job-flow/calendar?view=day&date=${formatDateParam(date)}`}
+                  className={`flex flex-col items-center rounded p-1 hover:bg-canvas/50 ${
+                    isToday ? "bg-brand/10" : ""
+                  }`}
+                >
+                  <div className={`text-xs ${isToday ? "text-brand" : "text-ink-dim"}`}>
+                    {DAY_NAMES[getETParts(date).weekday]}
+                  </div>
+                  <div className={`text-sm font-medium ${isToday ? "text-brand" : "text-ink"}`}>
+                    {fmtShortDateET(date).split(" ")[1]}
+                  </div>
+                  <div className="mt-2 flex h-12 w-full items-end">
+                    <div
+                      className={`w-full rounded-t ${count > 0 ? "bg-brand/60" : "bg-rule"}`}
+                      style={{ height: `${Math.max(heightPct, count > 0 ? 12 : 4)}%` }}
+                    />
+                  </div>
+                  <div className={`mt-1 text-xs tabular-nums ${isToday ? "text-brand" : "text-ink"}`}>
+                    {count}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </Card>
+      </div>
+
+      {/* Materials & Shortages */}
+      <section className="mt-6 rounded-lg border border-rule bg-card p-6">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-lg font-semibold text-ink">
+            Materials needed this week
+          </h2>
+          <span className="text-xs text-ink-dim">
+            Across {upcomingJobIds.length} job{upcomingJobIds.length === 1 ? "" : "s"} with
+            visits in the next 7 days
+          </span>
+        </div>
+
+        {demand.length === 0 ? (
+          <p className="mt-3 text-sm text-ink-dim">
+            No line items on upcoming jobs. (Either nothing scheduled, or jobs
+            don&apos;t have synced line items yet.)
+          </p>
+        ) : (
+          <>
+            {shortages.length > 0 && (
+              <div className="mt-4 rounded-md border border-brand bg-brand/10 p-3">
+                <h3 className="text-sm font-semibold text-brand">
+                  Short on {shortages.length} item{shortages.length === 1 ? "" : "s"}
+                </h3>
+                <ul className="mt-2 divide-y divide-brand/30 text-sm">
+                  {shortages.map((d) => (
+                    <li key={d.itemId} className="flex items-baseline justify-between gap-2 py-1">
+                      <Link
+                        href={`/inventory/items/${d.itemId}`}
+                        className="text-ink hover:text-brand truncate"
+                      >
+                        {d.name}
+                      </Link>
+                      <div className="text-xs tabular-nums text-ink">
+                        Need <strong>{d.needed}</strong>, have {d.have},{" "}
+                        <strong className="text-brand">short {d.needed - d.have}</strong>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="mt-4">
+              <h3 className="text-xs uppercase tracking-wider text-ink-dim">
+                All materials
+              </h3>
+              <ul className="mt-2 divide-y divide-rule text-sm">
+                {demand.slice(0, 40).map((d) => {
+                  const short = d.needed > d.have;
+                  return (
+                    <li
+                      key={d.itemId}
+                      className="flex items-baseline justify-between gap-2 py-1.5"
+                    >
+                      <Link
+                        href={`/inventory/items/${d.itemId}`}
+                        className="text-ink hover:text-brand truncate"
+                      >
+                        {d.name}
+                      </Link>
+                      <div className={`text-xs tabular-nums ${short ? "text-brand" : "text-ink-dim"}`}>
+                        ×{to2Dp(d.needed)} <span className="opacity-70">/ {to2Dp(d.have)} in stock</span>
+                      </div>
+                    </li>
+                  );
+                })}
+                {demand.length > 40 && (
+                  <li className="py-1 text-xs italic text-ink-dim">
+                    …and {demand.length - 40} more.
+                  </li>
+                )}
+              </ul>
+            </div>
+          </>
+        )}
+      </section>
+
+      {/* Today's jobs */}
+      <section className="mt-6 rounded-lg border border-rule bg-card p-6">
+        <header className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-lg font-semibold text-ink">
+            Today&apos;s jobs
+          </h2>
+          <span className="text-xs text-ink-dim">
+            {todayJobs.length} job{todayJobs.length === 1 ? "" : "s"} with
+            a visit scheduled today · click to open
+          </span>
+        </header>
+
+        {todayJobs.length === 0 ? (
+          <p className="mt-4 text-sm text-ink-dim">
+            No jobs scheduled today.
+          </p>
+        ) : (
+          <ul className="mt-4 divide-y divide-rule">
+            {todayJobs.map((j) => {
+              const timeLabel = j.allDay
+                ? "All day"
+                : j.earliestStart
+                  ? fmtTimeET(j.earliestStart) +
+                    (j.latestEnd ? ` – ${fmtTimeET(j.latestEnd)}` : "")
+                  : "";
+              return (
+                <li key={j.jobId}>
+                  <Link
+                    href={`/job-flow/jobs/${j.jobId}`}
+                    className="-mx-2 block rounded px-2 py-3 hover:bg-canvas/50"
+                  >
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-baseline gap-2">
+                          <span className="font-medium text-ink">
+                            {j.title ?? "(untitled job)"}
+                          </span>
+                          {j.jobNumber && (
+                            <span className="text-xs text-ink-dim">
+                              #{j.jobNumber}
+                            </span>
+                          )}
+                          <span
+                            className={`inline-block rounded border px-2 py-0.5 text-xs font-medium ${stageBadgeStyle(j.currentStage)}`}
+                          >
+                            {STAGE_LABELS[j.currentStage]}
+                          </span>
+                          {j.isOnHold && (
+                            <span
+                              className="inline-block rounded border border-yellow-600/40 bg-yellow-500/15 px-2 py-0.5 text-xs font-medium text-yellow-200"
+                              title="Job is on hold for shortages"
+                            >
+                              Awaiting Stock
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-0.5 text-xs text-ink-dim">
+                          {j.clientName ?? "—"}
+                          {j.propertyAddress && (
+                            <> · {j.propertyAddress}</>
+                          )}
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-xs tabular-nums text-ink-dim text-right">
+                        {timeLabel}
+                        {j.visitCount > 1 && (
+                          <div>
+                            {j.visitCount} visits
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+    </>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  href,
+}: {
+  label: string;
+  value: number;
+  href?: string;
+}) {
+  const inner = (
+    <div className="rounded-lg border border-rule bg-card p-4 transition hover:border-brand">
+      <div className="text-xs uppercase tracking-wider text-ink-dim">{label}</div>
+      <div className="mt-2 text-2xl font-bold text-ink tabular-nums">{value}</div>
+    </div>
+  );
+  return href ? (
+    <Link href={href} className="block">
+      {inner}
+    </Link>
+  ) : (
+    inner
+  );
+}
+
+function Card({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-lg border border-rule bg-card p-5">
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-ink-dim">
+        {title}
+      </h2>
+      <div className="mt-3">{children}</div>
+    </section>
+  );
+}
+
+function relativeTime(then: Date, now: Date): string {
+  const diffMs = now.getTime() - then.getTime();
+  const min = Math.round(diffMs / 60000);
+  if (min < 1) return "just now";
+  if (min < 60) return `${min} min ago`;
+  const hr = Math.round(min / 60);
+  if (hr < 24) return `${hr} hr ago`;
+  const day = Math.round(hr / 24);
+  if (day < 7) return `${day} day${day === 1 ? "" : "s"} ago`;
+  return fmtShortDateET(then);
+}
