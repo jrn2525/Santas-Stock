@@ -283,6 +283,15 @@ model Client {
   /// Stays set even if a later job is reverted or deactivated.
   firstCompletedAt DateTime?
 
+  /// Customer-level active flag. Defaults true; manually flipped to
+  /// false via the Customer detail page when a customer is gone and
+  /// shouldn't show up on the active Jobs list by default. Distinct
+  /// from job-level DEACTIVATED stage — a customer can have one
+  /// deactivated job and still be active overall.
+  active           Boolean   @default(true)
+  deactivatedAt    DateTime?
+  deactivationReason String?
+
   syncedAt  DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

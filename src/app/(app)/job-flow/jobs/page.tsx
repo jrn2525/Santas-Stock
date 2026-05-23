@@ -41,33 +41,50 @@ function stageBadgeStyle(stage: JobStage): string {
 export default async function JobsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; stage?: string }>;
+  searchParams: Promise<{ q?: string; stage?: string; customers?: string }>;
 }) {
   await requireUser();
-  const { q, stage } = await searchParams;
+  const { q, stage, customers } = await searchParams;
   const query = q?.trim() ?? "";
   const stageFilter =
     stage && STAGE_OPTIONS.includes(stage as JobStage)
       ? (stage as JobStage)
       : null;
+  // customers filter: "active" (default), "inactive", or "all"
+  const customerFilter =
+    customers === "inactive" || customers === "all" ? customers : "active";
 
-  const where: Prisma.JobberJobWhereInput = {};
+  const andClauses: Prisma.JobberJobWhereInput[] = [];
   if (query) {
-    where.OR = [
-      { title: { contains: query, mode: "insensitive" } },
-      { jobNumber: { contains: query, mode: "insensitive" } },
-      { client: { name: { contains: query, mode: "insensitive" } } },
-    ];
+    andClauses.push({
+      OR: [
+        { title: { contains: query, mode: "insensitive" } },
+        { jobNumber: { contains: query, mode: "insensitive" } },
+        {
+          client: {
+            is: { name: { contains: query, mode: "insensitive" } },
+          },
+        },
+      ],
+    });
   }
   if (stageFilter) {
-    where.currentStage = stageFilter;
+    andClauses.push({ currentStage: stageFilter });
   }
+  if (customerFilter === "active") {
+    andClauses.push({ client: { is: { active: true } } });
+  } else if (customerFilter === "inactive") {
+    andClauses.push({ client: { is: { active: false } } });
+  }
+  // "all" applies no client filter
+  const where: Prisma.JobberJobWhereInput =
+    andClauses.length > 0 ? { AND: andClauses } : {};
 
   const jobs = await prisma.jobberJob.findMany({
     where,
     orderBy: [{ startAt: "desc" }, { createdAt: "desc" }],
     include: {
-      client: { select: { name: true } },
+      client: { select: { id: true, name: true, active: true } },
       property: { select: { address: true } },
     },
     take: 500,
@@ -124,13 +141,31 @@ export default async function JobsPage({
             ))}
           </select>
         </div>
+        <div>
+          <label
+            htmlFor="customer-filter"
+            className="block text-xs font-medium text-ink-dim"
+          >
+            Customers
+          </label>
+          <select
+            id="customer-filter"
+            name="customers"
+            defaultValue={customerFilter}
+            className="mt-1 rounded-md border border-rule bg-card px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+          >
+            <option value="active">Active customers only</option>
+            <option value="inactive">Deactivated customers only</option>
+            <option value="all">All customers</option>
+          </select>
+        </div>
         <button
           type="submit"
           className="rounded-md border border-brand bg-canvas px-4 py-2 text-sm font-medium text-brand transition hover:bg-brand hover:text-ink"
         >
           Apply
         </button>
-        {(query || stageFilter) && (
+        {(query || stageFilter || customerFilter !== "active") && (
           <Link
             href="/job-flow/jobs"
             className="rounded-md border border-rule bg-canvas px-4 py-2 text-sm font-medium text-ink hover:border-brand"
@@ -184,7 +219,18 @@ export default async function JobsPage({
                       {j.title ?? "(untitled)"}
                     </Link>
                   </td>
-                  <td className="px-4 py-3">{j.client?.name ?? "—"}</td>
+                  <td className="px-4 py-3">
+                    {j.client ? (
+                      <Link
+                        href={`/job-flow/clients/${j.client.id}`}
+                        className="hover:text-brand"
+                      >
+                        {j.client.name}
+                      </Link>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span

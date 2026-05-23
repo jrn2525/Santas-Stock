@@ -152,10 +152,24 @@ export default async function JobDetailPage({
               {job.client ? (
                 <div className="space-y-1 text-sm">
                   <div className="flex flex-wrap items-baseline gap-2">
-                    <span className="font-medium text-ink">
+                    <Link
+                      href={`/job-flow/clients/${job.client.id}`}
+                      className="font-medium text-ink hover:text-brand"
+                    >
                       {job.client.name}
-                    </span>
-                    {job.client.customerStatus === "EXISTING" ? (
+                    </Link>
+                    {!job.client.active ? (
+                      <span
+                        className="inline-block rounded border border-red-700/40 bg-red-900/10 px-2 py-0.5 text-xs font-medium text-red-200"
+                        title={
+                          job.client.deactivatedAt
+                            ? `Deactivated ${job.client.deactivatedAt.toLocaleDateString()}`
+                            : "Deactivated customer"
+                        }
+                      >
+                        Deactivated
+                      </span>
+                    ) : job.client.customerStatus === "EXISTING" ? (
                       <span
                         className="inline-block rounded border border-green-600/40 bg-green-600/10 px-2 py-0.5 text-xs font-medium text-green-200"
                         title={
