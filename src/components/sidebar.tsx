@@ -29,13 +29,17 @@ const inventoryNav: NavItem[] = [
   { href: "/inventory/kits", label: "Kits" },
   { href: "/inventory/dead-stock", label: "Dead Stock" },
   { href: "/inventory/replacements", label: "Replacements" },
+  {
+    href: "/inventory/import-export",
+    label: "Import / Export",
+    visibleTo: ["ADMIN"],
+  },
   { href: "/inventory/jobber", label: "Jobber", visibleTo: ["ADMIN", "MANAGER"] },
 ];
 
 const adminNav: NavItem[] = [
   { href: "/admin/overview", label: "Overview" },
   { href: "/admin/users", label: "Users" },
-  { href: "/inventory/import-export", label: "Import / Export" },
   { href: "/admin/cleanup", label: "Data cleanup" },
 ];
 

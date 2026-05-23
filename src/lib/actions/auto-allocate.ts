@@ -2,7 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { assertRoleForAction, WRITE_ROLES } from "@/lib/auth-helpers";
+import {
+  assertRoleForAction,
+  requireUser,
+  WRITE_ROLES,
+} from "@/lib/auth-helpers";
 
 /**
  * Runs when a job enters the ALLOCATED stage. For each pick list line:
@@ -266,8 +270,12 @@ export async function releaseAwaitingStock(jobId: string): Promise<{
 /**
  * Helper: check whether a job currently has any unresolved shortages.
  * Used by the Awaiting Stock page to enable/disable the Release button.
+ *
+ * "use server" exports are public endpoints. Gate this read so an
+ * unauthenticated caller can't probe job state.
  */
 export async function jobHasShortages(jobId: string): Promise<boolean> {
+  await requireUser();
   const count = await prisma.jobLineShortage.count({
     where: { jobLineItem: { jobId } },
   });

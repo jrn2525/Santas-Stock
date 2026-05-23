@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { InspectionDecision } from "@prisma/client";
@@ -69,9 +69,12 @@ export function InspectionForm({
         init[l.id] = {
           itemState: {
             decision: l.itemDecision,
+            // Default repair qty to 1, not the full line quantity.
+            // Most repairs touch a few units, not the whole line; if
+            // the user needs more they can type the actual number.
             repairQty: l.itemRepairQty
               ? to2Dp(l.itemRepairQty)
-              : to2Dp(l.quantity),
+              : "1",
           },
         };
       } else if (l.kind === "kit") {
@@ -79,9 +82,8 @@ export function InspectionForm({
         for (const c of l.components) {
           comp[c.itemId] = {
             decision: c.decision,
-            repairQty: c.repairQty
-              ? to2Dp(c.repairQty)
-              : to2Dp(c.quantityPerKit * l.quantity),
+            // Same default-to-1 reasoning as item lines above.
+            repairQty: c.repairQty ? to2Dp(c.repairQty) : "1",
           };
         }
         init[l.id] = { componentStates: comp };
@@ -182,7 +184,7 @@ export function InspectionForm({
     }));
   }
 
-  function handleSave() {
+  const handleSave = useCallback(() => {
     setError(null);
     const inputs: InspectionLineInput[] = [];
     for (const l of lines) {
@@ -231,12 +233,88 @@ export function InspectionForm({
         );
       }
     });
+  }, [jobId, lines, router, startTransition, state]);
+
+  // Find the index of the first line where at least one decision is
+  // still missing — used by the "Jump to next" button. Returns -1 if
+  // everything is decided.
+  const nextUndecidedIndex = useMemo(() => {
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
+      if (l.kind === "unresolved") continue;
+      const s = state[l.id];
+      if (l.kind === "item") {
+        if (!s?.itemState?.decision) return i;
+      } else if (l.kind === "kit") {
+        for (const c of l.components) {
+          if (!s?.componentStates?.[c.itemId]?.decision) return i;
+        }
+      }
+    }
+    return -1;
+  }, [lines, state]);
+
+  function jumpToNext() {
+    if (nextUndecidedIndex < 0) return;
+    const el = document.getElementById(
+      `inspection-line-${lines[nextUndecidedIndex].id}`,
+    );
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
   }
+
+  // Keyboard shortcuts:
+  //  - Cmd/Ctrl+S: save inspection (preventDefault so the browser
+  //    doesn't pop its own Save dialog).
+  //  - Esc: navigate back to the job page (Cancel equivalent).
+  //  - Cmd/Ctrl+J: jump to the next undecided line.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const meta = e.metaKey || e.ctrlKey;
+      if (meta && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        if (!isPending) handleSave();
+        return;
+      }
+      if (meta && e.key.toLowerCase() === "j") {
+        e.preventDefault();
+        jumpToNext();
+        return;
+      }
+      if (e.key === "Escape") {
+        if (!isPending) router.push(`/job-flow/jobs/${jobId}`);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+    // jumpToNext is stable enough not to need in deps; handleSave is
+    // already a useCallback so it covers its own deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handleSave, isPending, jobId, router, nextUndecidedIndex]);
 
   return (
     <>
-      <p className="mt-1 text-sm text-white">
-        {decided} of {total} lines fully inspected
+      <div className="mt-1 flex flex-wrap items-baseline gap-3 text-sm">
+        <p className="text-white">
+          {decided} of {total} lines fully inspected
+        </p>
+        {nextUndecidedIndex >= 0 && (
+          <button
+            type="button"
+            onClick={jumpToNext}
+            className="rounded-md border border-rule bg-canvas px-3 py-1 text-xs font-medium text-ink hover:border-brand no-print"
+            title="Scroll to the next line that hasn't been decided yet (Ctrl/Cmd+J)"
+          >
+            Jump to next undecided →
+          </button>
+        )}
+      </div>
+
+      <p className="mt-2 text-xs text-ink-dim no-print">
+        Shortcuts: <kbd className="text-ink">Ctrl/Cmd+S</kbd> save ·{" "}
+        <kbd className="text-ink">Ctrl/Cmd+J</kbd> jump to next ·{" "}
+        <kbd className="text-ink">Esc</kbd> cancel
       </p>
 
       <section className="mt-6 rounded-md border border-rule bg-card p-4 text-sm text-white no-print">
@@ -314,7 +392,10 @@ function LineRow({
 }) {
   if (line.kind === "unresolved") {
     return (
-      <li className="rounded-md border border-rule bg-canvas p-4">
+      <li
+        id={`inspection-line-${line.id}`}
+        className="rounded-md border border-rule bg-canvas p-4"
+      >
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="font-semibold text-white">{line.name}</div>
@@ -332,7 +413,10 @@ function LineRow({
   }
 
   return (
-    <li className="rounded-md border border-rule bg-canvas p-4">
+    <li
+      id={`inspection-line-${line.id}`}
+      className="rounded-md border border-rule bg-canvas p-4"
+    >
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="font-semibold text-white">{line.name}</div>
