@@ -16,10 +16,13 @@
 ## Known URLs / endpoints
 
 - Production app: https://santas-stock-santas-stock-dev.up.railway.app
-- Jobber connection page: https://santas-stock-santas-stock-dev.up.railway.app/jobber
-- Customers page: https://santas-stock-santas-stock-dev.up.railway.app/customers
+- Dashboard (landing after sign-in): https://santas-stock-santas-stock-dev.up.railway.app/job-flow/dashboard
+- Jobber connection page: https://santas-stock-santas-stock-dev.up.railway.app/job-flow/jobber
 - Jobber developer changelog: https://developer.getjobber.com/docs/changelog/
 - Admin login: `john@jamenent.com`
+
+(There is no standalone Customers index page — customer detail is reached
+per-job at `/job-flow/clients/[id]`.)
 
 This applies even for small tasks. Default to the step-by-step format unless the user explicitly asks for a discussion or a high-level answer.
 
@@ -28,5 +31,5 @@ This applies even for small tasks. Default to the step-by-step format unless the
 - Christmas-decor inventory web app for John, a Christmas Decor franchise owner
 - Single-tenant, single-warehouse, internal-only (no customer portal)
 - Stack: Next.js + Prisma + Postgres (Railway) + Jobber GraphQL API integration
-- The actual application code lives on the user's local Windows machine at `~/santas-stock` and is deployed to Railway. This GitHub repo (`jrn2525/santas-stock`) currently only holds branding + research assets.
+- The full application lives in this GitHub repo (`jrn2525/santas-stock`) on the `main` branch and is auto-deployed to Railway on every push to `main`. The user also develops locally on a Windows machine at `~/santas-stock`. The repo uses versioned Prisma migrations (`prisma/migrations/`) — change the schema with `npx prisma migrate dev`, not `db push`.
 - See `inventory-app-feature-research.pdf` for the full feature spec, phasing plan, and architecture decisions.
