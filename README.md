@@ -1,33 +1,52 @@
 # Santa's Stock
 
-Inventory management web app for Christmas Decor, with planned Jobber integration.
+Inventory + job-flow web app for a Christmas-decor business, integrated with
+Jobber. Tracks inventory items and kits (bills of materials), mirrors Jobber
+clients/jobs/visits/notes, and drives a full operational pipeline from
+allocation through inspection, completion, and season-over-season reuse.
 
-Phase 1 MVP scope (in progress): auth + 3 roles, items/categories/locations CRUD,
-CSV import/export, Jobber OAuth + read-only sync, basic admin dashboard.
+What's built today:
+
+- **Auth + roles** — email/password (NextAuth v5), four roles (Admin, Manager,
+  Crew, Guest), role-gated pages and actions, temp-password onboarding.
+- **Inventory** — Items and Kits CRUD, CSV import/export, low-stock thresholds,
+  Dead Stock and Replacement-queue reporting, vendor website links.
+- **Jobber sync** — OAuth + GraphQL client; one-click cascade sync of
+  Customers → Jobs → Visits → Notes; Products → Items / Services → Kits.
+- **Job Flow** — stage pipeline (Allocated → Built → Staged → Installed →
+  Inspection → Complete/Deactivated) with auto-allocation, shortage tracking,
+  per-component inspection, change orders, deactivation, and admin Reset.
+- **Year-2 lifecycle** — pre-built customer kits ("totes") persist at Complete
+  and are reused next season instead of re-allocating from raw stock.
+- **Dashboards + calendar** — job-flow and inventory dashboards, an
+  Eastern-Time Month/Week/Day calendar, and print-friendly reports throughout.
+
+For the detailed state of the codebase, read `SESSION_NOTES_2026-05-23.md`
+(the latest durable handoff) and `SAAS_CONVERSION_ROADMAP.md` (deferred
+multi-tenant plan).
 
 ## Stack
 
 - **Next.js 16** (App Router) + TypeScript
 - **Tailwind CSS**
-- **Prisma** ORM
+- **Prisma** ORM with versioned migrations (`prisma/migrations/`)
 - **PostgreSQL** (hosted on Railway)
 - **NextAuth.js** (Auth.js v5) with email/password credentials, JWT sessions, bcrypt-hashed passwords
-- Photo storage and background jobs: deferred to later passes
+- Photo storage and background jobs: deferred
 
 ## Getting started (Windows / PowerShell)
 
-### 1. Clone the branch
+### 1. Clone the repo
 
 ```powershell
-git clone -b claude/railway-docs-lookup-mm7zM https://github.com/jrn2525/santas-stock.git
+git clone https://github.com/jrn2525/santas-stock.git
 cd santas-stock
 ```
 
-If you already cloned the repo, just check out the branch:
+If you already cloned it, just sync `main`:
 
 ```powershell
-git fetch origin
-git checkout claude/railway-docs-lookup-mm7zM
+git checkout main
 git pull
 ```
 
@@ -59,13 +78,18 @@ Required values:
 
 Save, close Notepad.
 
-### 4. Push the Prisma schema to the Railway database
+### 4. Apply migrations to the database
+
+This project uses versioned Prisma migrations (not `db push`). Apply every
+committed migration to your database:
 
 ```powershell
-npm run db:push
+npx prisma migrate deploy
 ```
 
-You should see `Your database is now in sync with your Prisma schema.`
+You should see the migrations apply (or `No pending migrations to apply.` if
+the database is already up to date). See `prisma/migrations/README.md` for the
+day-to-day workflow when you change the schema.
 
 ### 5. Seed your admin user
 
@@ -91,10 +115,10 @@ your name and role displayed in the top right.
 | ------------------ | ------------------------------------------------ |
 | `npm run dev`      | Start the dev server on port 3000                |
 | `npm run build`    | Production build (also re-generates Prisma client) |
-| `npm run start`    | Run the production build                         |
+| `npm run start`    | Apply migrations (`prisma migrate deploy`) then run the production build |
 | `npm run typecheck`| TypeScript type check, no emit                   |
-| `npm run db:push`  | Sync `schema.prisma` to the database (no migrations) |
-| `npm run db:migrate` | Create + apply a versioned migration           |
+| `npm run db:migrate` | Create + apply a new migration (`prisma migrate dev`) — use this for schema changes |
+| `npm run db:push`  | Push schema without a migration. **Avoid against prod** — bypasses migration history |
 | `npm run db:studio`| Open Prisma Studio — a UI to browse/edit data    |
 | `npm run db:seed`  | Create / upsert the admin user from `.env`       |
 
@@ -102,46 +126,35 @@ your name and role displayed in the top right.
 
 ```
 prisma/
-  schema.prisma      ← database schema (Phase 1 + future tables)
+  schema.prisma      ← database schema
+  migrations/        ← versioned migrations (see migrations/README.md)
   seed.ts            ← creates the admin user from .env
 src/
   app/
-    api/auth/[...nextauth]/route.ts  ← NextAuth handler
-    sign-in/page.tsx                 ← public sign-in form
-    dashboard/page.tsx               ← protected home for signed-in users
-    unauthorized/page.tsx
-    layout.tsx, page.tsx, globals.css
+    (app)/           ← authenticated route group (shared layout + sidebar)
+      job-flow/      ← dashboard, jobs, pick list, calendar, inspection, etc.
+      inventory/     ← items, kits, import/export, dead-stock, replacements
+      admin/         ← overview, users, data cleanup (admin-only)
+      account/       ← profile + change password
+    api/             ← NextAuth handler, Jobber OAuth, CSV export
+    sign-in/, unauthorized/, layout.tsx, page.tsx, globals.css
+  components/        ← UI components (calendar, forms, job-flow/, admin/)
   lib/
     prisma.ts        ← shared Prisma client singleton
-    auth-helpers.ts  ← requireUser / requireRole
-  types/
-    next-auth.d.ts   ← Session/JWT type augmentation (id, role)
+    auth-helpers.ts  ← requireUser / requireRole / assertRoleForAction
+    actions/         ← server actions (items, kits, jobber, job-stages, …)
+    jobber/          ← OAuth + GraphQL client + sync logic
+    datetime.ts, job-flow.ts, format.ts
+  types/next-auth.d.ts  ← Session/JWT type augmentation (id, role, …)
   auth.config.ts     ← edge-safe NextAuth config (used by middleware)
   auth.ts            ← full NextAuth config (Credentials + bcrypt)
   middleware.ts      ← redirects unauthenticated users to /sign-in
 .env.example         ← template for .env
-.gitignore
-package.json
 ```
 
 ## Where things go from here
 
-Done so far:
-
-- ✅ Pass 1 — scaffold, Prisma schema, Postgres connectivity check
-- ✅ Pass 2 — NextAuth (email/password, JWT sessions, bcrypt), 3 roles,
-  protected routes, admin seed script, sign-in/sign-out, basic dashboard
-- ✅ Pass 3 — Items CRUD with role-gated controls, searchable item list,
-  sidebar nav, dashboard counts. Description and Location have collapsed
-  into inline text fields on Item; ProductType enum (Christmas / Landscape
-  / Permanent) replaces the structured Description model
-- ✅ Pass 3.1 — Kits (bills of materials): a Kit row plus a KitItem
-  junction table linking each kit to one-or-more Items with quantities.
-  Form has dynamic add/remove rows. Unit cost on Item is currency-formatted
-
-Next planned passes:
-
-4. CSV import/export
-5. Jobber OAuth + read-only client/property/job sync
-6. Admin dashboard with deeper KPIs and sync health
-7. Optional later: TOTP 2FA for admins (NextAuth WebAuthn or otp library)
+The original Phase 1–3 MVP is long shipped. For the current state of the
+codebase, the prioritized backlog, and intentionally-deferred items, read
+`SESSION_NOTES_2026-05-23.md`. The multi-tenant SaaS path is documented
+separately in `SAAS_CONVERSION_ROADMAP.md`.

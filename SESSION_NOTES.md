@@ -1,5 +1,11 @@
 # Session notes — 2026-05-19 (end of day)
 
+> **HISTORICAL — superseded by `SESSION_NOTES_2026-05-23.md`.** This was the
+> first handoff doc. Everything described as "pending" below (notably the
+> `Item.minQuantity` `db:push` step) was applied long ago, and the project has
+> since moved off `prisma db push` onto versioned migrations. Kept for history;
+> do not act on the deploy steps here.
+
 Single handoff document for picking up in another session. Read top-to-bottom.
 
 ## Where we are
