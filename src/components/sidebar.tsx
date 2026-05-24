@@ -16,11 +16,11 @@ type NavItem = {
 const jobFlowNav: NavItem[] = [
   { href: "/job-flow/dashboard", label: "Dashboard" },
   { href: "/job-flow/job-flows", label: "Job Flow" },
-  { href: "/job-flow/deactivations", label: "Deactivations" },
   { href: "/job-flow/jobs", label: "Jobs" },
   { href: "/job-flow/pick-list", label: "Pick List" },
   { href: "/job-flow/calendar", label: "Calendar" },
   { href: "/job-flow/jobber", label: "Jobber", visibleTo: ["ADMIN", "MANAGER"] },
+  { href: "/job-flow/deactivations", label: "Deactivations" },
 ];
 
 const inventoryNav: NavItem[] = [
