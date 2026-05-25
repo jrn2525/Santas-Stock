@@ -13,6 +13,11 @@
 - Do not bury action items inside paragraphs of explanation
 - If explanation is needed, put it in a short "Why" line after the step, not before
 
+## Git workflow (REQUIRED)
+
+- **Everything is committed and pushed directly to the `main` branch.** Every push to `main` auto-deploys to Railway.
+- **Do NOT create feature branches or any new branches.** Work on `main` only.
+
 ## Known URLs / endpoints
 
 - Production app: https://santas-stock-santas-stock-dev.up.railway.app
