@@ -38,7 +38,8 @@ export function CalendarMonthView({
   }
 
   return (
-    <div className="mt-4 overflow-hidden rounded-lg border border-rule">
+    <div className="mt-4 overflow-x-auto rounded-lg border border-rule">
+      <div className="min-w-[42rem]">
       <div className="grid grid-cols-7 bg-card text-center text-xs uppercase tracking-wider text-ink-dim">
         {DAY_NAMES.map((d) => (
           <div key={d} className="px-2 py-2">
@@ -94,6 +95,7 @@ export function CalendarMonthView({
             </div>
           );
         })}
+      </div>
       </div>
     </div>
   );

@@ -51,7 +51,8 @@ export function CalendarWeekView({
   );
 
   return (
-    <div className="mt-4 overflow-hidden rounded-lg border border-rule bg-canvas">
+    <div className="mt-4 overflow-x-auto rounded-lg border border-rule bg-canvas">
+      <div className="min-w-[48rem]">
       {/* Header row: day names + dates */}
       <div className="grid border-b border-rule" style={{ gridTemplateColumns: "60px repeat(7, 1fr)" }}>
         <div className="bg-card" />
@@ -175,6 +176,7 @@ export function CalendarWeekView({
             );
           });
         })}
+      </div>
       </div>
     </div>
   );

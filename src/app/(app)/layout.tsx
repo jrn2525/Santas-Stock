@@ -22,8 +22,8 @@ export default async function AppLayout({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="flex items-center justify-between border-b border-rule bg-sidebar px-6 py-4">
-        <div className="flex items-center gap-6">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-rule bg-sidebar px-4 py-4 lg:px-6">
+        <div className="flex items-center gap-3 lg:gap-6">
           <Link href="/job-flow/dashboard" className="block">
             <Image
               src="/logo.png"
@@ -31,7 +31,7 @@ export default async function AppLayout({
               width={160}
               height={160}
               priority
-              className="h-auto w-32"
+              className="h-auto w-24 lg:w-32"
             />
           </Link>
           <WorkspaceTabs role={user.role} />
@@ -57,11 +57,16 @@ export default async function AppLayout({
         </div>
       </header>
 
+      {/* Mobile nav: the sidebar collapses to a scrollable top bar below lg. */}
+      <nav className="border-b border-rule bg-sidebar lg:hidden">
+        <Sidebar role={user.role} orientation="horizontal" />
+      </nav>
+
       <div className="flex flex-1">
-        <aside className="flex w-56 shrink-0 flex-col border-r border-rule bg-sidebar">
+        <aside className="hidden w-56 shrink-0 flex-col border-r border-rule bg-sidebar lg:flex">
           <Sidebar role={user.role} />
         </aside>
-        <main className="flex-1 px-8 py-8">
+        <main className="min-w-0 flex-1 px-4 py-6 lg:px-8 lg:py-8">
           {user.role === "GUEST" && <DemoBanner />}
           {children}
         </main>
