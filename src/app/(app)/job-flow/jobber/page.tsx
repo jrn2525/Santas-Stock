@@ -37,6 +37,23 @@ export default async function JobberPage({
     include: { connectedBy: { select: { name: true, email: true } } },
   });
 
+  // Recent webhook deliveries Jobber pushed to /api/jobber/webhook. Only
+  // signature-verified events are recorded, so this also tells us whether
+  // Jobber is actually reaching the app.
+  const recentEvents = await prisma.syncEvent.findMany({
+    where: { source: "jobber" },
+    orderBy: { createdAt: "desc" },
+    take: 15,
+    select: {
+      id: true,
+      eventType: true,
+      status: true,
+      error: true,
+      createdAt: true,
+      processedAt: true,
+    },
+  });
+
   const errorMsg = params.error ? errorMessages[params.error] ?? params.error : null;
   const justConnected = params.connected === "1";
 
@@ -137,6 +154,50 @@ export default async function JobberPage({
         </section>
       )}
 
+      <section className="mt-6 rounded-lg border border-rule bg-card p-6">
+        <h2 className="text-lg font-semibold text-ink">Recent webhook events</h2>
+        <p className="mt-1 text-sm text-ink-dim">
+          Live changes Jobber pushed to this app (newest first). If you change
+          something in Jobber and nothing shows up here within a minute, then
+          Jobber isn&apos;t reaching the app — the problem is webhook delivery,
+          not the sync.
+        </p>
+        {recentEvents.length === 0 ? (
+          <p className="mt-4 text-sm text-ink-dim">
+            No webhook events received yet.
+          </p>
+        ) : (
+          <div className="mt-4 overflow-x-auto rounded-lg border border-rule">
+            <table className="w-full min-w-[40rem] text-sm">
+              <thead className="bg-canvas text-left text-xs uppercase tracking-wider text-ink-dim">
+                <tr>
+                  <th className="px-4 py-2">Received</th>
+                  <th className="px-4 py-2">Event</th>
+                  <th className="px-4 py-2">Status</th>
+                  <th className="px-4 py-2">Detail</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-rule">
+                {recentEvents.map((e) => (
+                  <tr key={e.id} className="text-ink">
+                    <td className="px-4 py-2 whitespace-nowrap text-ink-dim">
+                      {dateFormatter.format(e.createdAt)}
+                    </td>
+                    <td className="px-4 py-2 font-medium">{e.eventType}</td>
+                    <td className="px-4 py-2">
+                      <span className={statusClass(e.status)}>{e.status}</span>
+                    </td>
+                    <td className="px-4 py-2 text-xs text-ink-dim">
+                      {e.error ?? (e.processedAt ? "Synced" : "—")}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
       <section className="mt-6 text-xs text-ink-dim">
         <p>
           Need to change Jobber app settings? Visit{" "}
@@ -152,6 +213,12 @@ export default async function JobberPage({
       </section>
     </>
   );
+}
+
+function statusClass(status: string): string {
+  if (status === "PROCESSED") return "font-medium text-green-400";
+  if (status === "FAILED") return "font-medium text-brand";
+  return "text-ink-dim"; // PENDING
 }
 
 function Pair({ label, value }: { label: string; value: string }) {
