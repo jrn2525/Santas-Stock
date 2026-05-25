@@ -2,11 +2,10 @@ import Link from "next/link";
 import type { CustomerEra, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
+import { getSettings } from "@/lib/settings";
 import { Pagination, parsePageParam } from "@/components/pagination";
 
 export const dynamic = "force-dynamic";
-
-const PAGE_SIZE = 50;
 
 function statusBadge(
   active: boolean,
@@ -30,6 +29,7 @@ export default async function ClientsPage({
   searchParams: Promise<{ q?: string; status?: string; page?: string }>;
 }) {
   await requireUser();
+  const { defaultPageSize: PAGE_SIZE } = await getSettings();
   const { q, status, page: pageParam } = await searchParams;
   const query = q?.trim() ?? "";
   // status filter: "active" (default), "inactive", or "all"

@@ -2,11 +2,10 @@ import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
+import { getSettings } from "@/lib/settings";
 import { Pagination, parsePageParam } from "@/components/pagination";
 
 export const dynamic = "force-dynamic";
-
-const PAGE_SIZE = 50;
 
 const dateFmt = new Intl.DateTimeFormat("en-US", {
   weekday: "short",
@@ -28,11 +27,16 @@ export default async function PickListIndexPage({
   searchParams: Promise<{ q?: string; range?: string; page?: string }>;
 }) {
   await requireUser();
+  const { defaultPageSize: PAGE_SIZE, pickListDefaultWindow } =
+    await getSettings();
   const { q, range, page: pageParam } = await searchParams;
   const query = q?.trim() ?? "";
-  // Date window: "week" (next 7 days) / "month" / "all" (default).
+  // Date window: "week" (next 7 days) / "month" / "all". Falls back to the
+  // admin-configured default when no explicit range is in the URL.
   const dateRange =
-    range === "week" || range === "month" ? range : "all";
+    range === "week" || range === "month" || range === "all"
+      ? range
+      : pickListDefaultWindow;
   const page = parsePageParam(pageParam);
 
   const now = new Date();
@@ -155,7 +159,7 @@ export default async function PickListIndexPage({
         >
           Apply
         </button>
-        {(query || dateRange !== "all") && (
+        {(query || dateRange !== pickListDefaultWindow) && (
           <Link
             href="/job-flow/pick-list"
             className="rounded-md border border-rule bg-canvas px-4 py-2 text-sm font-medium text-ink hover:border-brand"
@@ -255,7 +259,7 @@ export default async function PickListIndexPage({
         preserved={Object.fromEntries(
           Object.entries({
             q: query,
-            range: dateRange === "all" ? "" : dateRange,
+            range: dateRange === pickListDefaultWindow ? "" : dateRange,
           }).filter(([, v]) => v !== ""),
         )}
       />

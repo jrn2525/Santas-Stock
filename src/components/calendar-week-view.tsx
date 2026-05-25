@@ -21,9 +21,13 @@ const HOUR_HEIGHT = 56;
 export function CalendarWeekView({
   anchor,
   visits,
+  hourStart: defaultStart,
+  hourEnd: defaultEnd,
 }: {
   anchor: Date;
   visits: CalendarVisit[];
+  hourStart?: number;
+  hourEnd?: number;
 }) {
   const weekStart = startOfWeekET(anchor);
   const days: Date[] = Array.from({ length: 7 }, (_, i) => addDaysET(weekStart, i));
@@ -44,7 +48,11 @@ export function CalendarWeekView({
 
   // Fit the hour grid to this week's timed visits (defaults to 7 AM–9 PM).
   const weekTimed = days.flatMap((d) => byDay.get(formatDateParam(d))!.timed);
-  const { start: hourStart, end: hourEnd } = computeHourRange(weekTimed);
+  const { start: hourStart, end: hourEnd } = computeHourRange(
+    weekTimed,
+    defaultStart,
+    defaultEnd,
+  );
   const hours = Array.from(
     { length: hourEnd - hourStart },
     (_, i) => hourStart + i,

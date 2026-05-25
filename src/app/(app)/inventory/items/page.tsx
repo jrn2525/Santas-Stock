@@ -2,14 +2,13 @@ import Link from "next/link";
 import { ItemStatus, type Prisma, ProductType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
+import { getSettings } from "@/lib/settings";
 import { deleteItem } from "@/lib/actions/items";
 import { DeleteButton } from "@/components/delete-button";
 import { to2Dp } from "@/lib/format";
 import { Pagination, parsePageParam } from "@/components/pagination";
 
 export const dynamic = "force-dynamic";
-
-const PAGE_SIZE = 50;
 
 const statusLabels: Record<ItemStatus, string> = {
   AVAILABLE: "Available",
@@ -33,6 +32,7 @@ export default async function ItemsPage({
   searchParams: Promise<{ q?: string; page?: string }>;
 }) {
   const user = await requireUser();
+  const { defaultPageSize: PAGE_SIZE } = await getSettings();
   const canWrite = user.role === "ADMIN" || user.role === "MANAGER";
   const { q, page: pageParam } = await searchParams;
   const query = q?.trim() ?? "";

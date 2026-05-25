@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
+import { getSettings } from "@/lib/settings";
 import { addDaysET, startOfDayET, todayET } from "@/lib/datetime";
 import { to2Dp } from "@/lib/format";
 
@@ -8,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function InventoryDashboardPage() {
   await requireUser();
+  const { lowStockDefaultThreshold } = await getSettings();
 
   const today = todayET();
   const todayStart = startOfDayET(today);
@@ -39,10 +41,15 @@ export default async function InventoryDashboardPage() {
 
   const totalQty = totalQtyAgg._sum.quantity ?? 0;
 
-  // Low stock — items where quantity is at or below their threshold (and the
-  // threshold has been set to something meaningful).
+  // Low stock — items at or below their effective threshold: their own
+  // minQuantity if set, otherwise the global default from Settings. A threshold
+  // of 0 means "no alert".
   const lowStock = allActive
-    .filter((i) => i.minQuantity > 0 && i.quantity <= i.minQuantity)
+    .map((i) => ({
+      ...i,
+      threshold: i.minQuantity > 0 ? i.minQuantity : lowStockDefaultThreshold,
+    }))
+    .filter((i) => i.threshold > 0 && i.quantity <= i.threshold)
     .sort((a, b) => a.quantity - b.quantity || a.name.localeCompare(b.name));
 
   // Materials demand for upcoming week (same logic as Job Flow dashboard,
@@ -129,7 +136,8 @@ export default async function InventoryDashboardPage() {
 
         {lowStock.length === 0 ? (
           <p className="mt-3 text-sm text-ink-dim">
-            Nothing low. Set a minimum quantity on each Item to enable this alert.
+            Nothing low. Set a minimum quantity per item, or a global default in
+            Settings, to enable this alert.
           </p>
         ) : (
           <ul className="mt-3 divide-y divide-rule text-sm">
@@ -148,7 +156,7 @@ export default async function InventoryDashboardPage() {
                   <span className={i.quantity === 0 ? "text-brand font-semibold" : "text-ink"}>
                     {to2Dp(i.quantity)}
                   </span>
-                  <span className="opacity-70"> / min {i.minQuantity}</span>
+                  <span className="opacity-70"> / min {i.threshold}</span>
                 </div>
               </li>
             ))}

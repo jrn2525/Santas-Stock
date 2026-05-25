@@ -26,12 +26,16 @@ export const DEFAULT_HOUR_END = 21;
  * of being clamped to (or hidden at) the edge. Returns whole hours in
  * [0, 24]. All-day and start-less visits are ignored.
  */
-export function computeHourRange(visits: CalendarVisit[]): {
+export function computeHourRange(
+  visits: CalendarVisit[],
+  defaultStart: number = DEFAULT_HOUR_START,
+  defaultEnd: number = DEFAULT_HOUR_END,
+): {
   start: number;
   end: number;
 } {
-  let start = DEFAULT_HOUR_START;
-  let end = DEFAULT_HOUR_END;
+  let start = defaultStart;
+  let end = defaultEnd;
 
   for (const v of visits) {
     if (!v.startAt) continue;

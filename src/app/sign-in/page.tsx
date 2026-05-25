@@ -2,6 +2,10 @@ import { redirect } from "next/navigation";
 import Image from "next/image";
 import { AuthError } from "next-auth";
 import { signIn } from "@/auth";
+import { getSettings, logoUrl } from "@/lib/settings";
+
+// Render per-request so a changed logo / business name shows without a rebuild.
+export const dynamic = "force-dynamic";
 
 const errorMessages: Record<string, string> = {
   CredentialsSignin: "Invalid email or password.",
@@ -16,6 +20,7 @@ export default async function SignInPage({
 }) {
   const { error } = await searchParams;
   const message = error ? errorMessages[error] ?? errorMessages.default : null;
+  const settings = await getSettings();
 
   async function action(formData: FormData) {
     "use server";
@@ -36,14 +41,23 @@ export default async function SignInPage({
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
       <div className="mb-6 flex justify-center">
-        <Image
-          src="/logo.png"
-          alt="Santa's Stock"
-          width={320}
-          height={320}
-          priority
-          className="h-auto w-80"
-        />
+        {settings.hasCustomLogo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={logoUrl(settings.logoVersion)}
+            alt={settings.businessName}
+            className="h-auto w-80"
+          />
+        ) : (
+          <Image
+            src="/logo.png"
+            alt={settings.businessName}
+            width={320}
+            height={320}
+            priority
+            className="h-auto w-80"
+          />
+        )}
       </div>
 
       <p className="text-center text-sm text-ink-dim">Sign in to continue.</p>

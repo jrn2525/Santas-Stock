@@ -15,9 +15,13 @@ const HOUR_HEIGHT = 64;
 export function CalendarDayView({
   anchor,
   visits,
+  hourStart: defaultStart,
+  hourEnd: defaultEnd,
 }: {
   anchor: Date;
   visits: CalendarVisit[];
+  hourStart?: number;
+  hourEnd?: number;
 }) {
   const dayKey = formatDateParam(anchor);
   const isToday = isSameETDay(anchor, todayET());
@@ -26,7 +30,11 @@ export function CalendarDayView({
   );
   const allDay = dayVisits.filter((v) => v.startAt && isAllDayVisit(v.startAt, v.endAt));
   const timed = dayVisits.filter((v) => v.startAt && !isAllDayVisit(v.startAt, v.endAt));
-  const { start: hourStart, end: hourEnd } = computeHourRange(timed);
+  const { start: hourStart, end: hourEnd } = computeHourRange(
+    timed,
+    defaultStart,
+    defaultEnd,
+  );
   const hours = Array.from(
     { length: hourEnd - hourStart },
     (_, i) => hourStart + i,

@@ -1,10 +1,14 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { getSettings } from "@/lib/settings";
 
-export const metadata: Metadata = {
-  title: "Santa's Stock",
-  description: "Inventory management for Christmas Decor",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await getSettings();
+  return {
+    title: settings.businessName,
+    description: "Inventory management for Christmas Decor",
+  };
+}
 
 export default function RootLayout({
   children,

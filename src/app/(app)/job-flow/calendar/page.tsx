@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
+import { getSettings } from "@/lib/settings";
 import {
   addDaysET,
   endOfMonthGridET,
@@ -23,9 +24,12 @@ import { CalendarDayView } from "@/components/calendar-day-view";
 
 export const dynamic = "force-dynamic";
 
-function parseView(s: string | undefined): CalendarView {
-  if (s === "month" || s === "day") return s;
-  return "week";
+function parseView(
+  s: string | undefined,
+  fallback: CalendarView,
+): CalendarView {
+  if (s === "month" || s === "day" || s === "week") return s;
+  return fallback;
 }
 
 export default async function CalendarPage({
@@ -34,8 +38,9 @@ export default async function CalendarPage({
   searchParams: Promise<{ view?: string; date?: string }>;
 }) {
   await requireUser();
+  const settings = await getSettings();
   const { view: viewParam, date: dateParam } = await searchParams;
-  const view = parseView(viewParam);
+  const view = parseView(viewParam, settings.calendarDefaultView);
   const anchor = parseDateParam(dateParam);
 
   let rangeStart: Date;
@@ -92,10 +97,20 @@ export default async function CalendarPage({
           <CalendarMonthView anchor={anchor} visits={visits} />
         )}
         {view === "week" && (
-          <CalendarWeekView anchor={anchor} visits={visits} />
+          <CalendarWeekView
+            anchor={anchor}
+            visits={visits}
+            hourStart={settings.calendarHourStart}
+            hourEnd={settings.calendarHourEnd}
+          />
         )}
         {view === "day" && (
-          <CalendarDayView anchor={anchor} visits={visits} />
+          <CalendarDayView
+            anchor={anchor}
+            visits={visits}
+            hourStart={settings.calendarHourStart}
+            hourEnd={settings.calendarHourEnd}
+          />
         )}
       </div>
     </>
