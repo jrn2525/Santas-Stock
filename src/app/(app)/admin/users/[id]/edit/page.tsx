@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ADMIN_ROLES, requireRole } from "@/lib/auth-helpers";
 import { EditUserForm } from "@/components/user-form";
 import { ResetPasswordButton } from "@/components/reset-password-button";
+import { DeleteUserButton } from "@/components/delete-user-button";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,18 @@ export default async function EditUserPage({
         </p>
         <div className="mt-4">
           <ResetPasswordButton userId={user.id} userEmail={user.email} />
+        </div>
+      </section>
+
+      <section className="mt-10 rounded-lg border border-red-700/40 bg-red-900/10 p-6">
+        <h2 className="text-lg font-semibold text-ink">Delete user</h2>
+        <p className="mt-1 text-sm text-ink-dim">
+          Permanently remove this account. They&apos;ll no longer be able to
+          sign in. Past activity stays in the records but is no longer
+          attributed to them. This cannot be undone.
+        </p>
+        <div className="mt-4">
+          <DeleteUserButton userId={user.id} userEmail={user.email} />
         </div>
       </section>
     </>
