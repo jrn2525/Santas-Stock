@@ -123,6 +123,12 @@ model User {
 // model of an internal single-franchise app, revisit before multi-tenant.
 model JobberConnection {
   id              String   @id @default(cuid())
+  /// Enforces the single-tenant invariant: this column always holds the
+  /// constant "singleton" (never set it explicitly), and the unique
+  /// constraint means a second row can never be inserted. The connect flow
+  /// deletes the existing row before creating a new one, so the constraint
+  /// only ever fires to block an accidental concurrent duplicate.
+  singleton       String   @unique @default("singleton")
   jobberAccountId String?
   accountName     String?
   accessToken     String
