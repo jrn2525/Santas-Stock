@@ -30,6 +30,7 @@ export default async function PickListDetailPage({
     include: {
       client: true,
       property: true,
+      visits: { orderBy: [{ startAt: "asc" }] },
       lineItems: {
         orderBy: [{ position: "asc" }],
         include: {
@@ -50,6 +51,16 @@ export default async function PickListDetailPage({
   if (!job) notFound();
 
   const pickListLines = lineItemsToPickListLines(job.lineItems);
+
+  // Consolidated crew instructions for the printout: the job's own plus each
+  // visit's, deduped so shared text isn't repeated.
+  const instructions = Array.from(
+    new Set(
+      [job.instructions, ...job.visits.map((v) => v.instructions)]
+        .map((s) => s?.trim())
+        .filter((s): s is string => !!s),
+    ),
+  );
 
   return (
     <>
@@ -78,6 +89,22 @@ export default async function PickListDetailPage({
           <PrintButton />
         </div>
       </header>
+
+      {instructions.length > 0 && (
+        <section className="mt-8 rounded-lg border border-rule bg-card p-6 print-block">
+          <h2 className="text-lg font-semibold text-ink">Instructions</h2>
+          <div className="mt-3 space-y-3">
+            {instructions.map((ins) => (
+              <p
+                key={ins}
+                className="text-sm text-ink whitespace-pre-line"
+              >
+                {ins}
+              </p>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="mt-8 rounded-lg border border-rule bg-card p-6 print-block">
         <header>

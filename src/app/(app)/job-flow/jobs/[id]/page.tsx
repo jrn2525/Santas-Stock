@@ -88,6 +88,18 @@ export default async function JobDetailPage({
     return bT - aT;
   });
 
+  // Crew instructions live on the visit in Jobber, separate from the job's own
+  // instructions. Show them, deduped and excluding any that just repeat the
+  // job instructions.
+  const jobInstructions = job.instructions?.trim() || null;
+  const visitInstructions = Array.from(
+    new Set(
+      job.visits
+        .map((v) => v.instructions?.trim())
+        .filter((s): s is string => !!s && s !== jobInstructions),
+    ),
+  );
+
   const pickListLines = lineItemsToPickListLines(job.lineItems);
 
   // Customer tote summary: how many kit copies this client has across
@@ -281,7 +293,7 @@ export default async function JobDetailPage({
             }))}
           />
 
-          {(job.description || job.instructions) && (
+          {(job.description || job.instructions || visitInstructions.length > 0) && (
             <section className="rounded-lg border border-rule bg-card p-6 print-block">
               <h2 className="text-lg font-semibold text-ink">Details</h2>
               {job.description && (
@@ -302,6 +314,21 @@ export default async function JobDetailPage({
                   <p className="mt-1 text-sm text-ink whitespace-pre-line">
                     {job.instructions}
                   </p>
+                </div>
+              )}
+              {visitInstructions.length > 0 && (
+                <div className="mt-3">
+                  <h3 className="text-xs uppercase tracking-wider text-ink-dim">
+                    Visit instructions
+                  </h3>
+                  {visitInstructions.map((ins) => (
+                    <p
+                      key={ins}
+                      className="mt-1 text-sm text-ink whitespace-pre-line"
+                    >
+                      {ins}
+                    </p>
+                  ))}
                 </div>
               )}
             </section>
