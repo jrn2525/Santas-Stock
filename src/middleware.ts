@@ -7,6 +7,6 @@ export default auth;
 
 export const config = {
   matcher: [
-    "/((?!api/auth|api/branding|_next/static|_next/image|favicon.ico|.*\\.png$).*)",
+    "/((?!api/auth|api/branding|api/jobber/webhook|_next/static|_next/image|favicon.ico|.*\\.png$).*)",
   ],
 };
