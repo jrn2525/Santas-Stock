@@ -8,6 +8,7 @@
 - One concrete action per step (a single command, a single click, a single edit)
 - Show exact commands in fenced code blocks — no "or you could..." alternatives
 - **Always include URLs explicitly inline.** Never say "open the app" or "go to the Jobber page" without pasting the full URL right there in the step. The user shouldn't have to scroll up or remember anything.
+- **Never wrap a URL in angle brackets `< >`, code fences, or any other characters.** Paste the raw URL as plain text so the user can copy it without deleting anything.
 - **Always include exact button/menu names** as they appear in the UI ("click the red **Sync now** button", not "trigger the sync").
 - After the steps, state exactly what to report back ("paste the output of X", "tell me the result line")
 - Do not bury action items inside paragraphs of explanation
