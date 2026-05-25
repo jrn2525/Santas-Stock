@@ -509,6 +509,7 @@ model JobLineItem {
   shortages           JobLineShortage[]
   inspectionDecision  InspectionLineDecision?
   componentDecisions  InspectionComponentDecision[]
+  replacementEntries  ReplacementQueue[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -585,6 +586,12 @@ model ReplacementQueue {
   id               String                 @id @default(cuid())
   itemId           String
   item             Item                   @relation(fields: [itemId], references: [id])
+  /// Source inspection line, when this entry was auto-created during
+  /// inspection. Lets a re-save recompute the unresolved queue rows for
+  /// the line (so changing a repair quantity doesn't strand stale rows).
+  /// Null for manually-created or legacy entries.
+  jobLineItemId    String?
+  jobLineItem      JobLineItem?           @relation(fields: [jobLineItemId], references: [id], onDelete: SetNull)
   /// How many units of this item need to be replaced/replenished.
   quantity         Int                    @default(1)
   reason           String
@@ -599,6 +606,7 @@ model ReplacementQueue {
 
   @@index([itemId])
   @@index([resolution])
+  @@index([jobLineItemId])
 }
 
 model MaintenanceTicket {

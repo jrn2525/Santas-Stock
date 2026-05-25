@@ -45,7 +45,10 @@ export async function assertRoleForAction(allowed: Role | Role[]) {
   }
   const list = Array.isArray(allowed) ? allowed : [allowed];
   if (!list.includes(dbUser.role)) {
-    throw new Error("You do not have permission to perform this action.");
+    const need = list.map(roleLabel).join(" or ");
+    throw new Error(
+      `You don't have permission to do this — it requires the ${need} role. You're signed in as ${roleLabel(dbUser.role)}.`,
+    );
   }
   return { ...session.user, role: dbUser.role };
 }

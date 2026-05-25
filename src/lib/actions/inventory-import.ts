@@ -163,6 +163,13 @@ function nullableStr(raw: string): string | null {
   return t === "" ? null : t;
 }
 
+// Kit recipes reference component items by name. CSV editors silently
+// re-case or collapse whitespace, so an exact compare would fail to link a
+// recipe to its item. Normalize both sides for the kit→item lookup.
+function normalizeName(s: string): string {
+  return s.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
 type ColMap = Map<HeaderKey, number>;
 
 function buildColMap(header: string[]): ColMap {
@@ -304,6 +311,13 @@ export async function importInventoryCsv(
   const itemIdByName = new Map<string, string>(
     existingItems.map((e) => [e.name, e.id]),
   );
+  // Normalized index for resolving kit-recipe item references tolerantly.
+  // First-wins so a later duplicate doesn't shadow the original.
+  const itemIdByNormName = new Map<string, string>();
+  for (const e of existingItems) {
+    const key = normalizeName(e.name);
+    if (!itemIdByNormName.has(key)) itemIdByNormName.set(key, e.id);
+  }
   const kitIdByName = new Map<string, string>(
     existingKits.map((e) => [e.name, e.id]),
   );
@@ -353,6 +367,10 @@ export async function importInventoryCsv(
       } else {
         const created = await prisma.item.create({ data });
         itemIdByName.set(name, created.id);
+        const normKey = normalizeName(name);
+        if (!itemIdByNormName.has(normKey)) {
+          itemIdByNormName.set(normKey, created.id);
+        }
         summary.items.created++;
       }
     } catch (err) {
@@ -375,7 +393,9 @@ export async function importInventoryCsv(
       const itemName = readCell(cells, slot.nameIdx);
       if (!itemName) continue;
       const qty = parseQty(readCell(cells, slot.qtyIdx));
-      const itemId = itemIdByName.get(itemName);
+      const itemId =
+        itemIdByName.get(itemName) ??
+        itemIdByNormName.get(normalizeName(itemName));
       if (!itemId) {
         summary.errors.push({
           row: rowNum,
