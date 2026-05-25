@@ -219,6 +219,64 @@ export async function resetUserPassword(
   return { tempPassword };
 }
 
+/**
+ * Permanently delete a user. ADMIN only, and requires the confirmation
+ * token "DELETE" (the UI gates this behind a two-step confirm). Guards
+ * against deleting your own account or the last remaining Admin. History
+ * rows that reference the user (stage events, decisions, change orders,
+ * etc.) keep their data — their FK is ON DELETE SET NULL, so attribution
+ * is simply dropped.
+ */
+export async function deleteUser(
+  userId: string,
+  confirmation: string,
+): Promise<{ ok: boolean; error?: string }> {
+  await assertRoleForAction(ADMIN_ROLES);
+
+  if (confirmation !== "DELETE") {
+    return { ok: false, error: 'Type DELETE to confirm.' };
+  }
+
+  const session = await auth();
+  if (session?.user?.id === userId) {
+    return { ok: false, error: "You can't delete your own account." };
+  }
+
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+  if (!target) {
+    return { ok: false, error: "User not found." };
+  }
+
+  if (target.role === "ADMIN") {
+    const adminCount = await prisma.user.count({ where: { role: "ADMIN" } });
+    if (adminCount <= 1) {
+      return {
+        ok: false,
+        error: "This is the only Admin. Create another Admin before deleting this one.",
+      };
+    }
+  }
+
+  try {
+    await prisma.user.delete({ where: { id: userId } });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2003") {
+      return {
+        ok: false,
+        error: "This user is referenced by records that block deletion.",
+      };
+    }
+    throw err;
+  }
+
+  revalidatePath("/admin/users");
+  revalidatePath("/admin/overview");
+  return { ok: true };
+}
+
 const ChangePasswordSchema = z
   .object({
     currentPassword: z.string().min(1, "Enter your current password."),
