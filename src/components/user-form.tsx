@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Role } from "@prisma/client";
 import {
   createUser,
@@ -25,6 +25,7 @@ export function NewUserForm() {
     CreateUserState,
     FormData
   >(createUser, emptyCreateState);
+  const [role, setRole] = useState<Role>("USER");
 
   if (state.tempPassword) {
     return <TempPasswordReveal tempPassword={state.tempPassword} />;
@@ -32,7 +33,38 @@ export function NewUserForm() {
 
   return (
     <form action={formAction} className="mt-6 max-w-2xl space-y-6">
-      <Identity errors={state.errors} />
+      <Identity errors={state.errors} onRoleChange={setRole} />
+
+      {role === "GUEST" && (
+        <fieldset className="rounded-md border border-rule bg-card p-5">
+          <legend className="px-1 text-sm font-medium text-ink">
+            Guest password
+          </legend>
+          <label
+            htmlFor="password"
+            className="block text-sm font-medium text-ink"
+          >
+            Password <span className="ml-0.5 text-brand">*</span>
+          </label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            required
+            minLength={8}
+            className="mt-1 block w-full rounded-md border border-rule bg-canvas px-3 py-2 text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+          />
+          <p className="mt-2 text-xs text-ink-dim">
+            You choose this password for the Guest demo account (at least 8
+            characters). Other roles get an auto-generated temporary password.
+          </p>
+          {state.errors.password?.map((e) => (
+            <p key={e} className="mt-1 text-xs text-brand">
+              {e}
+            </p>
+          ))}
+        </fieldset>
+      )}
 
       {state.message && <p className="text-sm text-brand">{state.message}</p>}
 
@@ -116,9 +148,11 @@ export function EditUserForm({ user }: { user: EditableUser }) {
 function Identity({
   errors,
   defaults,
+  onRoleChange,
 }: {
   errors: Record<string, string[]>;
   defaults?: { name: string; email: string; role: Role };
+  onRoleChange?: (role: Role) => void;
 }) {
   return (
     <fieldset className="rounded-md border border-rule bg-card p-5">
@@ -150,6 +184,7 @@ function Identity({
             id="role"
             name="role"
             defaultValue={defaults?.role ?? "USER"}
+            onChange={(e) => onRoleChange?.(e.target.value as Role)}
             required
             className="mt-1 block w-full rounded-md border border-rule bg-canvas px-3 py-2 text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
           >

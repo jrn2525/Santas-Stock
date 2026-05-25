@@ -68,8 +68,26 @@ export async function createUser(
     return { errors: parsed.error.flatten().fieldErrors, message: null };
   }
 
-  const tempPassword = generateTempPassword();
-  const passwordHash = await bcrypt.hash(tempPassword, 10);
+  // GUEST is a shared demo account: the admin types its password directly
+  // on the form and it's never forced to change (handed out and reused
+  // as-is). Every other role gets an auto-generated temporary password and
+  // bounces to /account/change-password on first login.
+  const isGuest = parsed.data.role === "GUEST";
+  let password: string;
+  if (isGuest) {
+    const raw = formData.get("password");
+    const guestPassword = typeof raw === "string" ? raw : "";
+    if (guestPassword.length < 8) {
+      return {
+        errors: { password: ["Guest password must be at least 8 characters."] },
+        message: null,
+      };
+    }
+    password = guestPassword;
+  } else {
+    password = generateTempPassword();
+  }
+  const passwordHash = await bcrypt.hash(password, 10);
 
   let created;
   try {
@@ -79,10 +97,7 @@ export async function createUser(
         name: parsed.data.name.trim(),
         role: parsed.data.role,
         passwordHash,
-        // GUEST is a shared demo account — skip the forced password
-        // change so it can be handed out and reused as-is. Every other
-        // role bounces to /account/change-password on first login.
-        mustChangePassword: parsed.data.role !== "GUEST",
+        mustChangePassword: !isGuest,
         active: true,
       },
       select: { id: true },
@@ -96,10 +111,17 @@ export async function createUser(
 
   revalidatePath("/admin/users");
   revalidatePath("/admin/overview");
+
+  // GUEST: the admin already knows the password they just typed, so skip
+  // the temp-password reveal and return to the user list.
+  if (isGuest) {
+    redirect("/admin/users");
+  }
+
   return {
     errors: {},
     message: null,
-    tempPassword,
+    tempPassword: password,
     createdUserId: created.id,
   };
 }
