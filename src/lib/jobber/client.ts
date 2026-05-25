@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import {
   computeTokenExpiry,
   extractScopes,
@@ -30,15 +31,15 @@ async function getValidAccessToken(): Promise<string> {
   const expiringSoon =
     conn.expiresAt.getTime() < Date.now() + REFRESH_THRESHOLD_MS;
   if (!expiringSoon) {
-    return conn.accessToken;
+    return decryptSecret(conn.accessToken);
   }
 
-  const fresh = await refreshAccessToken(conn.refreshToken);
+  const fresh = await refreshAccessToken(decryptSecret(conn.refreshToken));
   await prisma.jobberConnection.update({
     where: { id: conn.id },
     data: {
-      accessToken: fresh.access_token,
-      refreshToken: fresh.refresh_token,
+      accessToken: encryptSecret(fresh.access_token),
+      refreshToken: encryptSecret(fresh.refresh_token),
       expiresAt: computeTokenExpiry(fresh),
       scopes: extractScopes(fresh),
     },
