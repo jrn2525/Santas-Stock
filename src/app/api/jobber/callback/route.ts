@@ -9,6 +9,7 @@ import {
   extractScopes,
   getPublicOrigin,
 } from "@/lib/jobber/oauth";
+import { encryptSecret } from "@/lib/crypto";
 
 export const dynamic = "force-dynamic";
 
@@ -57,8 +58,8 @@ export async function GET(req: NextRequest) {
     prisma.jobberConnection.deleteMany({}),
     prisma.jobberConnection.create({
       data: {
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token,
+        accessToken: encryptSecret(tokens.access_token),
+        refreshToken: encryptSecret(tokens.refresh_token),
         expiresAt,
         scopes,
         jobberAccountId,
