@@ -50,12 +50,25 @@ function pickNav(pathname: string): NavItem[] {
   return jobFlowNav;
 }
 
-export function Sidebar({ role }: { role: Role }) {
+export function Sidebar({
+  role,
+  orientation = "vertical",
+}: {
+  role: Role;
+  orientation?: "vertical" | "horizontal";
+}) {
   const pathname = usePathname();
   const navItems = pickNav(pathname);
+  const horizontal = orientation === "horizontal";
 
   return (
-    <nav className="flex flex-col gap-1 p-4">
+    <nav
+      className={
+        horizontal
+          ? "flex flex-row gap-1 overflow-x-auto p-2"
+          : "flex flex-col gap-1 p-4"
+      }
+    >
       {navItems
         .filter((item) => !item.visibleTo || item.visibleTo.includes(role))
         .map((item) => {
@@ -66,6 +79,8 @@ export function Sidebar({ role }: { role: Role }) {
               key={item.href}
               href={item.href}
               className={`rounded-md px-3 py-2 text-sm font-medium ${
+                horizontal ? "whitespace-nowrap" : ""
+              } ${
                 active
                   ? "bg-brand/15 text-brand"
                   : "text-ink-dim hover:bg-card/40 hover:text-ink"

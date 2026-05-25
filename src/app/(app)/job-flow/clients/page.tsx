@@ -140,8 +140,8 @@ export default async function ClientsPage({
         )}
       </form>
 
-      <div className="mt-4 overflow-hidden rounded-lg border border-rule">
-        <table className="w-full text-sm">
+      <div className="mt-4 overflow-x-auto rounded-lg border border-rule">
+        <table className="w-full min-w-[56rem] text-sm">
           <thead className="bg-card text-left text-xs uppercase tracking-wider text-ink-dim">
             <tr>
               <th className="px-4 py-3">Name</th>
