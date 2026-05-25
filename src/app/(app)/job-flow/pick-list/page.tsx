@@ -30,9 +30,9 @@ export default async function PickListIndexPage({
   await requireUser();
   const { q, range, page: pageParam } = await searchParams;
   const query = q?.trim() ?? "";
-  // Date window: "week" (next 7 days, default) / "month" / "all"
+  // Date window: "week" (next 7 days) / "month" / "all" (default).
   const dateRange =
-    range === "month" || range === "all" ? range : "week";
+    range === "week" || range === "month" ? range : "all";
   const page = parsePageParam(pageParam);
 
   const now = new Date();
@@ -155,7 +155,7 @@ export default async function PickListIndexPage({
         >
           Apply
         </button>
-        {(query || dateRange !== "week") && (
+        {(query || dateRange !== "all") && (
           <Link
             href="/job-flow/pick-list"
             className="rounded-md border border-rule bg-canvas px-4 py-2 text-sm font-medium text-ink hover:border-brand"
@@ -255,7 +255,7 @@ export default async function PickListIndexPage({
         preserved={Object.fromEntries(
           Object.entries({
             q: query,
-            range: dateRange === "week" ? "" : dateRange,
+            range: dateRange === "all" ? "" : dateRange,
           }).filter(([, v]) => v !== ""),
         )}
       />
