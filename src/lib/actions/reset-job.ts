@@ -6,6 +6,7 @@ import {
   assertRoleForAction,
   ADMIN_ROLES,
 } from "@/lib/auth-helpers";
+import { findCustomerKit } from "@/lib/customer-kit";
 
 /**
  * Hard reset of a job back to its original imported state. Restricted
@@ -235,12 +236,10 @@ export async function resetJob(
 
     // CustomerKit / CustomerKitItem updates
     for (const plan of ckPlans.values()) {
-      const tote = await tx.customerKit.findFirst({
-        where: {
-          clientId: job.clientId,
-          propertyId: job.propertyId ?? null,
-          kitId: plan.kitId,
-        },
+      const tote = await findCustomerKit(tx, {
+        clientId: job.clientId,
+        propertyId: job.propertyId ?? null,
+        kitId: plan.kitId,
       });
       if (!tote) continue;
 

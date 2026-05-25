@@ -6,6 +6,7 @@ import {
   assertRoleForAction,
   WRITE_ROLES,
 } from "@/lib/auth-helpers";
+import { findCustomerKit } from "@/lib/customer-kit";
 
 /**
  * Called when a job's stage advances to COMPLETE (the terminal "Ready"
@@ -113,13 +114,13 @@ async function syncCustomerKitsForJob(
       // added to the CustomerKit + materialized into CustomerKitItem.
       const freshlyBuiltQty = Math.max(0, totalKitQty - line.kitsFromTote);
 
-      // Find or create the CustomerKit for this (client, property, kit)
-      const existing = await tx.customerKit.findFirst({
-        where: {
-          clientId,
-          propertyId: propertyId ?? null,
-          kitId: line.kit.id,
-        },
+      // Find or create the CustomerKit for this (client, property, kit),
+      // with the shared client-level fallback so we restore the same tote
+      // allocation consumed.
+      const existing = await findCustomerKit(tx, {
+        clientId,
+        propertyId: propertyId ?? null,
+        kitId: line.kit.id,
       });
 
       let customerKitId: string;

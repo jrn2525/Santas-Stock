@@ -7,6 +7,7 @@ import {
   requireUser,
   WRITE_ROLES,
 } from "@/lib/auth-helpers";
+import { findCustomerKit } from "@/lib/customer-kit";
 
 /**
  * Runs when a job enters the ALLOCATED stage. For each pick list line:
@@ -67,14 +68,11 @@ export async function autoAllocateJob(jobId: string): Promise<{
     let kitsFromTote = 0;
     let customerKitIdToFlag: string | null = null;
     if (line.kit && isExistingCustomer && qty > 0) {
-      const tote = await prisma.customerKit.findFirst({
-        where: {
-          clientId: job.clientId,
-          propertyId: job.propertyId ?? null,
-          kitId: line.kit.id,
-          status: "IN_STORAGE",
-        },
-        select: { id: true, quantity: true },
+      const tote = await findCustomerKit(prisma, {
+        clientId: job.clientId,
+        propertyId: job.propertyId ?? null,
+        kitId: line.kit.id,
+        inStorageOnly: true,
       });
       if (tote && tote.quantity > 0) {
         kitsFromTote = Math.min(qty, tote.quantity);
