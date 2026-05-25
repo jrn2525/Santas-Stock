@@ -48,7 +48,7 @@ export function DeleteUserButton({
     startTransition(async () => {
       const result = await deleteUser(userId, "DELETE");
       if (result.ok) {
-        router.push("/admin/users");
+        router.push("/admin/users?flash=user-deleted");
         router.refresh();
       } else {
         setError(result.error ?? "Failed to delete the user.");
