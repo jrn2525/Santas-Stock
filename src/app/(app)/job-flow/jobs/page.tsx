@@ -2,12 +2,11 @@ import Link from "next/link";
 import type { JobStage, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
+import { getSettings } from "@/lib/settings";
 import { STAGE_LABELS } from "@/lib/job-flow";
 import { Pagination, parsePageParam } from "@/components/pagination";
 
 export const dynamic = "force-dynamic";
-
-const PAGE_SIZE = 50;
 
 const dateFmt = new Intl.DateTimeFormat("en-US", {
   dateStyle: "medium",
@@ -52,6 +51,7 @@ export default async function JobsPage({
   }>;
 }) {
   await requireUser();
+  const { defaultPageSize: PAGE_SIZE } = await getSettings();
   const { q, stage, customers, page: pageParam } = await searchParams;
   const query = q?.trim() ?? "";
   const stageFilter =

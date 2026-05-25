@@ -13,6 +13,7 @@ const MESSAGES: Record<string, string> = {
   "user-created": "User created.",
   "user-updated": "User saved.",
   "user-deleted": "User deleted.",
+  "settings-updated": "Settings saved.",
 };
 
 export function FlashToast() {

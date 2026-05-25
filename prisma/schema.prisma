@@ -141,6 +141,34 @@ model JobberConnection {
   updatedAt       DateTime @updatedAt
 }
 
+// App-wide settings. Single-tenant, so there is exactly zero or one row —
+// the same singleton invariant as JobberConnection: `singleton` always holds
+// the constant "singleton" (never set it explicitly) and its unique constraint
+// blocks a second row. Reads go through getSettings() in src/lib/settings.ts,
+// which merges this row over code-level defaults so the app behaves correctly
+// before the row is ever created.
+model Settings {
+  id        String @id @default(cuid())
+  singleton String @unique @default("singleton")
+
+  // Branding
+  businessName String  @default("Santa's Stock")
+  logoData     Bytes? // raw uploaded image bytes; null = use static /logo.png
+  logoMimeType String? // e.g. "image/png"; null when no custom logo
+
+  // Calendar defaults
+  calendarDefaultView String @default("week") // "week" | "month" | "day"
+  calendarHourStart   Int    @default(7)
+  calendarHourEnd     Int    @default(21)
+
+  // Inventory / list defaults
+  defaultPageSize          Int    @default(50)
+  pickListDefaultWindow    String @default("all") // "week" | "month" | "all"
+  lowStockDefaultThreshold Int    @default(0) // used when an item's own minQuantity is 0
+
+  updatedAt DateTime @updatedAt
+}
+
 // Item is the master inventory record. As of the latest revision it's
 // flat — description, product type, and locations are stored inline as
 // text/enums rather than as relations. Per-unit serial tracking, kits,
