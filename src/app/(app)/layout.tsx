@@ -1,10 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
+import { Suspense } from "react";
 import { signOut } from "@/auth";
 import { requireUser, roleLabel } from "@/lib/auth-helpers";
 import { Sidebar } from "@/components/sidebar";
 import { WorkspaceTabs } from "@/components/workspace-tabs";
 import { DemoBanner } from "@/components/demo-banner";
+import { FlashToast } from "@/components/flash-toast";
 
 async function signOutAction() {
   "use server";
@@ -64,6 +66,10 @@ export default async function AppLayout({
           {children}
         </main>
       </div>
+
+      <Suspense fallback={null}>
+        <FlashToast />
+      </Suspense>
     </div>
   );
 }

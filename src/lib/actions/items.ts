@@ -159,7 +159,7 @@ export async function createItem(
   }
 
   revalidatePath("/inventory/items");
-  redirect("/inventory/items");
+  redirect("/inventory/items?flash=item-created");
 }
 
 export async function updateItem(
@@ -199,7 +199,7 @@ export async function updateItem(
   }
 
   revalidatePath("/inventory/items");
-  redirect("/inventory/items");
+  redirect("/inventory/items?flash=item-updated");
 }
 
 export async function deleteItem(id: string) {

@@ -115,7 +115,7 @@ export async function createUser(
   // GUEST: the admin already knows the password they just typed, so skip
   // the temp-password reveal and return to the user list.
   if (isGuest) {
-    redirect("/admin/users");
+    redirect("/admin/users?flash=user-created");
   }
 
   return {
@@ -196,7 +196,7 @@ export async function updateUser(
   revalidatePath("/admin/users");
   revalidatePath(`/admin/users/${id}/edit`);
   revalidatePath("/admin/overview");
-  redirect("/admin/users");
+  redirect("/admin/users?flash=user-updated");
 }
 
 export async function resetUserPassword(

@@ -161,7 +161,7 @@ export async function createKit(
   }
 
   revalidatePath("/inventory/kits");
-  redirect("/inventory/kits");
+  redirect("/inventory/kits?flash=kit-created");
 }
 
 export async function updateKit(
@@ -219,7 +219,7 @@ export async function updateKit(
   }
 
   revalidatePath("/inventory/kits");
-  redirect("/inventory/kits");
+  redirect("/inventory/kits?flash=kit-updated");
 }
 
 export async function deleteKit(id: string) {
