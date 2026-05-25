@@ -149,12 +149,14 @@ export async function saveInspectionDecisions(
   // ReplacementQueue writes — accumulated during the per-input pass and
   // written inside the same transaction at the end.
   type QueueWrite = {
+    jobLineItemId: string;
     itemId: string;
     quantity: number;
     reason: string;
   };
   const queueWrites: QueueWrite[] = [];
   const flagForReplacement = (
+    jobLineItemId: string,
     itemId: string,
     quantity: number,
     decision: InspectionDecision,
@@ -162,6 +164,7 @@ export async function saveInspectionDecisions(
     if (quantity <= 0) return;
     const verb = decision === "DEAD" ? "Dead" : "Repaired";
     queueWrites.push({
+      jobLineItemId,
       itemId,
       quantity,
       reason: `${verb} during inspection of ${jobLabel}`,
@@ -227,19 +230,16 @@ export async function saveInspectionDecisions(
             });
       for (const d of newDeltas) addNet(d.itemId, -d.quantity);
 
-      // Flag the item for replacement when this transitions INTO
-      // DEAD or REPAIRED. Don't double-flag if the decision was
-      // already DEAD or REPAIRED (re-save with same value).
-      const oldItemDecision = line.inspectionDecision?.decision ?? null;
-      if (
-        (input.decision === "DEAD" || input.decision === "REPAIRED") &&
-        oldItemDecision !== input.decision
-      ) {
+      // Flag the item for replacement whenever it's currently DEAD or
+      // REPAIRED. The job's unresolved queue rows are recomputed on save
+      // (see the transaction below), so this reflects the latest quantity
+      // without leaving stale rows behind.
+      if (input.decision === "DEAD" || input.decision === "REPAIRED") {
         const flagQty =
           input.decision === "DEAD"
             ? Math.ceil(Number(line.quantity))
             : Math.ceil(input.repairQty ?? 0);
-        flagForReplacement(input.itemId, flagQty, input.decision);
+        flagForReplacement(line.id, input.itemId, flagQty, input.decision);
       }
 
       if (input.decision === null) {
@@ -294,18 +294,22 @@ export async function saveInspectionDecisions(
               });
         for (const d of newDeltas) addNet(d.itemId, -d.quantity);
 
-        // Flag the component for replacement on transition to DEAD or REPAIRED
         const oldCompDecision = existing?.decision ?? null;
-        if (
-          (comp.decision === "DEAD" || comp.decision === "REPAIRED") &&
-          oldCompDecision !== comp.decision
-        ) {
+        // Flag the component for replacement whenever it's currently DEAD
+        // or REPAIRED (the job's unresolved queue rows are recomputed on
+        // save, so the quantity stays in sync).
+        if (comp.decision === "DEAD" || comp.decision === "REPAIRED") {
           const recipeQty = recipeByItemId.get(comp.componentItemId) ?? 0;
           const flagQty =
             comp.decision === "DEAD"
               ? Math.ceil(recipeQty * Number(line.quantity))
               : Math.ceil(comp.repairQty ?? 0);
-          flagForReplacement(comp.componentItemId, flagQty, comp.decision);
+          flagForReplacement(
+            line.id,
+            comp.componentItemId,
+            flagQty,
+            comp.decision,
+          );
         }
 
         // CustomerKit snapshot tracking. If this kit line was tote-
@@ -441,10 +445,17 @@ export async function saveInspectionDecisions(
       });
     }
 
-    // Write any ReplacementQueue rows accumulated above
+    // Recompute the unresolved replacement-queue rows for the touched
+    // lines: drop the old auto-created ones, then write the current
+    // decisions. Keeps quantities in sync when a repair qty changes and
+    // removes rows when a decision is cleared. Resolved rows are preserved.
+    await tx.replacementQueue.deleteMany({
+      where: { jobLineItemId: { in: lineIds }, resolvedAt: null },
+    });
     for (const q of queueWrites) {
       await tx.replacementQueue.create({
         data: {
+          jobLineItemId: q.jobLineItemId,
           itemId: q.itemId,
           quantity: q.quantity,
           reason: q.reason,
