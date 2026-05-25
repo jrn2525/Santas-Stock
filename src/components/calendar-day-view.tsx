@@ -8,11 +8,9 @@ import {
   todayET,
 } from "@/lib/datetime";
 import type { CalendarVisit } from "./calendar-types";
+import { computeHourRange } from "./calendar-types";
 
-const HOUR_START = 7;
-const HOUR_END = 21;
 const HOUR_HEIGHT = 64;
-const HOURS = Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i);
 
 export function CalendarDayView({
   anchor,
@@ -28,6 +26,11 @@ export function CalendarDayView({
   );
   const allDay = dayVisits.filter((v) => v.startAt && isAllDayVisit(v.startAt, v.endAt));
   const timed = dayVisits.filter((v) => v.startAt && !isAllDayVisit(v.startAt, v.endAt));
+  const { start: hourStart, end: hourEnd } = computeHourRange(timed);
+  const hours = Array.from(
+    { length: hourEnd - hourStart },
+    (_, i) => hourStart + i,
+  );
 
   return (
     <div className="mt-4 overflow-hidden rounded-lg border border-rule bg-canvas">
@@ -63,9 +66,9 @@ export function CalendarDayView({
 
       <div
         className={`relative ${isToday ? "bg-brand/5" : ""}`}
-        style={{ height: `${HOURS.length * HOUR_HEIGHT}px` }}
+        style={{ height: `${hours.length * HOUR_HEIGHT}px` }}
       >
-        {HOURS.map((h, i) => (
+        {hours.map((h) => (
           <div
             key={`row-${h}`}
             className="flex border-t border-rule"
@@ -79,7 +82,7 @@ export function CalendarDayView({
         ))}
 
         {timed.map((v) => {
-          const block = visitBlock(v);
+          const block = visitBlock(v, hourStart, hourEnd);
           if (!block) return null;
           return (
             <Link
@@ -132,7 +135,11 @@ function fmtHourLabel(h: number): string {
   return `${h - 12} PM`;
 }
 
-function visitBlock(v: CalendarVisit): { top: number; height: number } | null {
+function visitBlock(
+  v: CalendarVisit,
+  hourStart: number,
+  hourEnd: number,
+): { top: number; height: number } | null {
   if (!v.startAt) return null;
   const sp = getETParts(v.startAt);
   let startHour = sp.hour + sp.minute / 60;
@@ -140,14 +147,14 @@ function visitBlock(v: CalendarVisit): { top: number; height: number } | null {
   if (v.endAt) {
     const ep = getETParts(v.endAt);
     endHour = ep.hour + ep.minute / 60;
-    if (endHour <= startHour) endHour = HOUR_END;
+    if (endHour <= startHour) endHour = hourEnd;
   } else {
     endHour = startHour + 1;
   }
-  if (endHour <= HOUR_START || startHour >= HOUR_END) return null;
-  startHour = Math.max(startHour, HOUR_START);
-  endHour = Math.min(endHour, HOUR_END);
-  const top = (startHour - HOUR_START) * HOUR_HEIGHT;
+  if (endHour <= hourStart || startHour >= hourEnd) return null;
+  startHour = Math.max(startHour, hourStart);
+  endHour = Math.min(endHour, hourEnd);
+  const top = (startHour - hourStart) * HOUR_HEIGHT;
   const height = Math.max(28, (endHour - startHour) * HOUR_HEIGHT);
   return { top, height };
 }
