@@ -10,7 +10,7 @@ import {
   todayET,
 } from "@/lib/datetime";
 import type { CalendarVisit } from "./calendar-types";
-import { computeHourRange } from "./calendar-types";
+import { computeHourRange, computeVisitColumns } from "./calendar-types";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -141,18 +141,21 @@ export function CalendarWeekView({
         {/* Timed visit blocks */}
         {days.map((d, dayIdx) => {
           const bucket = byDay.get(formatDateParam(d))!;
+          const dayCols = computeVisitColumns(bucket.timed, hourStart, hourEnd);
           return bucket.timed.map((v) => {
             const block = visitBlock(v, hourStart, hourEnd);
             if (!block) return null;
+            const { col, cols: n } = dayCols.get(v.id) ?? { col: 0, cols: 1 };
             return (
               <Link
                 key={v.id}
                 href={`/job-flow/jobs/${v.job.id}`}
-                className="absolute z-10 m-0.5 overflow-hidden rounded bg-brand/80 px-1.5 py-1 text-xs text-ink hover:bg-brand"
+                className="absolute z-10 overflow-hidden rounded bg-brand/80 px-1.5 py-1 text-xs text-ink hover:bg-brand"
                 style={{
-                  // Column starts at grid line dayIdx+2; we use absolute positioning instead.
-                  left: `calc(60px + ${dayIdx} * ((100% - 60px) / 7))`,
-                  width: `calc((100% - 60px) / 7)`,
+                  // Day column starts at grid line dayIdx+2; overlapping
+                  // visits split that column into n side-by-side columns.
+                  left: `calc(60px + ${dayIdx} * ((100% - 60px) / 7) + ${col} * (((100% - 60px) / 7) / ${n}))`,
+                  width: `calc(((100% - 60px) / 7) / ${n} - 2px)`,
                   top: `${block.top}px`,
                   height: `${block.height}px`,
                 }}

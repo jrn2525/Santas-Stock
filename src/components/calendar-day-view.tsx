@@ -8,7 +8,7 @@ import {
   todayET,
 } from "@/lib/datetime";
 import type { CalendarVisit } from "./calendar-types";
-import { computeHourRange } from "./calendar-types";
+import { computeHourRange, computeVisitColumns } from "./calendar-types";
 
 const HOUR_HEIGHT = 64;
 
@@ -31,6 +31,7 @@ export function CalendarDayView({
     { length: hourEnd - hourStart },
     (_, i) => hourStart + i,
   );
+  const cols = computeVisitColumns(timed, hourStart, hourEnd);
 
   return (
     <div className="mt-4 overflow-hidden rounded-lg border border-rule bg-canvas">
@@ -84,14 +85,15 @@ export function CalendarDayView({
         {timed.map((v) => {
           const block = visitBlock(v, hourStart, hourEnd);
           if (!block) return null;
+          const { col, cols: n } = cols.get(v.id) ?? { col: 0, cols: 1 };
           return (
             <Link
               key={v.id}
               href={`/job-flow/jobs/${v.job.id}`}
               className="absolute z-10 overflow-hidden rounded bg-brand/80 px-3 py-2 text-sm text-ink hover:bg-brand"
               style={{
-                left: "70px",
-                right: "8px",
+                left: `calc(70px + ${col} * ((100% - 78px) / ${n}))`,
+                width: `calc((100% - 78px) / ${n} - 2px)`,
                 top: `${block.top}px`,
                 height: `${block.height}px`,
               }}
