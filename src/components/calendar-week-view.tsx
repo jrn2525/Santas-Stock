@@ -10,14 +10,13 @@ import {
   todayET,
 } from "@/lib/datetime";
 import type { CalendarVisit } from "./calendar-types";
+import { computeHourRange } from "./calendar-types";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-// Hourly grid spans 7 AM – 9 PM (7..21). Each hour is 56px tall.
-const HOUR_START = 7;
-const HOUR_END = 21;
+// Grid defaults to 7 AM – 9 PM, expanding to fit out-of-range visits. Each
+// hour is 56px tall.
 const HOUR_HEIGHT = 56;
-const HOURS = Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i);
 
 export function CalendarWeekView({
   anchor,
@@ -42,6 +41,14 @@ export function CalendarWeekView({
     if (isAllDayVisit(v.startAt, v.endAt)) bucket.allDay.push(v);
     else bucket.timed.push(v);
   }
+
+  // Fit the hour grid to this week's timed visits (defaults to 7 AM–9 PM).
+  const weekTimed = days.flatMap((d) => byDay.get(formatDateParam(d))!.timed);
+  const { start: hourStart, end: hourEnd } = computeHourRange(weekTimed);
+  const hours = Array.from(
+    { length: hourEnd - hourStart },
+    (_, i) => hourStart + i,
+  );
 
   return (
     <div className="mt-4 overflow-hidden rounded-lg border border-rule bg-canvas">
@@ -104,11 +111,11 @@ export function CalendarWeekView({
         className="relative grid"
         style={{
           gridTemplateColumns: "60px repeat(7, 1fr)",
-          gridTemplateRows: `repeat(${HOURS.length}, ${HOUR_HEIGHT}px)`,
+          gridTemplateRows: `repeat(${hours.length}, ${HOUR_HEIGHT}px)`,
         }}
       >
         {/* Hour labels column */}
-        {HOURS.map((h, i) => (
+        {hours.map((h, i) => (
           <div
             key={`label-${h}`}
             className="-mt-2 border-t border-rule px-1 text-right text-xs text-ink-dim"
@@ -121,7 +128,7 @@ export function CalendarWeekView({
         {/* Day cells with hour grid lines */}
         {days.map((d, dayIdx) => {
           const isToday = isSameETDay(d, today);
-          return HOURS.map((h, i) => (
+          return hours.map((h, i) => (
             <div
               key={`cell-${dayIdx}-${h}`}
               className={`border-l border-t border-rule ${isToday ? "bg-brand/5" : ""}`}
@@ -134,7 +141,7 @@ export function CalendarWeekView({
         {days.map((d, dayIdx) => {
           const bucket = byDay.get(formatDateParam(d))!;
           return bucket.timed.map((v) => {
-            const block = visitBlock(v);
+            const block = visitBlock(v, hourStart, hourEnd);
             if (!block) return null;
             return (
               <Link
@@ -180,7 +187,11 @@ function fmtHourLabel(h: number): string {
   return `${h - 12} PM`;
 }
 
-function visitBlock(v: CalendarVisit): { top: number; height: number } | null {
+function visitBlock(
+  v: CalendarVisit,
+  hourStart: number,
+  hourEnd: number,
+): { top: number; height: number } | null {
   if (!v.startAt) return null;
   const sp = getETParts(v.startAt);
   let startHour = sp.hour + sp.minute / 60;
@@ -189,15 +200,15 @@ function visitBlock(v: CalendarVisit): { top: number; height: number } | null {
     const ep = getETParts(v.endAt);
     endHour = ep.hour + ep.minute / 60;
     // Visits crossing midnight get clamped to end of day for layout.
-    if (endHour <= startHour) endHour = HOUR_END;
+    if (endHour <= startHour) endHour = hourEnd;
   } else {
     endHour = startHour + 1;
   }
   // Clamp to visible range
-  if (endHour <= HOUR_START || startHour >= HOUR_END) return null;
-  startHour = Math.max(startHour, HOUR_START);
-  endHour = Math.min(endHour, HOUR_END);
-  const top = (startHour - HOUR_START) * HOUR_HEIGHT;
+  if (endHour <= hourStart || startHour >= hourEnd) return null;
+  startHour = Math.max(startHour, hourStart);
+  endHour = Math.min(endHour, hourEnd);
+  const top = (startHour - hourStart) * HOUR_HEIGHT;
   const height = Math.max(20, (endHour - startHour) * HOUR_HEIGHT);
   return { top, height };
 }
