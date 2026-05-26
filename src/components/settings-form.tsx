@@ -7,6 +7,19 @@ import type { AppSettings } from "@/lib/settings";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+// Every quarter-hour of the day, value as 24h "HH:MM" and a friendly 12h
+// label, so the time dropdown only ever offers 15-minute increments.
+const TIME_OPTIONS: { value: string; label: string }[] = [];
+for (let h = 0; h < 24; h++) {
+  for (const m of [0, 15, 30, 45]) {
+    const value = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    const period = h < 12 ? "AM" : "PM";
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    const label = `${h12}:${String(m).padStart(2, "0")} ${period}`;
+    TIME_OPTIONS.push({ value, label });
+  }
+}
+
 type TimeRow = { id: string; value: string };
 let timeKeyCounter = 0;
 const newTimeKey = () => `t-${++timeKeyCounter}`;
@@ -246,13 +259,17 @@ export function SettingsForm({ settings }: { settings: AppSettings }) {
                 )}
                 {timeRows.map((row) => (
                   <div key={row.id} className="flex items-center gap-3">
-                    <input
-                      type="time"
-                      step={900}
+                    <select
                       value={row.value}
                       onChange={(e) => updateTime(row.id, e.target.value)}
                       className="rounded-md border border-rule bg-canvas px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-                    />
+                    >
+                      {TIME_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
                     <button
                       type="button"
                       onClick={() => removeTime(row.id)}
