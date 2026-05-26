@@ -166,6 +166,14 @@ model Settings {
   pickListDefaultWindow    String @default("all") // "week" | "month" | "all"
   lowStockDefaultThreshold Int    @default(0) // used when an item's own minQuantity is 0
 
+  // Scheduled Jobber auto-sync. Runs the same full sync as the "Sync now"
+  // button at each configured time, on the configured days. Times are ET
+  // "HH:MM" in 15-minute increments; days are 0=Sun..6=Sat.
+  autoSyncEnabled Boolean   @default(false)
+  autoSyncTimes   String[]  @default([])
+  autoSyncDays    Int[]     @default([])
+  lastAutoSyncAt  DateTime?
+
   updatedAt DateTime @updatedAt
 }
 

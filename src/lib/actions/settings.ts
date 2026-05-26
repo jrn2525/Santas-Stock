@@ -10,6 +10,20 @@ import type { FormState } from "./state";
 const MAX_LOGO_BYTES = 1_000_000; // 1 MB
 const ALLOWED_LOGO_TYPES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
 
+// "HH:MM" on a 15-minute boundary, 24-hour.
+const TIME_RE = /^([01]\d|2[0-3]):(00|15|30|45)$/;
+
+function parseJsonArray(v: unknown): unknown {
+  if (Array.isArray(v)) return v;
+  if (typeof v !== "string" || v.trim() === "") return [];
+  try {
+    const parsed = JSON.parse(v);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 const SettingsSchema = z
   .object({
     businessName: z.string().trim().min(1, "Business name is required.").max(120),
@@ -26,6 +40,20 @@ const SettingsSchema = z
       .number()
       .int()
       .min(0, "Must be 0 or more."),
+    autoSyncEnabled: z.preprocess(
+      (v) => v === "on" || v === "true" || v === true,
+      z.boolean(),
+    ),
+    autoSyncTimes: z.preprocess(
+      parseJsonArray,
+      z
+        .array(z.string().regex(TIME_RE, "Times must be on a 15-minute increment."))
+        .max(96),
+    ),
+    autoSyncDays: z.preprocess(
+      parseJsonArray,
+      z.array(z.coerce.number().int().min(0).max(6)).max(7),
+    ),
   })
   .refine((d) => d.calendarHourStart < d.calendarHourEnd, {
     message: "Start hour must be before end hour.",
@@ -46,6 +74,9 @@ export async function updateSettings(
     defaultPageSize: formData.get("defaultPageSize"),
     pickListDefaultWindow: formData.get("pickListDefaultWindow"),
     lowStockDefaultThreshold: formData.get("lowStockDefaultThreshold"),
+    autoSyncEnabled: formData.get("autoSyncEnabled"),
+    autoSyncTimes: formData.get("autoSyncTimes"),
+    autoSyncDays: formData.get("autoSyncDays"),
   });
   if (!parsed.success) {
     return { errors: parsed.error.flatten().fieldErrors, message: null };
@@ -77,7 +108,14 @@ export async function updateSettings(
     logo = { logoData: null, logoMimeType: null };
   }
 
-  const data = { ...parsed.data, ...(logo ?? {}) };
+  const data = {
+    ...parsed.data,
+    autoSyncTimes: Array.from(new Set(parsed.data.autoSyncTimes)).sort(),
+    autoSyncDays: Array.from(new Set(parsed.data.autoSyncDays)).sort(
+      (a, b) => a - b,
+    ),
+    ...(logo ?? {}),
+  };
 
   await prisma.settings.upsert({
     where: { singleton: "singleton" },

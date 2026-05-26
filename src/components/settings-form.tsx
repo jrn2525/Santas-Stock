@@ -1,9 +1,21 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { updateSettings } from "@/lib/actions/settings";
 import { emptyFormState, type FormState } from "@/lib/actions/state";
 import type { AppSettings } from "@/lib/settings";
+
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+type TimeRow = { id: string; value: string };
+let timeKeyCounter = 0;
+const newTimeKey = () => `t-${++timeKeyCounter}`;
+
+const lastSyncFmt = new Intl.DateTimeFormat("en-US", {
+  dateStyle: "medium",
+  timeStyle: "short",
+  timeZone: "America/New_York",
+});
 
 export function SettingsForm({ settings }: { settings: AppSettings }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(
@@ -11,9 +23,42 @@ export function SettingsForm({ settings }: { settings: AppSettings }) {
     emptyFormState,
   );
 
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(settings.autoSyncEnabled);
+  const [autoSyncDays, setAutoSyncDays] = useState<number[]>(settings.autoSyncDays);
+  const [timeRows, setTimeRows] = useState<TimeRow[]>(() =>
+    settings.autoSyncTimes.map((value) => ({ id: newTimeKey(), value })),
+  );
+
+  const toggleDay = (idx: number) =>
+    setAutoSyncDays((d) =>
+      d.includes(idx) ? d.filter((x) => x !== idx) : [...d, idx],
+    );
+  const addTime = () =>
+    setTimeRows((rs) => [...rs, { id: newTimeKey(), value: "08:00" }]);
+  const updateTime = (id: string, value: string) =>
+    setTimeRows((rs) => rs.map((r) => (r.id === id ? { ...r, value } : r)));
+  const removeTime = (id: string) =>
+    setTimeRows((rs) => rs.filter((r) => r.id !== id));
+
+  const lastSync = settings.lastAutoSyncAt
+    ? lastSyncFmt.format(new Date(settings.lastAutoSyncAt))
+    : null;
+
+  // Inject the controlled auto-sync fields (the rest of the form is
+  // uncontrolled / read straight from FormData).
+  const submit = (formData: FormData) => {
+    formData.set("autoSyncEnabled", autoSyncEnabled ? "on" : "");
+    formData.set("autoSyncDays", JSON.stringify(autoSyncDays));
+    formData.set(
+      "autoSyncTimes",
+      JSON.stringify(timeRows.map((r) => r.value).filter((v) => v)),
+    );
+    formAction(formData);
+  };
+
   return (
     <form
-      action={formAction}
+      action={submit}
       encType="multipart/form-data"
       className="mt-6 max-w-3xl space-y-6"
     >
@@ -138,6 +183,107 @@ export function SettingsForm({ settings }: { settings: AppSettings }) {
             help="Used when an item has no minimum of its own. 0 disables it."
           />
         </div>
+      </Section>
+
+      <Section title="Auto-sync">
+        <label className="flex items-center gap-3 text-sm text-ink">
+          <input
+            type="checkbox"
+            checked={autoSyncEnabled}
+            onChange={(e) => setAutoSyncEnabled(e.target.checked)}
+            className="h-4 w-4 rounded border-rule bg-canvas text-brand focus:ring-brand"
+          />
+          <span>
+            Enable scheduled auto-sync
+            <span className="ml-2 text-xs text-ink-dim">
+              Runs the full Jobber sync (customers, jobs, visits, notes)
+              automatically at the times below.
+            </span>
+          </span>
+        </label>
+
+        {autoSyncEnabled && (
+          <div className="mt-5 space-y-5">
+            <div>
+              <span className="block text-sm font-medium text-ink">Days</span>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {DAY_LABELS.map((label, idx) => {
+                  const on = autoSyncDays.includes(idx);
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => toggleDay(idx)}
+                      aria-pressed={on}
+                      className={`rounded-md border px-3 py-1.5 text-sm font-medium transition ${
+                        on
+                          ? "border-brand bg-brand text-ink"
+                          : "border-rule bg-canvas text-ink-dim hover:border-brand"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              {state.errors.autoSyncDays?.map((e) => (
+                <p key={e} className="mt-1 text-xs text-brand">
+                  {e}
+                </p>
+              ))}
+            </div>
+
+            <div>
+              <span className="block text-sm font-medium text-ink">Times</span>
+              <p className="mt-1 text-xs text-ink-dim">
+                Eastern Time, in 15-minute increments.
+              </p>
+              <div className="mt-2 space-y-2">
+                {timeRows.length === 0 && (
+                  <p className="text-xs text-ink-dim">
+                    No times yet — add one below.
+                  </p>
+                )}
+                {timeRows.map((row) => (
+                  <div key={row.id} className="flex items-center gap-3">
+                    <input
+                      type="time"
+                      step={900}
+                      value={row.value}
+                      onChange={(e) => updateTime(row.id, e.target.value)}
+                      className="rounded-md border border-rule bg-canvas px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeTime(row.id)}
+                      className="text-xs text-brand hover:text-brand-hover"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={addTime}
+                className="mt-3 rounded-md border border-rule bg-canvas px-3 py-1.5 text-sm font-medium text-ink hover:border-brand hover:text-brand"
+              >
+                + Add time
+              </button>
+              {state.errors.autoSyncTimes?.map((e) => (
+                <p key={e} className="mt-1 text-xs text-brand">
+                  {e}
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {lastSync && (
+          <p className="mt-4 text-xs text-ink-dim">
+            Last auto-sync: <span className="text-ink">{lastSync}</span>
+          </p>
+        )}
       </Section>
 
       {state.message && <p className="text-sm text-brand">{state.message}</p>}

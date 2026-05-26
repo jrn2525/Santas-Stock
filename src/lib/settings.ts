@@ -15,12 +15,16 @@ export const SETTINGS_DEFAULTS = {
   defaultPageSize: 50,
   pickListDefaultWindow: "all" as PickListWindow,
   lowStockDefaultThreshold: 0,
+  autoSyncEnabled: false,
+  autoSyncTimes: [] as string[], // "HH:MM" ET, 15-min increments
+  autoSyncDays: [] as number[], // 0=Sun..6=Sat
 };
 
 export type AppSettings = typeof SETTINGS_DEFAULTS & {
   hasCustomLogo: boolean;
   // updatedAt epoch ms (0 when no row yet). Used as the logo cache-buster.
   logoVersion: number;
+  lastAutoSyncAt: Date | null;
 };
 
 // cache() dedupes the read within a single request render, so multiple
@@ -43,6 +47,10 @@ export const getSettings = cache(async (): Promise<AppSettings> => {
         defaultPageSize: true,
         pickListDefaultWindow: true,
         lowStockDefaultThreshold: true,
+        autoSyncEnabled: true,
+        autoSyncTimes: true,
+        autoSyncDays: true,
+        lastAutoSyncAt: true,
         updatedAt: true,
       },
     });
@@ -51,7 +59,12 @@ export const getSettings = cache(async (): Promise<AppSettings> => {
   }
 
   if (!row) {
-    return { ...SETTINGS_DEFAULTS, hasCustomLogo: false, logoVersion: 0 };
+    return {
+      ...SETTINGS_DEFAULTS,
+      hasCustomLogo: false,
+      logoVersion: 0,
+      lastAutoSyncAt: null,
+    };
   }
 
   return {
@@ -62,8 +75,12 @@ export const getSettings = cache(async (): Promise<AppSettings> => {
     defaultPageSize: row.defaultPageSize,
     pickListDefaultWindow: row.pickListDefaultWindow as PickListWindow,
     lowStockDefaultThreshold: row.lowStockDefaultThreshold,
+    autoSyncEnabled: row.autoSyncEnabled,
+    autoSyncTimes: row.autoSyncTimes,
+    autoSyncDays: row.autoSyncDays,
     hasCustomLogo: row.logoMimeType != null,
     logoVersion: row.updatedAt.getTime(),
+    lastAutoSyncAt: row.lastAutoSyncAt,
   };
 });
 

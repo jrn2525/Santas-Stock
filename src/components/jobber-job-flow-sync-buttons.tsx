@@ -1,11 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import {
-  syncJobberJobs,
-  type JobsSyncFormState,
-  type JobFlowSyncResult,
-} from "@/lib/actions/jobber";
+import { syncJobberJobs, type JobsSyncFormState } from "@/lib/actions/jobber";
+import type { JobFlowSyncResult } from "@/lib/jobber/run-sync";
 
 const emptyJobs: JobsSyncFormState = { errors: {}, message: null };
 
