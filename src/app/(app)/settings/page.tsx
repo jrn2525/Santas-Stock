@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireRole, ADMIN_ROLES } from "@/lib/auth-helpers";
+import { requireRole, WRITE_ROLES } from "@/lib/auth-helpers";
 import { getSettings } from "@/lib/settings";
 import { fmtLongDateET } from "@/lib/datetime";
 import { SettingsForm } from "@/components/settings-form";
@@ -8,7 +8,7 @@ import { SettingsForm } from "@/components/settings-form";
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  await requireRole(ADMIN_ROLES);
+  await requireRole(WRITE_ROLES);
 
   const [settings, jobber] = await Promise.all([
     getSettings(),

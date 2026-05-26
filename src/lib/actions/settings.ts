@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { assertRoleForAction, ADMIN_ROLES } from "@/lib/auth-helpers";
+import { assertRoleForAction, WRITE_ROLES } from "@/lib/auth-helpers";
 import type { FormState } from "./state";
 
 const MAX_LOGO_BYTES = 1_000_000; // 1 MB
@@ -64,7 +64,7 @@ export async function updateSettings(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
-  await assertRoleForAction(ADMIN_ROLES);
+  await assertRoleForAction(WRITE_ROLES);
 
   const parsed = SettingsSchema.safeParse({
     businessName: formData.get("businessName"),

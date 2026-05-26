@@ -49,7 +49,7 @@ export default async function AppLayout({
         </div>
 
         <div className="flex items-center gap-4 text-xs">
-          {user.role === "ADMIN" && (
+          {(user.role === "ADMIN" || user.role === "MANAGER") && (
             <Link
               href="/settings"
               title="Settings"
