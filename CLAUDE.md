@@ -21,9 +21,10 @@
 
 ## Known URLs / endpoints
 
-- Production app: https://santas-stock-santas-stock-dev.up.railway.app
-- Dashboard (landing after sign-in): https://santas-stock-santas-stock-dev.up.railway.app/job-flow/dashboard
-- Jobber connection page: https://santas-stock-santas-stock-dev.up.railway.app/job-flow/jobber
+- Production app: https://www.santasstock.com
+- Dashboard (landing after sign-in): https://www.santasstock.com/job-flow/dashboard
+- Jobber connection page: https://www.santasstock.com/job-flow/jobber
+- Old Railway URL (still active as a fallback): https://santas-stock-santas-stock-dev.up.railway.app
 - Jobber developer changelog: https://developer.getjobber.com/docs/changelog/
 - Admin login: `john@jamenent.com`
 
