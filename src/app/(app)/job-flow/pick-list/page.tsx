@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { getSettings } from "@/lib/settings";
+import { addDaysET, startOfDayET, todayET } from "@/lib/datetime";
 import { Pagination, parsePageParam } from "@/components/pagination";
 
 export const dynamic = "force-dynamic";
@@ -12,14 +13,6 @@ const dateFmt = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
 });
-
-function startOfDay(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
-
-function addDays(d: Date, n: number): Date {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
-}
 
 export default async function PickListIndexPage({
   searchParams,
@@ -39,10 +32,11 @@ export default async function PickListIndexPage({
       : pickListDefaultWindow;
   const page = parsePageParam(pageParam);
 
-  const now = new Date();
-  const todayStart = startOfDay(now);
-  const weekEnd = addDays(todayStart, 7);
-  const monthEnd = addDays(todayStart, 30);
+  // Use Eastern-Time day boundaries (same as the dashboard) so the window
+  // doesn't shift by the UTC offset on the Railway host.
+  const todayStart = startOfDayET(todayET());
+  const weekEnd = addDaysET(todayStart, 7);
+  const monthEnd = addDaysET(todayStart, 30);
 
   const andClauses: Prisma.JobberJobWhereInput[] = [];
   if (query) {
