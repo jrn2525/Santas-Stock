@@ -2,7 +2,10 @@ import { prisma } from "@/lib/prisma";
 import { getETParts } from "@/lib/datetime";
 import { runJobFlowSync } from "./run-sync";
 
-const TICK_MS = 60_000;
+// Tick twice a minute so interval drift / a slow tick can't skip a configured
+// minute entirely. lastFiredKey is minute-granular, so the extra ticks within
+// a minute don't double-fire.
+const TICK_MS = 30_000;
 
 function hhmm(h: number, m: number): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
@@ -73,5 +76,5 @@ export function startAutoSyncScheduler(): void {
   if (g.__autoSyncStarted) return;
   g.__autoSyncStarted = true;
   setInterval(() => void tick(), TICK_MS);
-  console.log("[auto-sync] scheduler started (1-minute ticker)");
+  console.log("[auto-sync] scheduler started (30-second ticker)");
 }
