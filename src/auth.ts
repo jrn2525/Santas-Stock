@@ -22,8 +22,11 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         const parsed = CredentialsSchema.safeParse(credentials);
         if (!parsed.success) return null;
 
+        // Emails are stored lowercased + trimmed (see users.ts), so normalize
+        // the submitted value the same way or a correct password with a
+        // differently-cased email would fail to match any row.
         const user = await prisma.user.findUnique({
-          where: { email: parsed.data.email },
+          where: { email: parsed.data.email.toLowerCase().trim() },
         });
 
         if (!user || !user.passwordHash || !user.active) return null;

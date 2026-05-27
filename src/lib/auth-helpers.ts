@@ -11,11 +11,15 @@ export async function requireUser() {
   // a still-valid JWT. Re-query the DB on every gated route to enforce.
   const dbUser = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { active: true },
+    select: { active: true, role: true },
   });
   if (!dbUser || !dbUser.active) redirect("/sign-in");
 
-  return session.user;
+  // Trust the DB role over the JWT's cached copy so a role change (e.g. an
+  // admin demoting a user) takes effect on the next request rather than only
+  // after the user signs in again. requireRole and every page that reads
+  // user.role then sees the live value.
+  return { ...session.user, role: dbUser.role };
 }
 
 export async function requireRole(allowed: Role | Role[]) {
