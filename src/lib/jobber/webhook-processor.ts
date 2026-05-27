@@ -7,6 +7,7 @@ import {
   syncVisits,
   syncNotes,
 } from "@/lib/jobber/sync";
+import { runWithSyncLock } from "@/lib/jobber/sync-lock";
 
 /**
  * Map the set of pending webhook topics to the syncs we need to run.
@@ -50,13 +51,6 @@ function classifyTopics(topics: Set<string>): {
   return { customers, jobs, visits, notes, inventory };
 }
 
-// In-process guard so a burst of webhooks doesn't kick off overlapping
-// syncs. A second arrival while a run is in flight just leaves its event
-// PENDING; the active run re-checks for new pending events before exiting.
-// (Single Railway instance assumed; a restart mid-run leaves events PENDING
-// to be picked up next time.)
-let running = false;
-
 const MAX_PASSES = 5;
 
 async function runSafe(
@@ -80,9 +74,11 @@ async function runSafe(
  * Reuses the existing bulk sync functions rather than per-entity fetches.
  */
 export async function processJobberWebhookEvents(): Promise<void> {
-  if (running) return;
-  running = true;
-  try {
+  // Share the lock with the manual / scheduled full sync (runJobFlowSync) so a
+  // webhook drain and a full sync can't run syncJobs at the same time and
+  // collide on a job's line items. If a sync is already running we skip; the
+  // events stay PENDING and the next drain picks them up.
+  await runWithSyncLock(async () => {
     for (let pass = 0; pass < MAX_PASSES; pass++) {
       const pending = await prisma.syncEvent.findMany({
         where: { source: "jobber", status: "PENDING" },
@@ -127,7 +123,5 @@ export async function processJobberWebhookEvents(): Promise<void> {
         revalidatePath("/inventory/dashboard");
       }
     }
-  } finally {
-    running = false;
-  }
+  });
 }
