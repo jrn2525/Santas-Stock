@@ -8,10 +8,18 @@ export const dynamic = "force-dynamic";
 type Scope = "items" | "kits" | "both";
 
 function quote(value: string): string {
-  if (/[",\r\n]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
+  // Guard against CSV/formula injection: Excel and Google Sheets treat a cell
+  // beginning with = + - @ (or a tab/CR) as a formula. Jobber-synced names can
+  // contain anything, so prefix such values with a single quote to force them
+  // to render as literal text.
+  let v = value;
+  if (/^[=+\-@\t\r]/.test(v)) {
+    v = `'${v}`;
   }
-  return value;
+  if (/[",\r\n]/.test(v)) {
+    return `"${v.replace(/"/g, '""')}"`;
+  }
+  return v;
 }
 
 function row(cells: (string | null | undefined)[]): string {
