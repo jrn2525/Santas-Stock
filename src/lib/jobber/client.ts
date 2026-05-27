@@ -22,15 +22,23 @@ export class JobberNotConnectedError extends JobberError {
   }
 }
 
-async function getValidAccessToken(): Promise<string> {
+// Jobber rotates the refresh token on every use, so concurrent refreshes are
+// dangerous: the first invalidates the token the others are holding. The notes
+// sync alone fires 4 jobberQuery calls at once, each of which calls
+// getValidAccessToken. We funnel all concurrent refreshes through a single
+// in-flight promise so the refresh token is spent exactly once.
+let refreshInFlight: Promise<string> | null = null;
+
+async function refreshAndStore(): Promise<string> {
   const conn = await prisma.jobberConnection.findFirst({
     orderBy: { connectedAt: "desc" },
   });
   if (!conn) throw new JobberNotConnectedError();
 
-  const expiringSoon =
-    conn.expiresAt.getTime() < Date.now() + REFRESH_THRESHOLD_MS;
-  if (!expiringSoon) {
+  // A refresh that ran just before us may have already renewed the token.
+  // Re-check here (inside the single-flight) so a caller that observed a
+  // stale "expiring" snapshot doesn't refresh again with a now-rotated token.
+  if (conn.expiresAt.getTime() >= Date.now() + REFRESH_THRESHOLD_MS) {
     return decryptSecret(conn.accessToken);
   }
 
@@ -45,6 +53,29 @@ async function getValidAccessToken(): Promise<string> {
     },
   });
   return fresh.access_token;
+}
+
+async function getValidAccessToken(): Promise<string> {
+  const conn = await prisma.jobberConnection.findFirst({
+    orderBy: { connectedAt: "desc" },
+  });
+  if (!conn) throw new JobberNotConnectedError();
+
+  const expiringSoon =
+    conn.expiresAt.getTime() < Date.now() + REFRESH_THRESHOLD_MS;
+  if (!expiringSoon) {
+    return decryptSecret(conn.accessToken);
+  }
+
+  // Coalesce concurrent refreshes onto one promise. The check-and-set below
+  // has no `await` between them, so only the first caller starts the refresh;
+  // the rest await the same result.
+  if (!refreshInFlight) {
+    refreshInFlight = refreshAndStore().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
 }
 
 type GraphQLError = { message: string; path?: (string | number)[] };
