@@ -2,10 +2,12 @@ import {
   syncClientsAndProperties,
   syncJobs,
   syncVisits,
+  syncInvoices,
   syncNotes,
   type SyncResult,
   type JobsSyncResult,
   type VisitsSyncResult,
+  type InvoicesSyncResult,
   type NotesSyncResult,
 } from "@/lib/jobber/sync";
 import { JobberNotConnectedError } from "@/lib/jobber/client";
@@ -15,6 +17,7 @@ export type JobFlowSyncResult = {
   customers: SyncResult | null;
   jobs: JobsSyncResult | null;
   visits: VisitsSyncResult | null;
+  invoices: InvoicesSyncResult | null;
   notes: NotesSyncResult | null;
 };
 
@@ -30,11 +33,13 @@ const emptyResult: JobFlowSyncResult = {
   customers: null,
   jobs: null,
   visits: null,
+  invoices: null,
   notes: null,
 };
 
 /**
- * Run the full Job Flow sync (Customers → Jobs → Visits → Notes), the same
+ * Run the full Job Flow sync (Customers → Jobs → Visits → Invoices → Notes),
+ * the same
  * sequence as the "Sync now" button. Pure data work — does NOT call
  * revalidatePath, so it's safe to call outside a request (e.g. the scheduler).
  * Returns ran=false without doing anything if any sync (manual, scheduled, or
@@ -66,6 +71,7 @@ async function doFullSync(): Promise<{
   let customers: SyncResult | null = null;
   let jobs: JobsSyncResult | null = null;
   let visits: VisitsSyncResult | null = null;
+  let invoices: InvoicesSyncResult | null = null;
   let notes: NotesSyncResult | null = null;
 
   try {
@@ -99,6 +105,16 @@ async function doFullSync(): Promise<{
     }
   }
 
+  if (jobs) {
+    try {
+      invoices = await syncInvoices();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("Jobber invoices sync failed:", err);
+      phaseErrors.push(`Invoices: ${msg}`);
+    }
+  }
+
   if (jobs && visits) {
     try {
       notes = await syncNotes();
@@ -111,7 +127,7 @@ async function doFullSync(): Promise<{
 
   return {
     notConnected: false,
-    result: { customers, jobs, visits, notes },
+    result: { customers, jobs, visits, invoices, notes },
     phaseErrors,
   };
 }

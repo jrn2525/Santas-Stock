@@ -4,6 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { getSettings } from "@/lib/settings";
 import { STAGE_LABELS } from "@/lib/job-flow";
+import {
+  BILLING_STATUS_LABELS,
+  BILLING_STATUS_OPTIONS,
+  billingStatusKey,
+  billingStatusWhere,
+  type BillingStatusKey,
+} from "@/lib/billing-status";
 import { Pagination, parsePageParam } from "@/components/pagination";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +47,26 @@ function stageBadgeStyle(stage: JobStage): string {
   return "border-brand/40 bg-brand/15 text-ink";
 }
 
+function billingBadgeStyle(key: BillingStatusKey): string {
+  if (key === "paid") {
+    return "border-green-600/40 bg-green-500/15 text-green-200";
+  }
+  if (key === "awaiting") {
+    return "border-yellow-600/40 bg-yellow-500/15 text-yellow-200";
+  }
+  // upcoming
+  return "border-rule bg-canvas text-ink-dim";
+}
+
+// Jobber visit statuses come through as raw enum-ish strings ("unscheduled",
+// "active", "completed", ...). Show them title-cased to match the Jobber UI.
+function humanizeVisitStatus(status: string): string {
+  return status
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export default async function JobsPage({
   searchParams,
 }: {
@@ -47,12 +74,13 @@ export default async function JobsPage({
     q?: string;
     stage?: string;
     customers?: string;
+    billing?: string;
     page?: string;
   }>;
 }) {
   await requireUser();
   const { defaultPageSize: PAGE_SIZE } = await getSettings();
-  const { q, stage, customers, page: pageParam } = await searchParams;
+  const { q, stage, customers, billing, page: pageParam } = await searchParams;
   const query = q?.trim() ?? "";
   const stageFilter =
     stage && STAGE_OPTIONS.includes(stage as JobStage)
@@ -61,6 +89,10 @@ export default async function JobsPage({
   // customers filter: "active" (default), "inactive", or "all"
   const customerFilter =
     customers === "inactive" || customers === "all" ? customers : "active";
+  const billingFilter =
+    billing && BILLING_STATUS_OPTIONS.includes(billing as BillingStatusKey)
+      ? (billing as BillingStatusKey)
+      : null;
   const page = parsePageParam(pageParam);
 
   const andClauses: Prisma.JobberJobWhereInput[] = [];
@@ -86,6 +118,9 @@ export default async function JobsPage({
     andClauses.push({ client: { is: { active: false } } });
   }
   // "all" applies no client filter
+  if (billingFilter) {
+    andClauses.push(billingStatusWhere(billingFilter));
+  }
   const where: Prisma.JobberJobWhereInput =
     andClauses.length > 0 ? { AND: andClauses } : {};
 
@@ -95,7 +130,16 @@ export default async function JobsPage({
       orderBy: [{ startAt: "desc" }, { createdAt: "desc" }],
       include: {
         client: { select: { id: true, name: true, active: true } },
-        property: { select: { address: true } },
+        // Most recent visit (scheduled visits win over unscheduled) for the
+        // Visit Status column.
+        visits: {
+          orderBy: [
+            { startAt: { sort: "desc", nulls: "last" } },
+            { createdAt: "desc" },
+          ],
+          take: 1,
+          select: { status: true },
+        },
       },
       take: PAGE_SIZE,
       skip: (page - 1) * PAGE_SIZE,
@@ -172,13 +216,37 @@ export default async function JobsPage({
             <option value="all">All customers</option>
           </select>
         </div>
+        <div>
+          <label
+            htmlFor="billing-filter"
+            className="block text-xs font-medium text-ink-dim"
+          >
+            Billing Status
+          </label>
+          <select
+            id="billing-filter"
+            name="billing"
+            defaultValue={billingFilter ?? ""}
+            className="mt-1 rounded-md border border-rule bg-card px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+          >
+            <option value="">All billing</option>
+            {BILLING_STATUS_OPTIONS.map((k) => (
+              <option key={k} value={k}>
+                {BILLING_STATUS_LABELS[k]}
+              </option>
+            ))}
+          </select>
+        </div>
         <button
           type="submit"
           className="rounded-md border border-brand bg-canvas px-4 py-2 text-sm font-medium text-brand transition hover:bg-brand hover:text-ink"
         >
           Apply
         </button>
-        {(query || stageFilter || customerFilter !== "active") && (
+        {(query ||
+          stageFilter ||
+          customerFilter !== "active" ||
+          billingFilter) && (
           <Link
             href="/job-flow/jobs"
             className="rounded-md border border-rule bg-canvas px-4 py-2 text-sm font-medium text-ink hover:border-brand"
@@ -196,8 +264,8 @@ export default async function JobsPage({
               <th className="px-4 py-3">Title</th>
               <th className="px-4 py-3">Client</th>
               <th className="px-4 py-3">Stage</th>
-              <th className="px-4 py-3">Property</th>
-              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Billing Status</th>
+              <th className="px-4 py-3">Visit Status</th>
               <th className="px-4 py-3">Scheduled</th>
               <th className="px-4 py-3 text-right">Total</th>
             </tr>
@@ -209,7 +277,7 @@ export default async function JobsPage({
                   colSpan={8}
                   className="px-4 py-12 text-center text-ink-dim"
                 >
-                  {query || stageFilter ? (
+                  {query || stageFilter || billingFilter ? (
                     <>No jobs match the current filters.</>
                   ) : (
                     <>No jobs yet. Run Sync Jobs in Job Flow → Jobber.</>
@@ -261,11 +329,22 @@ export default async function JobsPage({
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-ink-dim">
-                    {j.property?.address ?? "—"}
+                  <td className="px-4 py-3">
+                    {(() => {
+                      const key = billingStatusKey(j.invoiceStatus);
+                      return (
+                        <span
+                          className={`inline-block rounded border px-2 py-0.5 text-xs font-medium ${billingBadgeStyle(key)}`}
+                        >
+                          {BILLING_STATUS_LABELS[key]}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="px-4 py-3 text-ink-dim">
-                    {j.status || "—"}
+                    {j.visits[0]?.status
+                      ? humanizeVisitStatus(j.visits[0].status)
+                      : "—"}
                   </td>
                   <td className="px-4 py-3 text-ink-dim">
                     {j.startAt ? dateFmt.format(j.startAt) : "—"}
@@ -290,6 +369,7 @@ export default async function JobsPage({
             q: query,
             stage: stageFilter ?? "",
             customers: customerFilter === "active" ? "" : customerFilter,
+            billing: billingFilter ?? "",
           }).filter(([, v]) => v !== ""),
         )}
       />

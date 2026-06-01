@@ -145,8 +145,8 @@ export default async function JobberPage({
         <section className="mt-6 rounded-lg border border-rule bg-card p-6">
           <h2 className="text-lg font-semibold text-ink">Job Flow sync</h2>
           <p className="mt-1 text-sm text-ink-dim">
-            Pull Customers + Properties, Jobs, Visits, and Notes from Jobber
-            in one click.
+            Pull Customers + Properties, Jobs, Visits, Invoices, and Notes from
+            Jobber in one click.
           </p>
           <div className="mt-4 space-y-3">
             <JobberJobsSyncButton />

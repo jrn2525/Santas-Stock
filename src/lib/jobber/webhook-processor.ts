@@ -5,6 +5,7 @@ import {
   syncProductsAndServices,
   syncJobs,
   syncVisits,
+  syncInvoices,
   syncNotes,
 } from "@/lib/jobber/sync";
 import { runWithSyncLock } from "@/lib/jobber/sync-lock";
@@ -18,12 +19,14 @@ function classifyTopics(topics: Set<string>): {
   customers: boolean;
   jobs: boolean;
   visits: boolean;
+  invoices: boolean;
   notes: boolean;
   inventory: boolean;
 } {
   let customers = false;
   let jobs = false;
   let visits = false;
+  let invoices = false;
   let notes = false;
   let inventory = false;
 
@@ -34,6 +37,9 @@ function classifyTopics(topics: Set<string>): {
       notes = true;
     } else if (t.startsWith("CLIENT") || t.startsWith("PROPERTY")) {
       customers = true;
+    } else if (t.startsWith("INVOICE") || t.startsWith("PAYMENT")) {
+      // Billing changes update the job's invoice status (Billing Status column).
+      invoices = true;
     } else if (t.startsWith("JOB")) {
       jobs = true;
     } else if (t.startsWith("VISIT")) {
@@ -48,7 +54,7 @@ function classifyTopics(topics: Set<string>): {
     // else: unrecognized topic — ignored.
   }
 
-  return { customers, jobs, visits, notes, inventory };
+  return { customers, jobs, visits, invoices, notes, inventory };
 }
 
 const MAX_PASSES = 5;
@@ -95,6 +101,7 @@ export async function processJobberWebhookEvents(): Promise<void> {
       }
       if (need.jobs) await runSafe(syncJobs, "jobs", errors);
       if (need.visits) await runSafe(syncVisits, "visits", errors);
+      if (need.invoices) await runSafe(syncInvoices, "invoices", errors);
       if (need.notes) await runSafe(syncNotes, "notes", errors);
       if (need.inventory) {
         await runSafe(syncProductsAndServices, "inventory", errors);
@@ -110,7 +117,13 @@ export async function processJobberWebhookEvents(): Promise<void> {
         },
       });
 
-      if (need.customers || need.jobs || need.visits || need.notes) {
+      if (
+        need.customers ||
+        need.jobs ||
+        need.visits ||
+        need.invoices ||
+        need.notes
+      ) {
         revalidatePath("/job-flow/jobs");
         revalidatePath("/job-flow/calendar");
         revalidatePath("/job-flow/pick-list");

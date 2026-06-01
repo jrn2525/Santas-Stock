@@ -373,6 +373,12 @@ model JobberJob {
   property   Property? @relation(fields: [propertyId], references: [id])
   status     String
 
+  /// Raw Jobber InvoiceStatusTypeEnum for this job's invoice (e.g. "draft",
+  /// "awaiting_payment", "paid", "past_due", "bad_debt"). Null when the job has
+  /// no invoice yet. Synced by syncInvoices; the Jobs list derives a friendly
+  /// "Billing Status" (Upcoming / Awaiting payment / Paid) from it.
+  invoiceStatus String?
+
   currentStage JobStage @default(NEW)
   isOnHold     Boolean  @default(false)
 

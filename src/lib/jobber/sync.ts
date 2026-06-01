@@ -1,6 +1,7 @@
 ﻿import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { jobberQuery } from "./client";
+import { billingStatusKey, type BillingStatusKey } from "@/lib/billing-status";
 
 const CLIENTS_QUERY = /* GraphQL */ `
   query SyncClients($cursor: String) {
@@ -717,6 +718,131 @@ export async function syncVisits(): Promise<VisitsSyncResult> {
       ? data.visits.pageInfo.endCursor
       : null;
   } while (cursor);
+
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Invoices sync
+// ---------------------------------------------------------------------------
+//
+// Pulls every Invoice from Jobber and records its status onto the matching
+// JobberJob(s) so the Jobs list can show a "Billing Status" column. Jobber has
+// no single billingStatus enum on the Job, so we mirror the invoice status the
+// Jobber UI shows. Requires Jobs sync to have run first so jobs exist locally.
+//
+// This phase is deliberately self-contained and only reads fields confirmed in
+// Jobber's schema (invoiceStatus + the invoice -> jobs connection): if the
+// query is ever rejected it fails on its own and never disturbs the job sync.
+
+const INVOICES_QUERY = /* GraphQL */ `
+  query SyncInvoices($cursor: String) {
+    invoices(first: 25, after: $cursor) {
+      nodes {
+        id
+        invoiceStatus
+        jobs {
+          nodes { id }
+        }
+      }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+`;
+
+type JobberInvoiceNode = {
+  id: string;
+  invoiceStatus: string | null;
+  jobs: { nodes: { id: string }[] } | null;
+};
+
+type InvoicesResponse = {
+  invoices: {
+    nodes: JobberInvoiceNode[];
+    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+  };
+};
+
+export type InvoicesSyncResult = {
+  upserted: number;
+  skipped: number;
+  warnings: string[];
+};
+
+// When a job has more than one invoice, surface the most "actionable" status:
+// an outstanding (awaiting) invoice beats a paid one, which beats a draft.
+const BILLING_PRIORITY: Record<BillingStatusKey, number> = {
+  awaiting: 2,
+  paid: 1,
+  upcoming: 0,
+};
+
+export async function syncInvoices(): Promise<InvoicesSyncResult> {
+  const result: InvoicesSyncResult = { upserted: 0, skipped: 0, warnings: [] };
+
+  const jobs = await prisma.jobberJob.findMany({
+    select: { id: true, jobberJobId: true },
+  });
+  const localIdByJobberId = new Map(jobs.map((j) => [j.jobberJobId, j.id]));
+
+  // jobberJobId -> chosen raw invoice status (highest billing priority seen)
+  const statusByJobberId = new Map<string, string>();
+
+  let cursor: string | null = null;
+  do {
+    const data: InvoicesResponse = await jobberQuery<InvoicesResponse>(
+      INVOICES_QUERY,
+      { cursor },
+    );
+    for (const node of data.invoices.nodes) {
+      const status = node.invoiceStatus?.trim();
+      if (!status) continue;
+      const jobNodes = node.jobs?.nodes ?? [];
+      if (jobNodes.length === 0) {
+        result.skipped++;
+        continue;
+      }
+      for (const jobRef of jobNodes) {
+        if (!localIdByJobberId.has(jobRef.id)) {
+          result.skipped++;
+          continue;
+        }
+        const existing = statusByJobberId.get(jobRef.id);
+        if (
+          !existing ||
+          BILLING_PRIORITY[billingStatusKey(status)] >
+            BILLING_PRIORITY[billingStatusKey(existing)]
+        ) {
+          statusByJobberId.set(jobRef.id, status);
+        }
+      }
+    }
+    cursor = data.invoices.pageInfo.hasNextPage
+      ? data.invoices.pageInfo.endCursor
+      : null;
+  } while (cursor);
+
+  // All pages fetched successfully — now reconcile the stored statuses. Clear
+  // stale values first (an invoice may have been deleted), then write the
+  // freshly collected ones grouped by status to keep the write count tiny.
+  await prisma.jobberJob.updateMany({
+    where: { invoiceStatus: { not: null } },
+    data: { invoiceStatus: null },
+  });
+
+  const jobberIdsByStatus = new Map<string, string[]>();
+  for (const [jobberJobId, status] of statusByJobberId) {
+    const list = jobberIdsByStatus.get(status) ?? [];
+    list.push(jobberJobId);
+    jobberIdsByStatus.set(status, list);
+  }
+  for (const [status, jobberIds] of jobberIdsByStatus) {
+    const res = await prisma.jobberJob.updateMany({
+      where: { jobberJobId: { in: jobberIds } },
+      data: { invoiceStatus: status },
+    });
+    result.upserted += res.count;
+  }
 
   return result;
 }

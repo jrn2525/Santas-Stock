@@ -17,8 +17,8 @@ export function JobberJobsSyncButton() {
 
   return (
     <SyncSection
-      label="Customers, Jobs, Visits, and Notes"
-      hint="One click pulls Customers + Properties, then Jobs, then Visits (for Calendar), then Notes."
+      label="Customers, Jobs, Visits, Invoices, and Notes"
+      hint="One click pulls Customers + Properties, then Jobs, then Visits (for Calendar), then Invoices (for Billing Status), then Notes."
       action={action}
       pending={pending}
       summary={summary}
@@ -38,6 +38,10 @@ function buildSummary(r: JobFlowSyncResult): string | null {
     parts.push(
       `Visits ${r.visits.upserted} upserted / ${r.visits.skipped} skipped`,
     );
+  if (r.invoices)
+    parts.push(
+      `Invoices ${r.invoices.upserted} applied / ${r.invoices.skipped} skipped`,
+    );
   if (r.notes)
     parts.push(`Notes ${r.notes.upserted} upserted / ${r.notes.skipped} skipped`);
   return parts.length ? parts.join(" · ") : null;
@@ -47,6 +51,7 @@ function mergeWarnings(r: JobFlowSyncResult): string[] {
   return [
     ...(r.jobs?.warnings ?? []).map((w) => `[Jobs] ${w}`),
     ...(r.visits?.warnings ?? []).map((w) => `[Visits] ${w}`),
+    ...(r.invoices?.warnings ?? []).map((w) => `[Invoices] ${w}`),
     ...(r.notes?.warnings ?? []).map((w) => `[Notes] ${w}`),
   ];
 }
