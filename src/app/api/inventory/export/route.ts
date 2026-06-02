@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { ItemStatus, Prisma, ProductType } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { formatDateParam } from "@/lib/datetime";
 
 export const dynamic = "force-dynamic";
 
@@ -177,7 +178,7 @@ export async function GET(req: NextRequest) {
   }
 
   const body = lines.join("\r\n") + "\r\n";
-  const stamp = new Date().toISOString().slice(0, 10);
+  const stamp = formatDateParam(new Date());
   const filename = `santas-stock-${scope}-${stamp}.csv`;
 
   return new NextResponse(body, {

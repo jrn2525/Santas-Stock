@@ -78,8 +78,10 @@ export default async function PickListIndexPage({
       ? [{ startAt: "desc" }, { createdAt: "desc" }]
       : [{ startAt: "asc" }];
 
-  const [jobs, total] = await Promise.all([
-    prisma.jobberJob.findMany({
+  const total = await prisma.jobberJob.count({ where });
+  const maxPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const safePage = Math.min(page, maxPage);
+  const jobs = await prisma.jobberJob.findMany({
       where,
       orderBy,
       include: {
@@ -87,10 +89,8 @@ export default async function PickListIndexPage({
         property: { select: { address: true } },
       },
       take: PAGE_SIZE,
-      skip: (page - 1) * PAGE_SIZE,
-    }),
-    prisma.jobberJob.count({ where }),
-  ]);
+      skip: (safePage - 1) * PAGE_SIZE,
+    });
 
   const rangeLabel =
     dateRange === "week"
@@ -247,7 +247,7 @@ export default async function PickListIndexPage({
       </div>
 
       <Pagination
-        page={page}
+        page={safePage}
         total={total}
         pageSize={PAGE_SIZE}
         baseUrl="/job-flow/pick-list"

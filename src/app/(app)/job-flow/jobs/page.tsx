@@ -123,8 +123,10 @@ export default async function JobsPage({
   const where: Prisma.JobberJobWhereInput =
     andClauses.length > 0 ? { AND: andClauses } : {};
 
-  const [jobs, total] = await Promise.all([
-    prisma.jobberJob.findMany({
+  const total = await prisma.jobberJob.count({ where });
+  const maxPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const safePage = Math.min(page, maxPage);
+  const jobs = await prisma.jobberJob.findMany({
       where,
       orderBy: [{ startAt: "desc" }, { createdAt: "desc" }],
       include: {
@@ -141,10 +143,8 @@ export default async function JobsPage({
         },
       },
       take: PAGE_SIZE,
-      skip: (page - 1) * PAGE_SIZE,
-    }),
-    prisma.jobberJob.count({ where }),
-  ]);
+      skip: (safePage - 1) * PAGE_SIZE,
+    });
 
   return (
     <>
@@ -359,7 +359,7 @@ export default async function JobsPage({
       </div>
 
       <Pagination
-        page={page}
+        page={safePage}
         total={total}
         pageSize={PAGE_SIZE}
         baseUrl="/job-flow/jobs"

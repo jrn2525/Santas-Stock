@@ -90,6 +90,14 @@ export type SyncResult = {
   clientsUpserted: number;
 };
 
+// Compose Jobber's structured property address into the single display string
+// the Property table stores, e.g. "123 Main St, Springfield, IL 62704".
+function composePropertyAddress(a: JobberAddress | null): string {
+  if (!a) return "";
+  const region = compactStrings([a.province, a.postalCode]).join(" ");
+  return compactStrings([a.street, a.city, region]).join(", ");
+}
+
 export async function syncClientsAndProperties(): Promise<SyncResult> {
   let cursor: string | null = null;
   let clientsUpserted = 0;
@@ -107,7 +115,7 @@ export async function syncClientsAndProperties(): Promise<SyncResult> {
       const property = node.properties?.[0];
       const addr = property?.address ?? null;
 
-      await prisma.client.upsert({
+      const client = await prisma.client.upsert({
         where: { jobberClientId: node.id },
         update: {
           name: deriveName(node),
@@ -141,6 +149,23 @@ export async function syncClientsAndProperties(): Promise<SyncResult> {
           syncedAt: now,
         },
       });
+
+      // Upsert every property for this client so JobberJob.propertyId can
+      // resolve. The Property table was previously never written, which left
+      // every job's address blank on the job/pick-list/calendar views.
+      for (const p of node.properties ?? []) {
+        const propAddr = composePropertyAddress(p.address);
+        await prisma.property.upsert({
+          where: { jobberPropertyId: p.id },
+          update: { clientId: client.id, address: propAddr, syncedAt: now },
+          create: {
+            jobberPropertyId: p.id,
+            clientId: client.id,
+            address: propAddr,
+            syncedAt: now,
+          },
+        });
+      }
       clientsUpserted++;
     }
     cursor = data.clients.pageInfo.hasNextPage ? data.clients.pageInfo.endCursor : null;
@@ -824,25 +849,30 @@ export async function syncInvoices(): Promise<InvoicesSyncResult> {
 
   // All pages fetched successfully — now reconcile the stored statuses. Clear
   // stale values first (an invoice may have been deleted), then write the
-  // freshly collected ones grouped by status to keep the write count tiny.
-  await prisma.jobberJob.updateMany({
-    where: { invoiceStatus: { not: null } },
-    data: { invoiceStatus: null },
-  });
-
+  // freshly collected ones grouped by status. Do it in a single transaction so
+  // a failure can't leave the Billing Status column wiped between the clear and
+  // the rewrite.
   const jobberIdsByStatus = new Map<string, string[]>();
   for (const [jobberJobId, status] of statusByJobberId) {
     const list = jobberIdsByStatus.get(status) ?? [];
     list.push(jobberJobId);
     jobberIdsByStatus.set(status, list);
   }
-  for (const [status, jobberIds] of jobberIdsByStatus) {
-    const res = await prisma.jobberJob.updateMany({
-      where: { jobberJobId: { in: jobberIds } },
-      data: { invoiceStatus: status },
-    });
-    result.upserted += res.count;
-  }
+
+  const writes = await prisma.$transaction([
+    prisma.jobberJob.updateMany({
+      where: { invoiceStatus: { not: null } },
+      data: { invoiceStatus: null },
+    }),
+    ...[...jobberIdsByStatus].map(([status, jobberIds]) =>
+      prisma.jobberJob.updateMany({
+        where: { jobberJobId: { in: jobberIds } },
+        data: { invoiceStatus: status },
+      }),
+    ),
+  ]);
+  // writes[0] is the clear; the rest are the per-status rewrites.
+  result.upserted = writes.slice(1).reduce((sum, w) => sum + w.count, 0);
 
   return result;
 }

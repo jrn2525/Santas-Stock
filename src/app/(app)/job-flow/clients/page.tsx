@@ -56,8 +56,10 @@ export default async function ClientsPage({
   const where: Prisma.ClientWhereInput =
     andClauses.length > 0 ? { AND: andClauses } : {};
 
-  const [clients, total] = await Promise.all([
-    prisma.client.findMany({
+  const total = await prisma.client.count({ where });
+  const maxPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const safePage = Math.min(page, maxPage);
+  const clients = await prisma.client.findMany({
       where,
       orderBy: { name: "asc" },
       select: {
@@ -72,10 +74,8 @@ export default async function ClientsPage({
         _count: { select: { jobs: true } },
       },
       take: PAGE_SIZE,
-      skip: (page - 1) * PAGE_SIZE,
-    }),
-    prisma.client.count({ where }),
-  ]);
+      skip: (safePage - 1) * PAGE_SIZE,
+    });
 
   return (
     <>
@@ -203,7 +203,7 @@ export default async function ClientsPage({
       </div>
 
       <Pagination
-        page={page}
+        page={safePage}
         total={total}
         pageSize={PAGE_SIZE}
         baseUrl="/job-flow/clients"

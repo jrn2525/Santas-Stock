@@ -119,7 +119,7 @@ export async function deactivateJob(
       const scrap = lineQty - ret;
       totalReturned += ret;
       totalScrapped += scrap;
-      const inc = Math.floor(ret);
+      const inc = Math.ceil(ret);
       if (inc > 0) {
         increments.set(
           line.item.id,
@@ -150,7 +150,7 @@ export async function deactivateJob(
         if (ret > 0) {
           increments.set(
             ki.itemId,
-            (increments.get(ki.itemId) ?? 0) + Math.floor(ret),
+            (increments.get(ki.itemId) ?? 0) + Math.ceil(ret),
           );
         }
       }
