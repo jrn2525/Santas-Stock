@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { withJobLock } from "@/lib/job-lock";
+import { deductStock } from "@/lib/stock";
 import {
   assertRoleForAction,
   requireUser,
@@ -117,24 +118,12 @@ export async function autoAllocateJob(jobId: string): Promise<{
       for (const need of needs) {
         if (need.needed <= 0) continue;
 
-        // Re-read the item's current stock INSIDE the transaction so
-        // earlier lines in this same allocation pass (or concurrent
-        // writes from other jobs) are reflected. The previously-loaded
-        // job.lineItems[*].item.quantity is too stale to trust.
-        const fresh = await tx.item.findUnique({
-          where: { id: need.itemId },
-          select: { quantity: true },
-        });
-        const available = fresh?.quantity ?? 0;
-        const toDeduct = Math.min(available, need.needed);
+        // Atomically deduct only what's actually on hand (never below zero),
+        // so earlier lines in this pass AND concurrent allocations from other
+        // jobs are all reflected. The preloaded item.quantity is too stale to
+        // trust; deductStock re-reads + guards inside the transaction.
+        const toDeduct = await deductStock(tx, need.itemId, need.needed);
         const short = need.needed - toDeduct;
-
-        if (toDeduct > 0) {
-          await tx.item.update({
-            where: { id: need.itemId },
-            data: { quantity: { decrement: toDeduct } },
-          });
-        }
 
         if (short > 0) {
           const existing = await tx.jobLineShortage.findFirst({

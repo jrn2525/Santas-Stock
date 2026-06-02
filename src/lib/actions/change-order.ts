@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { withJobLock } from "@/lib/job-lock";
+import { deductStock } from "@/lib/stock";
 import { assertRoleForAction, WRITE_ROLES, requireUser } from "@/lib/auth-helpers";
 
 /**
@@ -252,15 +253,8 @@ async function doApplyChangeOrder(
         });
         inventoryDeltas.push({ itemName: item.name, change: diff });
       } else {
-        const available = item.quantity;
-        const toDeduct = Math.min(available, diff);
+        const toDeduct = await deductStock(tx, itemId, diff);
         const short = diff - toDeduct;
-        if (toDeduct > 0) {
-          await tx.item.update({
-            where: { id: itemId },
-            data: { quantity: { decrement: toDeduct } },
-          });
-        }
         if (toDeduct > 0) {
           inventoryDeltas.push({ itemName: item.name, change: toDeduct });
         }
