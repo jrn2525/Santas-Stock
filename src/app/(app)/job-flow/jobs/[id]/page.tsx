@@ -196,19 +196,40 @@ export default async function JobDetailPage({
                   </div>
                   {job.client.emails.length > 0 && (
                     <div className="text-ink-dim">
-                      {job.client.emails.join(", ")}
+                      {job.client.emails.map((email) => (
+                        <div key={email}>{email}</div>
+                      ))}
                     </div>
                   )}
                   {job.client.phones.length > 0 && (
                     <div className="text-ink-dim">
-                      {job.client.phones.join(", ")}
+                      {job.client.phones.map((phone) => (
+                        <div key={phone}>{phone}</div>
+                      ))}
                     </div>
                   )}
-                  {job.property?.address && (
-                    <div className="mt-2 text-ink-dim">
-                      {job.property.address}
-                    </div>
-                  )}
+                  {(() => {
+                    // Prefer the synced Property address; fall back to the
+                    // client's service address (already synced) so an address
+                    // still shows for jobs without a linked property.
+                    const region = [
+                      job.client.serviceState,
+                      job.client.serviceZip,
+                    ]
+                      .filter((p) => p && p.trim())
+                      .join(" ");
+                    const fallback = [
+                      job.client.serviceStreet1,
+                      job.client.serviceCity,
+                      region,
+                    ]
+                      .filter((p) => p && p.trim())
+                      .join(", ");
+                    const address = job.property?.address || fallback;
+                    return address ? (
+                      <div className="mt-2 text-ink-dim">{address}</div>
+                    ) : null;
+                  })()}
                   {totalKitsInTote > 0 && (
                     <div className="mt-2 text-xs text-green-200">
                       In tote: {totalKitsInTote} kit

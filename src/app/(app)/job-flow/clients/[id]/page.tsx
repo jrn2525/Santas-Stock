@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import type { JobStage } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -173,10 +174,20 @@ export default async function ClientDetailPage({
         <Card title="Contact">
           <dl className="space-y-2 text-sm">
             {client.emails.length > 0 && (
-              <Row label="Email" value={client.emails.join(", ")} />
+              <Row
+                label="Email"
+                value={client.emails.map((e) => (
+                  <div key={e}>{e}</div>
+                ))}
+              />
             )}
             {client.phones.length > 0 && (
-              <Row label="Phone" value={client.phones.join(", ")} />
+              <Row
+                label="Phone"
+                value={client.phones.map((p) => (
+                  <div key={p}>{p}</div>
+                ))}
+              />
             )}
             {client.serviceStreet1 && (
               <Row
@@ -388,7 +399,7 @@ function Card({
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex flex-wrap gap-2 text-sm">
       <dt className="text-ink-dim">{label}:</dt>
