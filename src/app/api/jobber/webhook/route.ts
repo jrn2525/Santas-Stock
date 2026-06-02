@@ -6,6 +6,14 @@ import { processJobberWebhookEvents } from "@/lib/jobber/webhook-processor";
 
 export const dynamic = "force-dynamic";
 
+// Webhook-triggered syncs are intentionally OFF. Job Flow data (including
+// Billing Status) is kept fresh by the scheduled auto-sync in Settings and the
+// manual "Sync now" button — both owner-controlled — so real-time webhook syncs
+// are redundant and only add uncontrolled API load. We still verify the
+// signature and ack with 200 so Jobber doesn't retry or auto-disable the
+// subscription. Flip this to true to restore real-time webhook syncs.
+const WEBHOOK_SYNC_ENABLED: boolean = false;
+
 // Jobber signs each webhook with a base64 HMAC-SHA256 of the raw request
 // body, keyed by the app's OAuth client secret, in this header.
 const SIGNATURE_HEADER = "x-jobber-hmac-sha256";
@@ -42,6 +50,11 @@ export async function POST(req: NextRequest) {
 
   if (!signatureMatches(rawBody, signature)) {
     return NextResponse.json({ error: "invalid signature" }, { status: 401 });
+  }
+
+  // Webhook syncs disabled — ack so Jobber stops retrying, but do no work.
+  if (!WEBHOOK_SYNC_ENABLED) {
+    return NextResponse.json({ received: true }, { status: 200 });
   }
 
   let event: WebHookEvent | null = null;

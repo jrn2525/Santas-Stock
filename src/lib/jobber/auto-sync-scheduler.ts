@@ -42,10 +42,7 @@ async function tick(): Promise<void> {
     lastFiredKey = key;
     console.log(`[auto-sync] firing scheduled sync at ${now} ET`);
 
-    // Scheduled syncs skip the invoices phase (the heaviest / most
-    // throttle-prone). Billing status is kept fresh by the manual "Sync now"
-    // button and the invoice/payment webhooks instead.
-    runJobFlowSync({ includeInvoices: false })
+    runJobFlowSync()
       .then(async (res) => {
         if (res.ran) {
           await prisma.settings
