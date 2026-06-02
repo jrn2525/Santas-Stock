@@ -22,6 +22,25 @@ The defense-in-depth layer that makes pool safe is **Postgres row-level security
 
 ---
 
+## Architecture decisions (owner, recorded 2026-06-02)
+
+Two foundational calls made while planning the SaaS build:
+
+**1. Single codebase — do NOT fork the repo.** Convert *this* repo to multi-tenant; the owner's own business becomes tenant #1 (dogfood). Reasons: one place to fix bugs / ship features (reaches the owner and every customer at once), and the multi-tenant refactor has to happen anyway to sell — forking would just mean maintaining two drifting codebases forever *without removing any of the hard work*. The product can be **sold under a different name / branding without forking** — branding is per-org data (logo, name), not a code fork.
+
+**2. Owner's data in its own database; customers in a shared pool.** A hybrid isolation model:
+
+- **Owner (you) = silo:** your business's data stays in its own Postgres (today's `Santas_Stock_Postgres`), with exactly one org in it.
+- **Customers = pool:** all paying customers share a *separate* multi-tenant Postgres (`organizationId` + RLS per the pool model above).
+
+Implementation: **one codebase, deployed twice**, each with a different `DATABASE_URL` — your instance → your DB, the SaaS instance → the customer-pool DB. Same code, separate data, no fork. (Once multi-tenancy exists, your instance is simply "the multi-tenant app with exactly one org.")
+
+**Railway layout (preferred):** run the SaaS as a *separate Railway project* — its own app service + its own customer Postgres — leaving the current project (your live business) untouched. This also insulates your business's uptime + data from the SaaS: a customer-side outage, load spike, or bad migration can't take your own operation down.
+
+Together these resolve the "I don't want my data intermingled with customers'" concern while keeping the single-codebase maintenance benefit.
+
+---
+
 ## Phase 1 — Multi-tenant data + auth (~6–8 weeks part-time)
 
 The unavoidable foundation. Everything else builds on it.
