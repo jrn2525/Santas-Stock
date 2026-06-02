@@ -181,34 +181,26 @@ dependencies exist — building them first yields empty or misleading output.
 
 ---
 
-## Currently in flight: "Billing Status" column on the Jobs list
+## Shipped: "Billing Status" column on the Jobs list
 
-A separate, smaller task was mid-discussion when this brainstorm was saved. Pick
-it up next session by asking John these three questions and then implementing:
+Done and live on `main` (deployed to Railway). On `/job-flow/jobs`
+(`src/app/(app)/job-flow/jobs/page.tsx`) the **Property** column was replaced
+with a **Billing Status** column (**Upcoming** / **Awaiting payment** /
+**Paid**), the old **Status** header was renamed **Visit Status** and now shows
+the most recent visit's `visitStatus` (not the job-level status), and a Billing
+Status filter was added to the filter bar.
 
-**The change:** on `/job-flow/jobs` (`src/app/(app)/job-flow/jobs/page.tsx`),
-remove the **Property** column, add a **Billing Status** column in its slot
-(values like "Upcoming" / "Awaiting payment" / "Paid"), rename the existing
-**Status** header to **Visit Status**, and add a filter on Billing Status.
+**How it works:**
+- New `JobberJob.invoiceStatus` field (migration
+  `20260601000000_job_invoice_status`) stores the raw Jobber
+  `InvoiceStatusTypeEnum` (`draft` / `awaiting_payment` / `paid` / `past_due` /
+  `bad_debt`).
+- A new `syncInvoices` phase (`src/lib/jobber/sync.ts`) pulls each Jobber
+  invoice via the top-level `invoices` query and stamps its status onto the
+  matching job(s); it's isolated in `run-sync.ts` and `webhook-processor.ts`
+  (INVOICE/PAYMENT topics) so a query failure can't disturb the job sync.
+- `src/lib/billing-status.ts` derives the friendly label + filter `where`:
+  no invoice / draft → Upcoming, `paid` → Paid, anything else invoiced →
+  Awaiting payment. Multi-invoice jobs surface the most actionable status
+  (awaiting > paid > draft).
 
-**Jobber-side confirmed during the prior session:**
-- Job has **no single `billingStatus` enum**. The Jobber UI derives those labels
-  from numeric fields on the Job (`invoicedTotal`, `total`, `jobBalanceTotals`).
-- New scopes `read_invoices` and `read_jobber_payments` are already granted
-  (reconnect was completed).
-- Invoice has `invoiceStatus: InvoiceStatusTypeEnum!` — available if needed, but
-  computing from Job-level numerics is the cleaner path.
-
-**Open questions for John (resume here):**
-1. **Visit Status rename** — (a) header-only relabel of the existing
-   `Job.jobStatus` column, or (b) actually swap the data to show the most
-   recent visit's `visitStatus`?
-2. **`JobBalanceTotals` type fields** — need the field list from Jobber's
-   GraphiQL Docs panel to write the Paid-vs-Awaiting-payment rule correctly.
-3. **Filter UI placement** — (i) filter-bar dropdown alongside the existing
-   Search/Stage/Customers controls (recommended; matches existing pattern), or
-   (ii) column-header ▾ dropdown style (what John originally described).
-
-**Proposed derivation once `JobBalanceTotals` is known** (will refine with
-actual field names): `invoicedTotal === 0` → Upcoming; positive outstanding
-balance → Awaiting payment; otherwise → Paid.
