@@ -10,8 +10,13 @@ export const dynamic = "force-dynamic";
 // Billing Status) is kept fresh by the scheduled auto-sync in Settings and the
 // manual "Sync now" button — both owner-controlled — so real-time webhook syncs
 // are redundant and only add uncontrolled API load. We still verify the
-// signature and ack with 200 so Jobber doesn't retry or auto-disable the
-// subscription. Flip this to true to restore real-time webhook syncs.
+// signature and ack with 200 so Jobber doesn't retry.
+//
+// NOTE (2026-06): the Jobber-side webhook subscriptions were ALSO deleted in the
+// Jobber Developer Center. Re-enabling real-time sync is therefore a TWO-step
+// job: (1) re-register the webhook topics in the Developer Center, AND (2) flip
+// WEBHOOK_SYNC_ENABLED below to true. Plan to revisit this as part of the
+// SaaS / Jobber Marketplace build phase — see SAAS_CONVERSION_ROADMAP.md.
 const WEBHOOK_SYNC_ENABLED: boolean = false;
 
 // Jobber signs each webhook with a base64 HMAC-SHA256 of the raw request

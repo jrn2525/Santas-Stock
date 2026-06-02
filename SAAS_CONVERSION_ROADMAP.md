@@ -125,6 +125,19 @@ Don't open this to the world on day one.
 
 ---
 
+## Distribution: Jobber App Marketplace (planned go-to-market)
+
+> Added 2026-06-02. Owner's stated direction: **next year, publish Santa's Stock as a single public app on the Jobber App Marketplace** so any Jobber user can install it — rather than each customer creating their own Jobber developer app (this supersedes Gotcha #7 below).
+
+The Marketplace is Jobber's official distribution channel and requires **Jobber Developer Center review/approval** before the app can be listed publicly. Plan the conversion to meet Jobber's public-app requirements:
+
+- **One public OAuth app** (a single `client_id` / `client_secret` you own). Users click "Connect" / "Install" and authorize via OAuth — far smoother than the per-customer dev-app onboarding described in Phase 1. This becomes the real install flow once approved; the per-tenant OAuth work in Phase 1 still applies, just keyed to your single public app via the `state=<orgId>` param.
+- **Approval prerequisites** (typical): least-privilege OAuth scopes, a public Privacy Policy + Terms of Service, secure token storage (already AES-256-GCM encrypted in this app), a stable production URL, and a demo/walkthrough for Jobber's reviewers. Build to Jobber's current app-review checklist.
+- **Re-enable webhooks here.** Real-time sync was turned off for the single-tenant owner build — the Jobber-side webhook subscriptions were deleted **and** `WEBHOOK_SYNC_ENABLED = false` in `src/app/api/jobber/webhook/route.ts`. A Marketplace app should run on webhooks for freshness, so re-enabling is part of this phase: (1) register webhook topics for the public app in the Developer Center, and (2) flip `WEBHOOK_SYNC_ENABLED` to `true`. The per-job lock + a real sync queue (Gotcha #2) matter much more once many tenants receive webhooks concurrently.
+- **Sequencing:** this is a later build phase, after the Phase 1 multi-tenant foundation (org scoping + RLS) exists. Do not pursue a Marketplace listing before tenant isolation is solid.
+
+---
+
 ## What stays exactly as it is
 
 Once tenant scoping is in, **every existing feature works for every customer without modification**: Job Flow, Inspection (per-component), Deactivation, Change Order (with editable kit components), Customer Kits, Year-2 branching, Reset Job, Replacement Queue, Dead Stock reporting, Print Reports, the whole Job Flow dashboard. The Job Flow panel, the stage chart, the Change Order editor — none of it changes shape. **That's the win: 95% of the product already exists.**
@@ -149,7 +162,7 @@ Realistic total: **6–9 months part-time** from the decision to convert through
 4. **You'll have a support deluge in October–December.** Your customers' busy season is also yours. Plan for it: prebuilt support docs, a help inbox, and a willingness to be on-call. Don't sell more seats than you can support during peak.
 5. **Jobber is your single point of failure.** API outages, deprecations, or rate-limit tightening at Jobber affect every customer simultaneously. Monitor every Jobber call and have a status-page response ready.
 6. **Pricing surprises.** A small 3-person decor business doing $200K/year revenue will balk at $200/month software. The sweet spot is probably $79–$149/month flat. Test with beta customers.
-7. **Don't try to white-label the Jobber dev app.** Each customer creates their own app in Jobber's developer center; you cannot legitimately do this for them via API. Make the onboarding doc crystal clear and the per-step UX dead simple.
+7. **Two distribution models — pick one.** *(a) Fallback:* each customer creates their own app in Jobber's developer center (you cannot legitimately do this for them via API, so the onboarding doc must be crystal clear and the per-step UX dead simple). *(b) Preferred / owner's plan:* publish **one public app on the Jobber App Marketplace** (see "Distribution: Jobber App Marketplace" above) so users install via standard OAuth — removes the per-customer dev-app friction, at the cost of going through Jobber's app review/approval.
 
 ---
 
