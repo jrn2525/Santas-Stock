@@ -6,6 +6,7 @@ import { ADMIN_ROLES, requireRole, roleLabel } from "@/lib/auth-helpers";
 export const dynamic = "force-dynamic";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
   dateStyle: "medium",
 });
 

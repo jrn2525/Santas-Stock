@@ -17,6 +17,7 @@ const errorMessages: Record<string, string> = {
 };
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
   dateStyle: "medium",
   timeStyle: "short",
 });

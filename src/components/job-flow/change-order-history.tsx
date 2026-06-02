@@ -31,6 +31,7 @@ export function ChangeOrderHistory({
   }>;
 }) {
   const dateFmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
     dateStyle: "medium",
     timeStyle: "short",
   });

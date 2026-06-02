@@ -5,6 +5,7 @@ import type { Role } from "@prisma/client";
 export const dynamic = "force-dynamic";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
   dateStyle: "medium",
   timeStyle: "short",
 });

@@ -7,6 +7,7 @@ import { ResolveControls } from "@/components/replacement-resolve";
 export const dynamic = "force-dynamic";
 
 const dateFmt = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
   dateStyle: "medium",
   timeStyle: "short",
 });

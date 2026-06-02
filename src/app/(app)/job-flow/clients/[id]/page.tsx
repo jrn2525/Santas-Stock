@@ -9,8 +9,12 @@ import { ClientStatusControls } from "@/components/client-status-controls";
 
 export const dynamic = "force-dynamic";
 
-const dateFmt = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
+const dateFmt = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
+  dateStyle: "medium",
+});
 const dateTimeFmt = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
   dateStyle: "medium",
   timeStyle: "short",
 });
@@ -119,7 +123,7 @@ export default async function ClientDetailPage({
                   className="inline-block rounded border border-green-600/40 bg-green-600/10 px-2 py-0.5 text-xs font-medium text-green-200"
                   title={
                     client.firstCompletedAt
-                      ? `Existing customer since ${client.firstCompletedAt.toLocaleDateString()}`
+                      ? `Existing customer since ${client.firstCompletedAt.toLocaleDateString("en-US", { timeZone: "America/New_York" })}`
                       : "Existing customer"
                   }
                 >

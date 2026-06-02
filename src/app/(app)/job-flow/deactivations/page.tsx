@@ -7,10 +7,12 @@ import { PrintButton } from "@/components/print-button";
 export const dynamic = "force-dynamic";
 
 const dateFmt = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
   dateStyle: "medium",
 });
 
 const dateTimeFmt = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
   dateStyle: "medium",
   timeStyle: "short",
 });

@@ -6,6 +6,7 @@ import { InventorySyncButton } from "@/components/inventory-sync-button";
 export const dynamic = "force-dynamic";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
   dateStyle: "medium",
   timeStyle: "short",
 });

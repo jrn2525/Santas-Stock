@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 const ALL_STAGES: JobStage[] = ["NEW", ...FLOW_STAGES, ...TERMINAL_STAGES];
 
 const dateFmt = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
   dateStyle: "medium",
   timeStyle: "short",
 });

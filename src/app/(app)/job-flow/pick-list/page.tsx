@@ -9,6 +9,7 @@ import { Pagination, parsePageParam } from "@/components/pagination";
 export const dynamic = "force-dynamic";
 
 const dateFmt = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
   weekday: "short",
   month: "short",
   day: "numeric",

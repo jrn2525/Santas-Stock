@@ -15,12 +15,14 @@ import { ResetJobButton } from "@/components/job-flow/reset-job-button";
 export const dynamic = "force-dynamic";
 
 const dayFmt = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
   weekday: "short",
   month: "short",
   day: "numeric",
   year: "numeric",
 });
 const timeFmt = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
   hour: "numeric",
   minute: "2-digit",
 });
@@ -175,7 +177,7 @@ export default async function JobDetailPage({
                         className="inline-block rounded border border-red-700/40 bg-red-900/10 px-2 py-0.5 text-xs font-medium text-red-200"
                         title={
                           job.client.deactivatedAt
-                            ? `Deactivated ${job.client.deactivatedAt.toLocaleDateString()}`
+                            ? `Deactivated ${job.client.deactivatedAt.toLocaleDateString("en-US", { timeZone: "America/New_York" })}`
                             : "Deactivated customer"
                         }
                       >
@@ -186,7 +188,7 @@ export default async function JobDetailPage({
                         className="inline-block rounded border border-green-600/40 bg-green-600/10 px-2 py-0.5 text-xs font-medium text-green-200"
                         title={
                           job.client.firstCompletedAt
-                            ? `Existing customer since ${job.client.firstCompletedAt.toLocaleDateString()}`
+                            ? `Existing customer since ${job.client.firstCompletedAt.toLocaleDateString("en-US", { timeZone: "America/New_York" })}`
                             : "Existing customer — has had at least one job reach Ready"
                         }
                       >

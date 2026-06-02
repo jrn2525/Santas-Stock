@@ -36,11 +36,15 @@ const moneyFmt = new Intl.NumberFormat("en-US", {
 });
 
 const dateFmt = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
   dateStyle: "medium",
   timeStyle: "short",
 });
 
-const dateOnlyFmt = new Intl.DateTimeFormat("en-US", { dateStyle: "medium" });
+const dateOnlyFmt = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
+  dateStyle: "medium",
+});
 
 export default async function ItemDetailPage({
   params,
