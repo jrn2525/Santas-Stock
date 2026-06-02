@@ -11,14 +11,12 @@ import {
   billingStatusWhere,
   type BillingStatusKey,
 } from "@/lib/billing-status";
+import { dateFormatET } from "@/lib/datetime";
 import { Pagination, parsePageParam } from "@/components/pagination";
 
 export const dynamic = "force-dynamic";
 
-const dateFmt = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
-  dateStyle: "medium",
-});
+const dateFmt = dateFormatET;
 
 const moneyFmt = new Intl.NumberFormat("en-US", {
   style: "currency",

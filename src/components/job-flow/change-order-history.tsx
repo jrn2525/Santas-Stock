@@ -1,6 +1,7 @@
 import type { JobStage } from "@prisma/client";
 import { STAGE_LABELS } from "@/lib/job-flow";
 import { to2Dp } from "@/lib/format";
+import { dateTimeFormatET } from "@/lib/datetime";
 
 type DiffLine = { name: string; kind: "item" | "kit"; quantity: number };
 type DiffChanged = {
@@ -30,11 +31,7 @@ export function ChangeOrderHistory({
     diff: unknown;
   }>;
 }) {
-  const dateFmt = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+  const dateFmt = dateTimeFormatET;
 
   return (
     <section className="rounded-lg border border-rule bg-card p-6 print-block">

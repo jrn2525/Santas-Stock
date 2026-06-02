@@ -3,16 +3,13 @@ import type { JobStage } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { FLOW_STAGES, STAGE_LABELS, TERMINAL_STAGES } from "@/lib/job-flow";
+import { dateTimeFormatET } from "@/lib/datetime";
 
 export const dynamic = "force-dynamic";
 
 const ALL_STAGES: JobStage[] = ["NEW", ...FLOW_STAGES, ...TERMINAL_STAGES];
 
-const dateFmt = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
-  dateStyle: "medium",
-  timeStyle: "short",
-});
+const dateFmt = dateTimeFormatET;
 
 export default async function JobFlowOverviewPage() {
   await requireUser();

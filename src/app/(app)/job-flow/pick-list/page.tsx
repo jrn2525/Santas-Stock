@@ -3,17 +3,17 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { getSettings } from "@/lib/settings";
-import { addDaysET, startOfDayET, todayET } from "@/lib/datetime";
+import {
+  addDaysET,
+  startOfDayET,
+  todayET,
+  weekdayDateFormatET,
+} from "@/lib/datetime";
 import { Pagination, parsePageParam } from "@/components/pagination";
 
 export const dynamic = "force-dynamic";
 
-const dateFmt = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
-  weekday: "short",
-  month: "short",
-  day: "numeric",
-});
+const dateFmt = weekdayDateFormatET;
 
 export default async function PickListIndexPage({
   searchParams,

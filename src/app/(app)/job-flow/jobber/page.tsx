@@ -5,6 +5,7 @@ import { disconnectJobber } from "@/lib/actions/jobber";
 import {
   JobberJobsSyncButton,
 } from "@/components/jobber-job-flow-sync-buttons";
+import { dateTimeFormatET } from "@/lib/datetime";
 
 export const dynamic = "force-dynamic";
 
@@ -16,11 +17,7 @@ const errorMessages: Record<string, string> = {
   access_denied: "Authorization was cancelled.",
 };
 
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
-  dateStyle: "medium",
-  timeStyle: "short",
-});
+const dateFormatter = dateTimeFormatET;
 
 async function disconnectAction() {
   "use server";

@@ -3,14 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { to2Dp } from "@/lib/format";
 import { ResolveControls } from "@/components/replacement-resolve";
+import { dateTimeFormatET } from "@/lib/datetime";
 
 export const dynamic = "force-dynamic";
 
-const dateFmt = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
-  dateStyle: "medium",
-  timeStyle: "short",
-});
+const dateFmt = dateTimeFormatET;
 
 export default async function ReplacementsPage() {
   const user = await requireUser();

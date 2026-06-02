@@ -3,19 +3,13 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { to2Dp } from "@/lib/format";
 import { PrintButton } from "@/components/print-button";
+import { dateFormatET, dateTimeFormatET } from "@/lib/datetime";
 
 export const dynamic = "force-dynamic";
 
-const dateFmt = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
-  dateStyle: "medium",
-});
+const dateFmt = dateFormatET;
 
-const dateTimeFmt = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
-  dateStyle: "medium",
-  timeStyle: "short",
-});
+const dateTimeFmt = dateTimeFormatET;
 
 function parseDateParam(raw: string | undefined): Date | null {
   if (!raw) return null;

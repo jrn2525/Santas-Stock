@@ -7,16 +7,11 @@ import {
   PickListView,
   lineItemsToPickListLines,
 } from "@/components/job-flow/pick-list-view";
+import { longDateFormatET } from "@/lib/datetime";
 
 export const dynamic = "force-dynamic";
 
-const dayFmt = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
-  weekday: "short",
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-});
+const dayFmt = longDateFormatET;
 
 export default async function PickListDetailPage({
   params,

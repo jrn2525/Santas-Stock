@@ -2,14 +2,11 @@ import Link from "next/link";
 import { WRITE_ROLES, requireRole } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { InventorySyncButton } from "@/components/inventory-sync-button";
+import { dateTimeFormatET } from "@/lib/datetime";
 
 export const dynamic = "force-dynamic";
 
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
-  dateStyle: "medium",
-  timeStyle: "short",
-});
+const dateFormatter = dateTimeFormatET;
 
 export default async function InventoryJobberPage() {
   await requireRole(WRITE_ROLES);

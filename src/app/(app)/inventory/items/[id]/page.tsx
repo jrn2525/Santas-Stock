@@ -4,6 +4,7 @@ import { ItemStatus, ProductType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { to2Dp } from "@/lib/format";
+import { dateFormatET, dateTimeFormatET } from "@/lib/datetime";
 
 export const dynamic = "force-dynamic";
 
@@ -35,16 +36,9 @@ const moneyFmt = new Intl.NumberFormat("en-US", {
   currency: "USD",
 });
 
-const dateFmt = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
-  dateStyle: "medium",
-  timeStyle: "short",
-});
+const dateFmt = dateTimeFormatET;
 
-const dateOnlyFmt = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
-  dateStyle: "medium",
-});
+const dateOnlyFmt = dateFormatET;
 
 export default async function ItemDetailPage({
   params,

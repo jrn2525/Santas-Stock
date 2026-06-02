@@ -11,21 +11,12 @@ import {
 } from "@/components/job-flow/pick-list-view";
 import { ChangeOrderHistory } from "@/components/job-flow/change-order-history";
 import { ResetJobButton } from "@/components/job-flow/reset-job-button";
+import { longDateFormatET, timeFormatET } from "@/lib/datetime";
 
 export const dynamic = "force-dynamic";
 
-const dayFmt = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
-  weekday: "short",
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-});
-const timeFmt = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
-  hour: "numeric",
-  minute: "2-digit",
-});
+const dayFmt = longDateFormatET;
+const timeFmt = timeFormatET;
 const moneyFmt = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",

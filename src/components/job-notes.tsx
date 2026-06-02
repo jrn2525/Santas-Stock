@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { longDateFormatET } from "@/lib/datetime";
 
 type Note = {
   id: string;
@@ -8,13 +9,7 @@ type Note = {
   noteCreatedAt: string | null;
 };
 
-const dayFmt = new Intl.DateTimeFormat("en-US", {
-  weekday: "short",
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-  timeZone: "America/New_York",
-});
+const dayFmt = longDateFormatET;
 
 export function JobNotes({
   jobNotes,

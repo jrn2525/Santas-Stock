@@ -6,18 +6,12 @@ import { requireUser } from "@/lib/auth-helpers";
 import { STAGE_LABELS } from "@/lib/job-flow";
 import { to2Dp } from "@/lib/format";
 import { ClientStatusControls } from "@/components/client-status-controls";
+import { dateFormatET, dateTimeFormatET } from "@/lib/datetime";
 
 export const dynamic = "force-dynamic";
 
-const dateFmt = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
-  dateStyle: "medium",
-});
-const dateTimeFmt = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
-  dateStyle: "medium",
-  timeStyle: "short",
-});
+const dateFmt = dateFormatET;
+const dateTimeFmt = dateTimeFormatET;
 const moneyFmt = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",

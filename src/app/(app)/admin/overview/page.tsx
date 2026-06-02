@@ -1,14 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { roleLabel } from "@/lib/auth-helpers";
 import type { Role } from "@prisma/client";
+import { dateTimeFormatET } from "@/lib/datetime";
 
 export const dynamic = "force-dynamic";
 
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
-  dateStyle: "medium",
-  timeStyle: "short",
-});
+const dateFormatter = dateTimeFormatET;
 
 async function getStats() {
   const [total, active, byRole, recentLogins] = await Promise.all([

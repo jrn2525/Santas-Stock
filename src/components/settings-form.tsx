@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { updateSettings } from "@/lib/actions/settings";
 import { emptyFormState, type FormState } from "@/lib/actions/state";
 import type { AppSettings } from "@/lib/settings";
+import { dateTimeFormatET } from "@/lib/datetime";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -24,11 +25,7 @@ type TimeRow = { id: string; value: string };
 let timeKeyCounter = 0;
 const newTimeKey = () => `t-${++timeKeyCounter}`;
 
-const lastSyncFmt = new Intl.DateTimeFormat("en-US", {
-  dateStyle: "medium",
-  timeStyle: "short",
-  timeZone: "America/New_York",
-});
+const lastSyncFmt = dateTimeFormatET;
 
 export function SettingsForm({ settings }: { settings: AppSettings }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(

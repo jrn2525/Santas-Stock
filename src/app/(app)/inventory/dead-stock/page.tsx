@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { to2Dp } from "@/lib/format";
 import { PrintButton } from "@/components/print-button";
+import { dateFormatET } from "@/lib/datetime";
 
 export const dynamic = "force-dynamic";
 
@@ -11,10 +12,7 @@ const moneyFmt = new Intl.NumberFormat("en-US", {
   currency: "USD",
 });
 
-const dateFmt = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
-  dateStyle: "medium",
-});
+const dateFmt = dateFormatET;
 
 type Row = {
   itemId: string;

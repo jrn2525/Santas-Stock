@@ -2,13 +2,11 @@ import Link from "next/link";
 import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ADMIN_ROLES, requireRole, roleLabel } from "@/lib/auth-helpers";
+import { dateFormatET } from "@/lib/datetime";
 
 export const dynamic = "force-dynamic";
 
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  timeZone: "America/New_York",
-  dateStyle: "medium",
-});
+const dateFormatter = dateFormatET;
 
 function parseRole(value: string | undefined): Role | undefined {
   if (!value) return undefined;

@@ -206,6 +206,50 @@ export function fmtMonthYearET(d: Date): string {
   }).format(d);
 }
 
+// ---------------------------------------------------------------------------
+// Canonical display formatters — ALWAYS use these in pages/components instead
+// of constructing a `new Intl.DateTimeFormat(...)`. Every one is pinned to
+// Eastern Time, so a page physically cannot forget `timeZone` and render in the
+// server's UTC clock (the bug that made times show ~4-5h ahead). Import the one
+// you need, e.g. `import { dateTimeFormatET } from "@/lib/datetime"`.
+
+/** "May 19, 2026, 8:30 AM" */
+export const dateTimeFormatET = new Intl.DateTimeFormat("en-US", {
+  timeZone: TZ,
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+
+/** "May 19, 2026" */
+export const dateFormatET = new Intl.DateTimeFormat("en-US", {
+  timeZone: TZ,
+  dateStyle: "medium",
+});
+
+/** "Tue, May 19, 2026" */
+export const longDateFormatET = new Intl.DateTimeFormat("en-US", {
+  timeZone: TZ,
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
+/** "Tue, May 19" */
+export const weekdayDateFormatET = new Intl.DateTimeFormat("en-US", {
+  timeZone: TZ,
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+});
+
+/** "8:30 AM" */
+export const timeFormatET = new Intl.DateTimeFormat("en-US", {
+  timeZone: TZ,
+  hour: "numeric",
+  minute: "2-digit",
+});
+
 /**
  * Heuristic: a visit is "all day" if it starts at ET-midnight and either has
  * no end or ends just before the next ET-midnight.
