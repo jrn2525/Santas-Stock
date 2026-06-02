@@ -38,16 +38,22 @@ const emptyResult: JobFlowSyncResult = {
 };
 
 /**
- * Run the full Job Flow sync (Customers → Jobs → Visits → Invoices → Notes),
- * the same
- * sequence as the "Sync now" button. Pure data work — does NOT call
+ * Run the full Job Flow sync (Customers → Jobs → Visits → [Invoices] → Notes),
+ * the same sequence as the "Sync now" button. Pure data work — does NOT call
  * revalidatePath, so it's safe to call outside a request (e.g. the scheduler).
  * Returns ran=false without doing anything if any sync (manual, scheduled, or
  * webhook drain) is already in flight — they all share one lock so the heavy
  * sync can never overlap itself or the webhook processor.
+ *
+ * `includeInvoices` (default true) pulls every invoice to refresh billing
+ * status. It's the heaviest phase (and the one most prone to Jobber's cost
+ * throttle), so the scheduled auto-sync turns it OFF — billing status stays
+ * fresh via the manual "Sync now" button and the invoice/payment webhooks.
  */
-export async function runJobFlowSync(): Promise<RunJobFlowSync> {
-  const outcome = await runWithSyncLock(doFullSync);
+export async function runJobFlowSync(
+  { includeInvoices = true }: { includeInvoices?: boolean } = {},
+): Promise<RunJobFlowSync> {
+  const outcome = await runWithSyncLock(() => doFullSync({ includeInvoices }));
   if (!outcome.ran) {
     return { ran: false, notConnected: false, result: emptyResult, phaseErrors: [] };
   }
@@ -62,7 +68,11 @@ export async function runJobFlowSync(): Promise<RunJobFlowSync> {
   };
 }
 
-async function doFullSync(): Promise<{
+async function doFullSync({
+  includeInvoices,
+}: {
+  includeInvoices: boolean;
+}): Promise<{
   notConnected: boolean;
   result: JobFlowSyncResult;
   phaseErrors: string[];
@@ -105,7 +115,7 @@ async function doFullSync(): Promise<{
     }
   }
 
-  if (jobs) {
+  if (jobs && includeInvoices) {
     try {
       invoices = await syncInvoices();
     } catch (err) {
