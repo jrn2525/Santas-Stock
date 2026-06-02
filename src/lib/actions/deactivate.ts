@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { withJobLock } from "@/lib/job-lock";
 import {
   assertRoleForAction,
   WRITE_ROLES,
@@ -52,6 +53,14 @@ export type DeactivateDecision =
  * were returned to the shared pool or scrapped — they left.
  */
 export async function deactivateJob(
+  jobId: string,
+  decisions: DeactivateDecision[],
+  reason: string | null,
+): Promise<{ totalReturned: number; totalScrapped: number }> {
+  return withJobLock(jobId, () => doDeactivateJob(jobId, decisions, reason));
+}
+
+async function doDeactivateJob(
   jobId: string,
   decisions: DeactivateDecision[],
   reason: string | null,

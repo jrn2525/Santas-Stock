@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { InspectionDecision } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { withJobLock } from "@/lib/job-lock";
 import {
   assertRoleForAction,
   WRITE_ROLES,
@@ -99,6 +100,13 @@ function computeNewDeltas(opts: {
 }
 
 export async function saveInspectionDecisions(
+  jobId: string,
+  inputs: InspectionLineInput[],
+): Promise<void> {
+  return withJobLock(jobId, () => doSaveInspectionDecisions(jobId, inputs));
+}
+
+async function doSaveInspectionDecisions(
   jobId: string,
   inputs: InspectionLineInput[],
 ): Promise<void> {

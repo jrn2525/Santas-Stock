@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { withJobLock } from "@/lib/job-lock";
 import {
   assertRoleForAction,
   requireUser,
@@ -198,6 +199,13 @@ export async function autoAllocateJob(jobId: string): Promise<{
  * on-hold flag.
  */
 export async function releaseAwaitingStock(jobId: string): Promise<{
+  released: number;
+  stillShort: number;
+}> {
+  return withJobLock(jobId, () => doReleaseAwaitingStock(jobId));
+}
+
+async function doReleaseAwaitingStock(jobId: string): Promise<{
   released: number;
   stillShort: number;
 }> {

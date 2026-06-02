@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { withJobLock } from "@/lib/job-lock";
 import { assertRoleForAction, WRITE_ROLES, requireUser } from "@/lib/auth-helpers";
 
 /**
@@ -33,6 +34,14 @@ export type ChangeOrderResult = {
 };
 
 export async function applyChangeOrder(
+  jobId: string,
+  newLines: ChangeOrderLineInput[],
+  reason: string | null,
+): Promise<ChangeOrderResult> {
+  return withJobLock(jobId, () => doApplyChangeOrder(jobId, newLines, reason));
+}
+
+async function doApplyChangeOrder(
   jobId: string,
   newLines: ChangeOrderLineInput[],
   reason: string | null,
