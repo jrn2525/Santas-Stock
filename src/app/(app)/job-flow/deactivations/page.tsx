@@ -3,7 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { to2Dp } from "@/lib/format";
 import { PrintButton } from "@/components/print-button";
-import { dateFormatET, dateTimeFormatET } from "@/lib/datetime";
+import {
+  dateFormatET,
+  dateTimeFormatET,
+  etWallToUTC,
+  formatDateParam,
+  getETParts,
+  startOfNextDayET,
+} from "@/lib/datetime";
 
 export const dynamic = "force-dynamic";
 
@@ -15,17 +22,13 @@ function parseDateParam(raw: string | undefined): Date | null {
   if (!raw) return null;
   const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!m) return null;
-  const [, y, mo, d] = m;
-  const dt = new Date(Number(y), Number(mo) - 1, Number(d));
-  if (isNaN(dt.getTime())) return null;
-  return dt;
+  // Parse as start-of-day in Eastern Time, not the server's UTC clock.
+  return etWallToUTC(Number(m[1]), Number(m[2]), Number(m[3]));
 }
 
 function toIsoDate(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  // YYYY-MM-DD for the Eastern-Time date containing this instant.
+  return formatDateParam(d);
 }
 
 /**
@@ -76,9 +79,10 @@ export default async function DeactivationsPage({
   const sp = await searchParams;
 
   const now = new Date();
-  const thisYearStart = new Date(now.getFullYear(), 0, 1);
-  const lastYearStart = new Date(now.getFullYear() - 1, 0, 1);
-  const lastYearEnd = new Date(now.getFullYear() - 1, 11, 31);
+  const { year } = getETParts(now);
+  const thisYearStart = etWallToUTC(year, 1, 1);
+  const lastYearStart = etWallToUTC(year - 1, 1, 1);
+  const lastYearEnd = etWallToUTC(year - 1, 12, 31);
 
   const allTime = sp.range === "all";
   let fromDate = allTime ? null : parseDateParam(sp.from);
@@ -87,24 +91,16 @@ export default async function DeactivationsPage({
     fromDate = thisYearStart;
     toDate = now;
   }
-  const toDateInclusive = toDate
-    ? new Date(
-        toDate.getFullYear(),
-        toDate.getMonth(),
-        toDate.getDate(),
-        23,
-        59,
-        59,
-        999,
-      )
-    : null;
+  // Inclusive `to`: include the whole ET day by filtering up to the start of
+  // the next Eastern-Time day.
+  const toExclusive = toDate ? startOfNextDayET(toDate) : null;
 
   const atFilter =
-    fromDate || toDateInclusive
+    fromDate || toExclusive
       ? {
           at: {
             ...(fromDate ? { gte: fromDate } : {}),
-            ...(toDateInclusive ? { lte: toDateInclusive } : {}),
+            ...(toExclusive ? { lt: toExclusive } : {}),
           },
         }
       : {};
