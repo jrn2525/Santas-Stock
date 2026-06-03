@@ -75,6 +75,13 @@ export function startAutoSyncScheduler(): void {
   const g = globalThis as unknown as { __autoSyncStarted?: boolean };
   if (g.__autoSyncStarted) return;
   g.__autoSyncStarted = true;
-  setInterval(() => void tick(), TICK_MS);
+  const timer = setInterval(() => void tick(), TICK_MS);
+  // Don't let the ticker keep the Node event loop alive. On SIGTERM (every
+  // Railway redeploy) the old container must exit within Railway's grace
+  // window; an un-unref'd interval holds the loop open, so Railway force-kills
+  // (SIGKILL) the old container and reports the deployment as "crashed". With
+  // unref, the process exits cleanly once Next's server closes — no false
+  // crash email. The ticker still runs normally while the server is up.
+  timer.unref();
   console.log("[auto-sync] scheduler started (30-second ticker)");
 }
