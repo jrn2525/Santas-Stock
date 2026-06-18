@@ -209,23 +209,14 @@ async function doReleaseAwaitingStock(jobId: string): Promise<{
   let stillShort = 0;
 
   for (const s of shortages) {
-    // Re-read the item's current stock inside the transaction so
-    // earlier shortages in this pass don't get stale "available"
-    // numbers. Same staleness pattern as autoAllocateJob.
+    // Atomically deduct only what's on hand (never below zero), so a
+    // concurrent allocation/change-order on another job for the same item
+    // can't be double-spent here. deductStock re-reads + guards inside the tx.
     const result = await prisma.$transaction(async (tx) => {
-      const fresh = await tx.item.findUnique({
-        where: { id: s.itemId },
-        select: { quantity: true },
-      });
-      const available = fresh?.quantity ?? 0;
-      const toDeduct = Math.min(available, s.quantityShort);
+      const toDeduct = await deductStock(tx, s.itemId, s.quantityShort);
       const remaining = s.quantityShort - toDeduct;
 
       if (toDeduct > 0) {
-        await tx.item.update({
-          where: { id: s.itemId },
-          data: { quantity: { decrement: toDeduct } },
-        });
         if (remaining > 0) {
           await tx.jobLineShortage.update({
             where: { id: s.id },

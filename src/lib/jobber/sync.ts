@@ -596,41 +596,44 @@ export async function syncJobs(): Promise<JobsSyncResult> {
       };
 
       try {
-        const upserted = await prisma.jobberJob.upsert({
-          where: { jobberJobId: node.id },
-          update: data_,
-          create: { jobberJobId: node.id, ...data_ },
+        // Upsert the job and replace its line items atomically. Without the
+        // transaction, a failure between the deleteMany and the recreates would
+        // leave the job with a truncated line-item set until the next sync.
+        await prisma.$transaction(async (tx) => {
+          const upserted = await tx.jobberJob.upsert({
+            where: { jobberJobId: node.id },
+            update: data_,
+            create: { jobberJobId: node.id, ...data_ },
+          });
+
+          await tx.jobLineItem.deleteMany({ where: { jobId: upserted.id } });
+          const lineNodes = node.lineItems?.nodes ?? [];
+          if (lineNodes.length > 0) {
+            await tx.jobLineItem.createMany({
+              data: lineNodes.map((li, pos) => {
+                const linkedJobberId = li.linkedProductOrService?.id ?? null;
+                const itemId = linkedJobberId
+                  ? itemIdByJobberProductId.get(linkedJobberId) ?? null
+                  : null;
+                const kitId =
+                  !itemId && linkedJobberId
+                    ? kitIdByJobberProductId.get(linkedJobberId) ?? null
+                    : null;
+                return {
+                  jobberLineItemId: li.id,
+                  jobId: upserted.id,
+                  itemId,
+                  kitId,
+                  rawName: li.name?.trim() || null,
+                  quantity: toDecimal(li.quantity) ?? new Prisma.Decimal("1"),
+                  notes: li.description?.trim() || null,
+                  position: pos,
+                };
+              }),
+            });
+          }
         });
         result.upserted++;
-
-        // Replace the line items for this job. Simpler than diffing — line
-        // items are small in count per job and cheap to wipe + recreate.
-        await prisma.jobLineItem.deleteMany({ where: { jobId: upserted.id } });
-        const lineNodes = node.lineItems?.nodes ?? [];
-        for (let pos = 0; pos < lineNodes.length; pos++) {
-          const li = lineNodes[pos];
-          const linkedJobberId = li.linkedProductOrService?.id ?? null;
-          const itemId = linkedJobberId
-            ? itemIdByJobberProductId.get(linkedJobberId) ?? null
-            : null;
-          const kitId =
-            !itemId && linkedJobberId
-              ? kitIdByJobberProductId.get(linkedJobberId) ?? null
-              : null;
-          await prisma.jobLineItem.create({
-            data: {
-              jobberLineItemId: li.id,
-              jobId: upserted.id,
-              itemId,
-              kitId,
-              rawName: li.name?.trim() || null,
-              quantity:
-                toDecimal(li.quantity) ?? new Prisma.Decimal("1"),
-              notes: li.description?.trim() || null,
-              position: pos,
-            },
-          });
-        }
       } catch (err) {
         console.error(`[jobber-sync] job ${node.id}:`, err);
         result.skipped++;

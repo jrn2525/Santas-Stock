@@ -8,6 +8,7 @@ import {
   type InventorySyncResult,
 } from "@/lib/jobber/sync";
 import { runJobFlowSync, type JobFlowSyncResult } from "@/lib/jobber/run-sync";
+import { runWithSyncLock } from "@/lib/jobber/sync-lock";
 import { JobberNotConnectedError } from "@/lib/jobber/client";
 import type { FormState } from "./state";
 
@@ -27,11 +28,19 @@ export async function syncJobberInventory(
   await assertRoleForAction(WRITE_ROLES);
 
   try {
-    const result = await syncProductsAndServices();
+    // Share the lock with the job/webhook syncs so two heavy syncs never run at
+    // once and race the claim-by-name matching into duplicate Items/Kits.
+    const outcome = await runWithSyncLock(() => syncProductsAndServices());
+    if (!outcome.ran) {
+      return {
+        errors: {},
+        message: "A sync is already running. Try again in a moment.",
+      };
+    }
     revalidatePath("/inventory/items");
     revalidatePath("/inventory/kits");
     revalidatePath("/inventory/jobber");
-    return { errors: {}, message: null, result };
+    return { errors: {}, message: null, result: outcome.value };
   } catch (err) {
     if (err instanceof JobberNotConnectedError) {
       return {

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { CustomerEra } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   assertRoleForAction,
@@ -53,25 +54,23 @@ export async function completeJobForClient(jobId: string): Promise<{
   });
   if (!client) return { converted: false, kitsSynced: 0 };
 
-  let converted = false;
-  if (client.customerStatus === "NEW") {
-    await prisma.client.update({
-      where: { id: client.id },
-      data: {
-        customerStatus: "EXISTING",
-        firstCompletedAt: client.firstCompletedAt ?? new Date(),
-      },
-    });
-    converted = true;
+  // Already completed once: the client was flipped to EXISTING and the kit
+  // lines were synced in one transaction (see below), so re-completion (e.g.
+  // revert -> re-complete) is a no-op.
+  if (job.customerKitsSyncedAt) {
+    revalidatePath(`/job-flow/jobs/${jobId}`);
+    return { converted: false, kitsSynced: 0 };
   }
 
-  let kitsSynced = 0;
-  if (!job.customerKitsSyncedAt) {
-    kitsSynced = await syncCustomerKitsForJob(jobId, job.clientId, job.propertyId);
-  }
+  const result = await completeKitSyncAndFlip(
+    jobId,
+    job.clientId,
+    job.propertyId,
+    client,
+  );
 
   revalidatePath(`/job-flow/jobs/${jobId}`);
-  return { converted, kitsSynced };
+  return result;
 }
 
 /**
@@ -81,11 +80,16 @@ export async function completeJobForClient(jobId: string): Promise<{
  * who orders one more of the same kit type next season ends up with
  * two of that kit, not one).
  */
-async function syncCustomerKitsForJob(
+async function completeKitSyncAndFlip(
   jobId: string,
   clientId: string,
   propertyId: string | null,
-): Promise<number> {
+  client: {
+    id: string;
+    customerStatus: CustomerEra;
+    firstCompletedAt: Date | null;
+  },
+): Promise<{ converted: boolean; kitsSynced: number }> {
   const lines = await prisma.jobLineItem.findMany({
     where: { jobId, kitId: { not: null } },
     include: {
@@ -101,8 +105,23 @@ async function syncCustomerKitsForJob(
   });
 
   let synced = 0;
+  let converted = false;
 
   await prisma.$transaction(async (tx) => {
+    // Flip NEW -> EXISTING in the SAME transaction as the kit sync and the
+    // customerKitsSyncedAt stamp, so a failure can't leave the client marked
+    // EXISTING while its kits stay unsynced.
+    if (client.customerStatus === "NEW") {
+      await tx.client.update({
+        where: { id: client.id },
+        data: {
+          customerStatus: "EXISTING",
+          firstCompletedAt: client.firstCompletedAt ?? new Date(),
+        },
+      });
+      converted = true;
+    }
+
     for (const line of lines) {
       if (!line.kit) continue;
       const totalKitQty = Math.ceil(Number(line.quantity));
@@ -214,5 +233,5 @@ async function syncCustomerKitsForJob(
     });
   });
 
-  return synced;
+  return { converted, kitsSynced: synced };
 }
