@@ -26,6 +26,14 @@ body {
    helper hints) and any note tile that was unchecked. Aggressive reset on
    every element so the dark-theme styles (white text, white borders, tinted
    panel backgrounds) don't carry into the printout. */
+/* Drop the browser-generated print header/footer (date, document title, page
+   number, and page URL) by giving the page no margin box for them to render
+   in. The printed content gets its own readable inset back via padding on
+   <main> below. */
+@page {
+  margin: 0;
+}
+
 @media print {
   /* Universal reset: everything prints as black on white with black borders.
      Covers the dark-theme utilities (text-white, border-white, bg-canvas,
@@ -47,14 +55,19 @@ body {
     background: #ffffff !important;
   }
 
-  /* Hide the app shell — top header bar and sidebar. */
+  /* Hide the app shell — top header bar, the mobile horizontal nav (which
+     reappears in print because paper is narrower than the lg breakpoint), and
+     the sidebar. */
   body > div > header,
+  body > div > nav,
   body > div > div > aside {
     display: none !important;
   }
-  /* Strip <main>'s padding so the printout fills the page. */
+  /* With @page margin set to 0 (above) the browser no longer prints its
+     header/footer; restore a readable inset on the content itself. Left/right
+     padding is kept on every page; the top inset applies to the first page. */
   body > div > div > main {
-    padding: 0 !important;
+    padding: 1.27cm !important;
   }
   .no-print {
     display: none !important;

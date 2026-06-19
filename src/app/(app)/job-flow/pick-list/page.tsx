@@ -173,10 +173,10 @@ export default async function PickListIndexPage({
         <table className="w-full min-w-[56rem] text-sm">
           <thead className="bg-card text-left text-xs uppercase tracking-wider text-ink-dim">
             <tr>
+              <th className="px-4 py-3">Customer</th>
               <th className="px-4 py-3">Scheduled</th>
               <th className="px-4 py-3">Job #</th>
               <th className="px-4 py-3">Title</th>
-              <th className="px-4 py-3">Customer</th>
               <th className="px-4 py-3">Property</th>
               <th className="px-4 py-3 text-right">Pick list</th>
             </tr>
@@ -211,6 +211,14 @@ export default async function PickListIndexPage({
             ) : (
               jobs.map((j) => (
                 <tr key={j.id} className="text-ink hover:bg-card/40">
+                  <td className="px-4 py-3 font-medium">
+                    <Link
+                      href={`/job-flow/pick-list/${j.id}`}
+                      className="hover:text-brand"
+                    >
+                      {j.client?.name ?? "—"}
+                    </Link>
+                  </td>
                   <td className="px-4 py-3 text-ink-dim whitespace-nowrap">
                     {j.startAt ? dateFmt.format(j.startAt) : "—"}
                   </td>
@@ -227,7 +235,6 @@ export default async function PickListIndexPage({
                       {j.title ?? "(untitled)"}
                     </Link>
                   </td>
-                  <td className="px-4 py-3">{j.client?.name ?? "—"}</td>
                   <td className="px-4 py-3 text-ink-dim">
                     {j.property?.address ?? "—"}
                   </td>
