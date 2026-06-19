@@ -148,7 +148,15 @@ export default async function ItemsPage({
                       {statusLabels[i.status]}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums">{to2Dp(i.quantity)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">
+                    {i.tracksStock ? (
+                      to2Dp(i.quantity)
+                    ) : (
+                      <span className="text-ink-muted" title="Pay-by-the-hour service — no stock tracked">
+                        Service
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-ink-dim">{i.homeLocation ?? "—"}</td>
                   <td className="px-4 py-3 text-right">
                     {canWrite && (

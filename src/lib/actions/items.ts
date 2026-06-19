@@ -46,6 +46,10 @@ const ItemSchema = z.object({
     (v) => v === "on" || v === "true" || v === true,
     z.boolean(),
   ),
+  tracksStock: z.preprocess(
+    (v) => v === "on" || v === "true" || v === true,
+    z.boolean(),
+  ),
   websites: z.preprocess(
     (v) => parseWebsitesJson(v),
     z.array(z.string().min(1).max(500)).max(50),
@@ -89,6 +93,7 @@ function readForm(formData: FormData) {
     quantity: formData.get("quantity"),
     minQuantity: formData.get("minQuantity"),
     active: formData.get("active"),
+    tracksStock: formData.get("tracksStock"),
     websites: formData.get("websites"),
     sku: formData.get("sku"),
     manufacturer: formData.get("manufacturer"),
@@ -108,6 +113,7 @@ function buildData(parsed: z.infer<typeof ItemSchema>) {
     quantity: parsed.quantity,
     minQuantity: parsed.minQuantity,
     active: parsed.active,
+    tracksStock: parsed.tracksStock,
     websites: parsed.websites,
     sku: parsed.sku,
     manufacturer: parsed.manufacturer,
@@ -198,8 +204,44 @@ export async function updateItem(
     throw err;
   }
 
+  // If this item is now a non-stock service, clear any awaiting-stock
+  // shortages it left behind and lift the on-hold flag from jobs that no
+  // longer have any shortage.
+  if (!data.tracksStock) {
+    await clearShortagesForItem(id);
+  }
+
   revalidatePath("/inventory/items");
   redirect("/inventory/items?flash=item-updated");
+}
+
+// Remove an item's outstanding shortages and clear isOnHold from any job that,
+// afterwards, has no remaining shortages. Used when an item becomes a
+// non-stock service (it can never legitimately be "short").
+async function clearShortagesForItem(itemId: string) {
+  const affected = await prisma.jobLineShortage.findMany({
+    where: { itemId },
+    select: { jobLineItem: { select: { jobId: true } } },
+  });
+  if (affected.length === 0) return;
+
+  const jobIds = Array.from(
+    new Set(affected.map((a) => a.jobLineItem.jobId)),
+  );
+  await prisma.jobLineShortage.deleteMany({ where: { itemId } });
+
+  for (const jobId of jobIds) {
+    const remaining = await prisma.jobLineShortage.count({
+      where: { jobLineItem: { jobId } },
+    });
+    if (remaining === 0) {
+      await prisma.jobberJob.update({
+        where: { id: jobId },
+        data: { isOnHold: false },
+      });
+    }
+    revalidatePath(`/job-flow/jobs/${jobId}`);
+  }
 }
 
 export async function deleteItem(id: string) {

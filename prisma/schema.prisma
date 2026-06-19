@@ -196,6 +196,10 @@ model Item {
   status      ItemStatus @default(AVAILABLE)
   active      Boolean    @default(true)
   quantity    Int        @default(0)
+  /// When false, this "item" is a pay-by-the-hour service (e.g. Specialty
+  /// Service, Lift Service) with no physical stock. Allocation never deducts
+  /// it, never records a shortage, and it never puts a job on Awaiting Stock.
+  tracksStock Boolean    @default(true)
   /// Low-stock threshold. Items with quantity <= minQuantity surface on the dashboard.
   minQuantity Int        @default(0)
   unitCost    Decimal?   @map("purchaseCost") @db.Decimal(12, 2)

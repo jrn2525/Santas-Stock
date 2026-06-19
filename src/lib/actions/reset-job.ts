@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { adjustStock } from "@/lib/stock";
 import {
   assertRoleForAction,
   ADMIN_ROLES,
@@ -225,13 +226,10 @@ export async function resetJob(
   let kitsRestoredToTote = 0;
 
   await prisma.$transaction(async (tx) => {
-    // Item quantity increments
+    // Item quantity increments (no-op for non-stock service items).
     for (const [itemId, qty] of itemIncrements) {
       if (qty <= 0) continue;
-      await tx.item.update({
-        where: { id: itemId },
-        data: { quantity: { increment: qty } },
-      });
+      await adjustStock(tx, itemId, qty);
     }
 
     // CustomerKit / CustomerKitItem updates

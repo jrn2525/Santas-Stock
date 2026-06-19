@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { withJobLock } from "@/lib/job-lock";
+import { adjustStock } from "@/lib/stock";
 import {
   assertRoleForAction,
   WRITE_ROLES,
@@ -224,12 +225,10 @@ async function doDeactivateJob(
   const notes = noteParts.join(" — ");
 
   await prisma.$transaction(async (tx) => {
+    // Return-to-stock (no-op for non-stock service items).
     for (const [itemId, qty] of increments) {
       if (qty <= 0) continue;
-      await tx.item.update({
-        where: { id: itemId },
-        data: { quantity: { increment: qty } },
-      });
+      await adjustStock(tx, itemId, qty);
     }
 
     for (const update of toteUpdates) {

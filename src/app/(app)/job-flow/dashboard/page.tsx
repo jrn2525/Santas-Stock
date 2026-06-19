@@ -140,7 +140,7 @@ export default async function JobFlowDashboardPage() {
           lineItems: {
             select: {
               quantity: true,
-              item: { select: { id: true, name: true, quantity: true } },
+              item: { select: { id: true, name: true, quantity: true, tracksStock: true } },
               kit: {
                 select: {
                   name: true,
@@ -148,7 +148,7 @@ export default async function JobFlowDashboardPage() {
                   items: {
                     select: {
                       quantity: true,
-                      item: { select: { id: true, name: true, quantity: true } },
+                      item: { select: { id: true, name: true, quantity: true, tracksStock: true } },
                     },
                   },
                 },
@@ -165,6 +165,7 @@ export default async function JobFlowDashboardPage() {
     for (const li of job.lineItems) {
       const qty = Number(li.quantity);
       if (li.item) {
+        if (!li.item.tracksStock) continue; // service — not a material
         const ex = demandMap.get(li.item.id);
         demandMap.set(li.item.id, {
           itemId: li.item.id,
@@ -174,6 +175,7 @@ export default async function JobFlowDashboardPage() {
         });
       } else if (li.kit) {
         for (const ki of li.kit.items) {
+          if (!ki.item.tracksStock) continue; // service component — skip
           const ex = demandMap.get(ki.item.id);
           demandMap.set(ki.item.id, {
             itemId: ki.item.id,

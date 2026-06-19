@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { InspectionDecision } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { withJobLock } from "@/lib/job-lock";
+import { adjustStock } from "@/lib/stock";
 import {
   assertRoleForAction,
   WRITE_ROLES,
@@ -389,10 +390,8 @@ async function doSaveInspectionDecisions(
   await prisma.$transaction(async (tx) => {
     for (const [itemId, change] of netByItem.entries()) {
       if (change === 0) continue;
-      await tx.item.update({
-        where: { id: itemId },
-        data: { quantity: { increment: change } },
-      });
+      // Signed stock change (no-op for non-stock service items).
+      await adjustStock(tx, itemId, change);
     }
 
     if (deleteLineForLineIds.length > 0) {

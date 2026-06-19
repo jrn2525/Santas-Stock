@@ -19,6 +19,7 @@ type Item = {
   quantity: number;
   minQuantity: number;
   active: boolean;
+  tracksStock: boolean;
   homeLocation: string | null;
   currentLocation: string | null;
   unitCost: { toString(): string } | null;
@@ -212,6 +213,26 @@ export function ItemForm({ item }: { item?: Item }) {
               </span>
             </label>
           </div>
+        </div>
+
+        <div className="mt-5 rounded-md border border-rule bg-canvas p-4">
+          <label className="flex items-start gap-3 text-sm text-ink">
+            <input
+              type="checkbox"
+              name="tracksStock"
+              defaultChecked={item?.tracksStock ?? true}
+              className="mt-0.5 h-4 w-4 rounded border-rule bg-canvas text-brand focus:ring-brand"
+            />
+            <span>
+              Track stock for this item
+              <span className="mt-1 block text-xs text-ink-dim">
+                Leave checked for physical inventory. <strong>Uncheck for
+                pay-by-the-hour services</strong> (e.g. Specialty Service, Lift
+                Service) — these are never deducted, never run short, and never
+                put a job on Awaiting Stock.
+              </span>
+            </span>
+          </label>
         </div>
       </Section>
 

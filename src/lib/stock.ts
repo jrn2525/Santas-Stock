@@ -21,8 +21,11 @@ export async function deductStock(
   for (let attempt = 0; attempt < 5; attempt++) {
     const fresh = await tx.item.findUnique({
       where: { id: itemId },
-      select: { quantity: true },
+      select: { quantity: true, tracksStock: true },
     });
+    // Service / non-stock item: nothing to deduct and never short. Report the
+    // full amount as "satisfied" so callers create no shortage.
+    if (fresh && !fresh.tracksStock) return needed;
     const available = fresh?.quantity ?? 0;
     const want = Math.min(available, needed);
     if (want <= 0) return 0;
@@ -34,4 +37,29 @@ export async function deductStock(
     // Lost a race against a concurrent deduction — re-read and retry.
   }
   return 0;
+}
+
+/**
+ * Apply a signed change to an item's stock (positive = return to stock,
+ * negative = pull). No-ops for non-stock service items so their quantity never
+ * drifts. Use this for every "return to stock" path (change orders, reset,
+ * deactivation, inspection) so services stay transparent to inventory.
+ *
+ * Must be called inside a transaction.
+ */
+export async function adjustStock(
+  tx: Prisma.TransactionClient,
+  itemId: string,
+  delta: number,
+): Promise<void> {
+  if (delta === 0) return;
+  const it = await tx.item.findUnique({
+    where: { id: itemId },
+    select: { tracksStock: true },
+  });
+  if (it && !it.tracksStock) return; // service item — no stock to adjust
+  await tx.item.update({
+    where: { id: itemId },
+    data: { quantity: { increment: delta } },
+  });
 }

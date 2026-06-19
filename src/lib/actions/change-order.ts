@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { withJobLock } from "@/lib/job-lock";
-import { deductStock } from "@/lib/stock";
+import { adjustStock, deductStock } from "@/lib/stock";
 import { assertRoleForAction, WRITE_ROLES, requireUser } from "@/lib/auth-helpers";
 
 /**
@@ -247,10 +247,8 @@ async function doApplyChangeOrder(
         }));
       if (!item) continue;
       if (diff < 0) {
-        await tx.item.update({
-          where: { id: itemId },
-          data: { quantity: { increment: -diff } },
-        });
+        // Return to stock (no-op for non-stock service items).
+        await adjustStock(tx, itemId, -diff);
         inventoryDeltas.push({ itemName: item.name, change: diff });
       } else {
         const toDeduct = await deductStock(tx, itemId, diff);
