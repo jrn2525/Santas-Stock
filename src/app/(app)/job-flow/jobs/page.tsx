@@ -74,13 +74,18 @@ export default async function JobsPage({
     stage?: string;
     customers?: string;
     billing?: string;
+    scheduled?: string;
     page?: string;
   }>;
 }) {
   await requireUser();
   const { defaultPageSize: PAGE_SIZE } = await getSettings();
-  const { q, stage, customers, billing, page: pageParam } = await searchParams;
+  const { q, stage, customers, billing, scheduled, page: pageParam } =
+    await searchParams;
   const query = q?.trim() ?? "";
+  // Scheduled-date sort: "soonest" = closest date first (chronological asc),
+  // "latest" = farthest date first (desc, the default — preserves prior order).
+  const scheduledSort = scheduled === "soonest" ? "soonest" : "latest";
   const stageFilter =
     stage && STAGE_OPTIONS.includes(stage as JobStage)
       ? (stage as JobStage)
@@ -126,9 +131,14 @@ export default async function JobsPage({
   const total = await prisma.jobberJob.count({ where });
   const maxPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const safePage = Math.min(page, maxPage);
+  const orderBy: Prisma.JobberJobOrderByWithRelationInput[] =
+    scheduledSort === "soonest"
+      ? [{ startAt: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }]
+      : [{ startAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }];
+
   const jobs = await prisma.jobberJob.findMany({
       where,
-      orderBy: [{ startAt: "desc" }, { createdAt: "desc" }],
+      orderBy,
       include: {
         client: { select: { id: true, name: true, active: true } },
         // Most recent visit (scheduled visits win over unscheduled) for the
@@ -175,6 +185,23 @@ export default async function JobsPage({
             placeholder="Title, job #, client name..."
             className="mt-1 block w-full rounded-md border border-rule bg-card px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
           />
+        </div>
+        <div>
+          <label
+            htmlFor="scheduled-sort"
+            className="block text-xs font-medium text-ink-dim"
+          >
+            Scheduled
+          </label>
+          <select
+            id="scheduled-sort"
+            name="scheduled"
+            defaultValue={scheduledSort}
+            className="mt-1 rounded-md border border-rule bg-card px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+          >
+            <option value="soonest">Closest date first</option>
+            <option value="latest">Farthest date first</option>
+          </select>
         </div>
         <div>
           <label
@@ -245,7 +272,8 @@ export default async function JobsPage({
         {(query ||
           stageFilter ||
           customerFilter !== "active" ||
-          billingFilter) && (
+          billingFilter ||
+          scheduledSort !== "latest") && (
           <Link
             href="/job-flow/jobs"
             className="rounded-md border border-rule bg-canvas px-4 py-2 text-sm font-medium text-ink hover:border-brand"
@@ -369,6 +397,7 @@ export default async function JobsPage({
             stage: stageFilter ?? "",
             customers: customerFilter === "active" ? "" : customerFilter,
             billing: billingFilter ?? "",
+            scheduled: scheduledSort === "latest" ? "" : scheduledSort,
           }).filter(([, v]) => v !== ""),
         )}
       />
