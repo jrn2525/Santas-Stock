@@ -174,7 +174,15 @@ export default async function SyncLogsPage({
                         <> · {(run.durationMs / 1000).toFixed(1)}s</>
                       )}
                       {run.markedDeleted > 0 && (
-                        <> · {run.markedDeleted} deleted in Jobber</>
+                        <>
+                          {" · "}
+                          <Link
+                            href="/job-flow/jobber/deleted"
+                            className="text-brand underline hover:text-brand-hover"
+                          >
+                            {run.markedDeleted} deleted in Jobber
+                          </Link>
+                        </>
                       )}
                     </p>
                   </div>

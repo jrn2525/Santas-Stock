@@ -55,6 +55,13 @@ export default async function JobberPage({
   const errorMsg = params.error ? errorMessages[params.error] ?? params.error : null;
   const justConnected = params.connected === "1";
 
+  // Jobs flagged deleted-in-Jobber and not yet dismissed — surfaced as a
+  // permanent entry point so they can be reviewed any time, not just via the
+  // post-sync pop-up.
+  const deletedInJobberCount = await prisma.jobberJob.count({
+    where: { deletedInJobberAt: { not: null }, staleDismissedAt: null },
+  });
+
   return (
     <>
       <header>
@@ -149,12 +156,25 @@ export default async function JobberPage({
                 from Jobber in one click.
               </p>
             </div>
-            <Link
-              href="/job-flow/jobber/logs"
-              className="rounded-md border border-rule bg-canvas px-3 py-2 text-sm font-medium text-ink hover:border-brand hover:text-brand"
-            >
-              View logs
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/job-flow/jobber/deleted"
+                className={`rounded-md border px-3 py-2 text-sm font-medium ${
+                  deletedInJobberCount > 0
+                    ? "border-brand bg-brand/10 text-brand hover:bg-brand hover:text-ink"
+                    : "border-rule bg-canvas text-ink hover:border-brand hover:text-brand"
+                }`}
+              >
+                Deleted in Jobber
+                {deletedInJobberCount > 0 ? ` (${deletedInJobberCount})` : ""}
+              </Link>
+              <Link
+                href="/job-flow/jobber/logs"
+                className="rounded-md border border-rule bg-canvas px-3 py-2 text-sm font-medium text-ink hover:border-brand hover:text-brand"
+              >
+                View logs
+              </Link>
+            </div>
           </div>
           <div className="mt-4 space-y-3">
             <JobberJobsSyncButton />
