@@ -55,11 +55,16 @@ export function StaleJobsReview({
     const toDismiss = jobs
       .filter((j) => dismissChecked.has(j.id))
       .map((j) => j.id);
+    setError(null);
     startTransition(async () => {
-      if (toDismiss.length > 0) {
-        await Promise.all(toDismiss.map((id) => dismissStaleJob(id)));
+      try {
+        if (toDismiss.length > 0) {
+          await Promise.all(toDismiss.map((id) => dismissStaleJob(id)));
+        }
+        onDone();
+      } catch {
+        setError("Couldn't save changes — please try again.");
       }
-      onDone();
     });
   }
 

@@ -17,12 +17,16 @@ export default async function InventoryDashboardPage() {
 
   const [items, available, allocated, totalQtyAgg, allActive, weekVisits] =
     await Promise.all([
-      prisma.item.count({ where: { active: true } }),
-      prisma.item.count({ where: { active: true, status: "AVAILABLE" } }),
-      prisma.item.count({ where: { active: true, status: "ALLOCATED" } }),
+      prisma.item.count({ where: { active: true, tracksStock: true } }),
+      prisma.item.count({
+        where: { active: true, tracksStock: true, status: "AVAILABLE" },
+      }),
+      prisma.item.count({
+        where: { active: true, tracksStock: true, status: "ALLOCATED" },
+      }),
       prisma.item.aggregate({
         _sum: { quantity: true },
-        where: { active: true },
+        where: { active: true, tracksStock: true },
       }),
       prisma.item.findMany({
         // Non-stock services never run low — keep them out of the alert.

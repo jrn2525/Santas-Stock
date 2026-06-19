@@ -304,7 +304,10 @@ export default async function JobsPage({
                   colSpan={8}
                   className="px-4 py-12 text-center text-ink-dim"
                 >
-                  {query || stageFilter || billingFilter ? (
+                  {query ||
+                  stageFilter ||
+                  billingFilter ||
+                  customerFilter !== "active" ? (
                     <>No jobs match the current filters.</>
                   ) : (
                     <>No jobs yet. Run Sync Jobs in Job Flow → Jobber.</>

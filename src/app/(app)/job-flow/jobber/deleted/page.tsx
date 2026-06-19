@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { WRITE_ROLES, requireRole } from "@/lib/auth-helpers";
+import { ADMIN_ROLES, requireRole } from "@/lib/auth-helpers";
 import { listStaleJobs } from "@/lib/stale-jobs";
 import { StaleJobsPageClient } from "@/components/stale-jobs-page-client";
 
 export const dynamic = "force-dynamic";
 
 export default async function DeletedInJobberPage() {
-  await requireRole(WRITE_ROLES);
+  await requireRole(ADMIN_ROLES);
   const jobs = await listStaleJobs();
 
   return (

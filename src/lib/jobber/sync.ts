@@ -703,13 +703,18 @@ async function reconcileDeletedJobs(
     select: { id: true, jobberJobId: true, deletedInJobberAt: true },
   });
 
-  // Safety valve: if Jobber returned zero jobs but we have some locally, treat
-  // it as a suspect/empty response rather than flagging the entire database as
-  // deleted. Better to warn and do nothing than to mass-flag on a fluke.
-  if (seenJobberJobIds.size === 0 && localJobs.length > 0) {
+  // Safety valve: if Jobber returned zero jobs — or suspiciously few relative
+  // to what we have locally — treat it as a partial/fluke response rather than
+  // flagging the database as deleted. A real bulk deletion that large would be
+  // deliberate in Jobber and still surface on the next clean sync. Only applies
+  // the ratio check once there are enough local jobs for it to be meaningful.
+  const tooFew =
+    seenJobberJobIds.size === 0 ||
+    (localJobs.length >= 20 &&
+      seenJobberJobIds.size < localJobs.length * 0.5);
+  if (tooFew && localJobs.length > 0) {
     result.warnings.push({
-      message:
-        "Jobber returned no jobs — skipped the deleted-job check this run to avoid flagging everything.",
+      message: `Jobber returned only ${seenJobberJobIds.size} of ${localJobs.length} known jobs — skipped the deleted-job check this run to avoid false flags.`,
       level: "ERROR",
     });
     result.markedDeleted = await prisma.jobberJob.count({
