@@ -1141,10 +1141,17 @@ export async function syncNotes(): Promise<NotesSyncResult> {
     });
   }
 
+  // Skip parents whose job is already flagged deleted-in-Jobber: querying
+  // their notes just yields "not found" errors and burns API calls. They'll be
+  // cleaned up via the deleted-in-Jobber review (or the self-heal below).
   const [clients, jobs, visits] = await Promise.all([
     prisma.client.findMany({ select: { id: true, jobberClientId: true } }),
-    prisma.jobberJob.findMany({ select: { id: true, jobberJobId: true } }),
+    prisma.jobberJob.findMany({
+      where: { deletedInJobberAt: null },
+      select: { id: true, jobberJobId: true },
+    }),
     prisma.jobberVisit.findMany({
+      where: { job: { deletedInJobberAt: null } },
       select: { id: true, jobberVisitId: true, jobId: true },
     }),
   ]);
@@ -1230,10 +1237,39 @@ export async function syncNotes(): Promise<NotesSyncResult> {
             result.upserted++;
           }
         } catch (err) {
+          const msg = err instanceof Error ? err.message : "unknown error";
+
+          // "Visit/Job not found" is expected when the parent was deleted or
+          // rescheduled in Jobber — it's not a real error, so don't log a
+          // stack trace. For a visit we can self-heal: Jobber has explicitly
+          // told us it's gone, so remove the stale local copy. If it actually
+          // still exists, the next Visits sync simply re-creates it. Jobs are
+          // left to the deleted-in-Jobber review.
+          if (/not found/i.test(msg)) {
+            if (p.kind === "visit") {
+              await prisma.jobberVisit
+                .delete({ where: { id: p.localId } })
+                .catch(() => {});
+              result.warnings.push({
+                message: `Visit ${p.jobberId} no longer exists in Jobber — removed its stale copy.`,
+                level: "WARNING",
+                jobId: p.jobId,
+                jobLabel: "Stale visit removed",
+              });
+            } else {
+              result.warnings.push({
+                message: `${p.kind} ${p.jobberId} no longer exists in Jobber — notes skipped.`,
+                level: "WARNING",
+                jobId: p.jobId,
+              });
+            }
+            return;
+          }
+
           console.error(`[jobber-sync] notes for ${p.kind} ${p.jobberId}:`, err);
           result.skipped++;
           result.warnings.push({
-            message: `${p.kind} ${p.jobberId}: ${err instanceof Error ? err.message : "unknown error"}`,
+            message: `${p.kind} ${p.jobberId}: ${msg}`,
             level: "ERROR",
             jobId: p.jobId,
             jobLabel: p.kind === "job" ? "Job note" : p.kind === "visit" ? "Visit note" : "Client note",
