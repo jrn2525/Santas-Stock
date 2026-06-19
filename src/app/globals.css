@@ -26,15 +26,15 @@ body {
    helper hints) and any note tile that was unchecked. Aggressive reset on
    every element so the dark-theme styles (white text, white borders, tinted
    panel backgrounds) don't carry into the printout. */
-/* Drop the browser-generated print header/footer (date, document title, page
-   number, and page URL) by giving the page no margin box for them to render
-   in. The printed content gets its own readable inset back via padding on
-   <main> below. */
-@page {
-  margin: 0;
-}
-
 @media print {
+  /* Drop the browser-generated print header/footer (date, document title,
+     page number, and page URL) by giving the page no margin box for them to
+     render in. The printed content gets its own readable inset back via
+     padding on <main> below. */
+  @page {
+    margin: 0;
+  }
+
   /* Universal reset: everything prints as black on white with black borders.
      Covers the dark-theme utilities (text-white, border-white, bg-canvas,
      bg-brand/15, ring-*, the various colored text and tinted backgrounds

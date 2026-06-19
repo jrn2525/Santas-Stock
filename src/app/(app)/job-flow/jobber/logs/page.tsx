@@ -25,7 +25,8 @@ type RunCounts = {
   notes?: PhaseCount;
 } | null;
 
-const PHASES = ["customers", "jobs", "visits", "invoices", "notes"] as const;
+// Phases that actually record warnings (the customers phase never does).
+const PHASES = ["jobs", "visits", "invoices", "notes"] as const;
 
 export default async function SyncLogsPage({
   searchParams,

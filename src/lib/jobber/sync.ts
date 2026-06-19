@@ -1251,7 +1251,10 @@ export async function syncNotes(): Promise<NotesSyncResult> {
           // still exists, the next Visits sync simply re-creates it. Jobs are
           // left to the deleted-in-Jobber review.
           if (/not found/i.test(msg)) {
-            if (p.kind === "visit") {
+            // Only self-heal-delete a visit when Jobber specifically says the
+            // *visit* is gone — a generic/transient "... not found" (e.g. a
+            // schema/field error) is treated as a benign skip, not a deletion.
+            if (p.kind === "visit" && /visit not found/i.test(msg)) {
               await prisma.jobberVisit
                 .delete({ where: { id: p.localId } })
                 .catch(() => {});
