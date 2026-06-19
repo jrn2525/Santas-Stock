@@ -42,7 +42,7 @@ async function tick(): Promise<void> {
     lastFiredKey = key;
     console.log(`[auto-sync] firing scheduled sync at ${now} ET`);
 
-    runJobFlowSync()
+    runJobFlowSync({ trigger: "AUTO" })
       .then(async (res) => {
         if (res.ran) {
           await prisma.settings

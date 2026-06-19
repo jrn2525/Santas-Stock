@@ -691,6 +691,32 @@ model SyncEvent {
   @@index([status, createdAt])
 }
 
+// One row per Job Flow sync run (manual "Sync now" or scheduled auto-sync).
+// Powers the "View Logs" page: per-run summary, per-phase counts, and the
+// warnings/errors with the job each relates to. Pruned to the last 30 days.
+model SyncRun {
+  id              String    @id @default(cuid())
+  trigger         String    @default("MANUAL") // MANUAL | AUTO
+  triggeredByName String?
+  status          String    @default("SUCCESS") // SUCCESS | PARTIAL | FAILED
+  startedAt       DateTime  @default(now())
+  finishedAt      DateTime?
+  durationMs      Int?
+
+  // Per-phase upserted/skipped counts: { customers, jobs, visits, invoices, notes }.
+  counts        Json?
+  // Whole-phase failures (e.g. "Jobs: <api error>").
+  phaseErrors   String[] @default([])
+  // Jobs flagged deleted-in-Jobber this run.
+  markedDeleted Int      @default(0)
+  // Array of { phase, level, message, jobId?, jobLabel? }.
+  warnings      Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([startedAt])
+}
+
 model CustomFieldDef {
   id        String             @id @default(cuid())
   appliesTo String

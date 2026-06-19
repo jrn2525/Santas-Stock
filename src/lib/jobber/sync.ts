@@ -510,10 +510,20 @@ type JobsResponse = {
   };
 };
 
+// A single sync warning/error, carrying the job it relates to (when known) so
+// the View Logs page can link straight to it. jobLabel is a human string like
+// "Job #168" or a raw Jobber id, shown even when jobId can't be resolved.
+export type SyncWarning = {
+  message: string;
+  level?: "WARNING" | "ERROR";
+  jobId?: string | null;
+  jobLabel?: string | null;
+};
+
 export type JobsSyncResult = {
   upserted: number;
   skipped: number;
-  warnings: string[];
+  warnings: SyncWarning[];
   // Count of jobs that exist in Santa's Stock but Jobber no longer returns
   // (i.e. deleted in Jobber) and haven't been dismissed from the review.
   markedDeleted: number;
@@ -589,9 +599,11 @@ export async function syncJobs(): Promise<JobsSyncResult> {
         : undefined;
       if (!clientLocalId) {
         result.skipped++;
-        result.warnings.push(
-          `Job ${node.jobNumber ?? node.id}: client not in Santa's Stock yet. Run Sync Customers first.`,
-        );
+        result.warnings.push({
+          message: `Job ${node.jobNumber ?? node.id}: client not in Santa's Stock yet. Run Sync Customers first.`,
+          level: "WARNING",
+          jobLabel: node.jobNumber ? `Job #${node.jobNumber}` : node.id,
+        });
         continue;
       }
       const propertyLocalId = node.property
@@ -654,9 +666,11 @@ export async function syncJobs(): Promise<JobsSyncResult> {
       } catch (err) {
         console.error(`[jobber-sync] job ${node.id}:`, err);
         result.skipped++;
-        result.warnings.push(
-          `Job ${node.jobNumber ?? node.id}: ${err instanceof Error ? err.message : "unknown error"}`,
-        );
+        result.warnings.push({
+          message: `Job ${node.jobNumber ?? node.id}: ${err instanceof Error ? err.message : "unknown error"}`,
+          level: "ERROR",
+          jobLabel: node.jobNumber ? `Job #${node.jobNumber}` : node.id,
+        });
       }
     }
     cursor = data.jobs.pageInfo.hasNextPage
@@ -693,9 +707,11 @@ async function reconcileDeletedJobs(
   // it as a suspect/empty response rather than flagging the entire database as
   // deleted. Better to warn and do nothing than to mass-flag on a fluke.
   if (seenJobberJobIds.size === 0 && localJobs.length > 0) {
-    result.warnings.push(
-      "Jobber returned no jobs — skipped the deleted-job check this run to avoid flagging everything.",
-    );
+    result.warnings.push({
+      message:
+        "Jobber returned no jobs — skipped the deleted-job check this run to avoid flagging everything.",
+      level: "ERROR",
+    });
     result.markedDeleted = await prisma.jobberJob.count({
       where: { deletedInJobberAt: { not: null }, staleDismissedAt: null },
     });
@@ -771,7 +787,7 @@ type VisitsResponse = {
 export type VisitsSyncResult = {
   upserted: number;
   skipped: number;
-  warnings: string[];
+  warnings: SyncWarning[];
 };
 
 export async function syncVisits(): Promise<VisitsSyncResult> {
@@ -793,9 +809,11 @@ export async function syncVisits(): Promise<VisitsSyncResult> {
       const jobLocalId = node.job ? jobIdByJobberId.get(node.job.id) : undefined;
       if (!jobLocalId) {
         result.skipped++;
-        result.warnings.push(
-          `Visit ${node.id}: parent Job not synced yet. Run Sync Jobs first.`,
-        );
+        result.warnings.push({
+          message: `Visit ${node.id}: parent Job not synced yet. Run Sync Jobs first.`,
+          level: "WARNING",
+          jobLabel: node.job?.id ?? null,
+        });
         continue;
       }
       const data_ = {
@@ -817,9 +835,12 @@ export async function syncVisits(): Promise<VisitsSyncResult> {
       } catch (err) {
         console.error(`[jobber-sync] visit ${node.id}:`, err);
         result.skipped++;
-        result.warnings.push(
-          `Visit ${node.id}: ${err instanceof Error ? err.message : "unknown error"}`,
-        );
+        result.warnings.push({
+          message: `Visit ${node.id}: ${err instanceof Error ? err.message : "unknown error"}`,
+          level: "ERROR",
+          jobId: jobLocalId,
+          jobLabel: "Visit on synced job",
+        });
       }
     }
     cursor = data.visits.pageInfo.hasNextPage
@@ -874,7 +895,7 @@ type InvoicesResponse = {
 export type InvoicesSyncResult = {
   upserted: number;
   skipped: number;
-  warnings: string[];
+  warnings: SyncWarning[];
 };
 
 // When a job has more than one invoice, surface the most "actionable" status:
@@ -1072,7 +1093,7 @@ type NotesPage = {
 export type NotesSyncResult = {
   upserted: number;
   skipped: number;
-  warnings: string[];
+  warnings: SyncWarning[];
 };
 
 async function fetchAllNotes(
@@ -1107,38 +1128,47 @@ export async function syncNotes(): Promise<NotesSyncResult> {
       jobNotesQuery = buildUnionNoteQuery("job", members);
       visitNotesQuery = buildUnionNoteQuery("visit", members);
     } else {
-      result.warnings.push(
-        "JobNoteUnion has no introspectable members with id/message/createdAt fields. Job and Visit notes skipped.",
-      );
+      result.warnings.push({
+        message:
+          "JobNoteUnion has no introspectable members with id/message/createdAt fields. Job and Visit notes skipped.",
+        level: "ERROR",
+      });
     }
   } catch (err) {
-    result.warnings.push(
-      `Could not introspect JobNoteUnion: ${err instanceof Error ? err.message : "unknown"}. Job and Visit notes skipped.`,
-    );
+    result.warnings.push({
+      message: `Could not introspect JobNoteUnion: ${err instanceof Error ? err.message : "unknown"}. Job and Visit notes skipped.`,
+      level: "ERROR",
+    });
   }
 
   const [clients, jobs, visits] = await Promise.all([
     prisma.client.findMany({ select: { id: true, jobberClientId: true } }),
     prisma.jobberJob.findMany({ select: { id: true, jobberJobId: true } }),
-    prisma.jobberVisit.findMany({ select: { id: true, jobberVisitId: true } }),
+    prisma.jobberVisit.findMany({
+      select: { id: true, jobberVisitId: true, jobId: true },
+    }),
   ]);
 
+  // For warnings, the job a parent relates to: a job parent IS the job; a visit
+  // parent carries its parent job's local id; a client parent has none.
   type Parent =
-    | { kind: "client"; localId: string; jobberId: string }
-    | { kind: "job"; localId: string; jobberId: string }
-    | { kind: "visit"; localId: string; jobberId: string };
+    | { kind: "client"; localId: string; jobberId: string; jobId: null }
+    | { kind: "job"; localId: string; jobberId: string; jobId: string }
+    | { kind: "visit"; localId: string; jobberId: string; jobId: string };
 
   const parents: Parent[] = [
     ...clients.map((c) => ({
       kind: "client" as const,
       localId: c.id,
       jobberId: c.jobberClientId,
+      jobId: null,
     })),
     ...(jobNotesQuery
       ? jobs.map((j) => ({
           kind: "job" as const,
           localId: j.id,
           jobberId: j.jobberJobId,
+          jobId: j.id,
         }))
       : []),
     ...(visitNotesQuery
@@ -1146,6 +1176,7 @@ export async function syncNotes(): Promise<NotesSyncResult> {
           kind: "visit" as const,
           localId: v.id,
           jobberId: v.jobberVisitId,
+          jobId: v.jobId,
         }))
       : []),
   ];
@@ -1201,9 +1232,12 @@ export async function syncNotes(): Promise<NotesSyncResult> {
         } catch (err) {
           console.error(`[jobber-sync] notes for ${p.kind} ${p.jobberId}:`, err);
           result.skipped++;
-          result.warnings.push(
-            `${p.kind} ${p.jobberId}: ${err instanceof Error ? err.message : "unknown error"}`,
-          );
+          result.warnings.push({
+            message: `${p.kind} ${p.jobberId}: ${err instanceof Error ? err.message : "unknown error"}`,
+            level: "ERROR",
+            jobId: p.jobId,
+            jobLabel: p.kind === "job" ? "Job note" : p.kind === "visit" ? "Visit note" : "Client note",
+          });
         }
       }),
     );

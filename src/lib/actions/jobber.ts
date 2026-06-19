@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { assertRoleForAction, WRITE_ROLES } from "@/lib/auth-helpers";
+import { assertRoleForAction, ADMIN_ROLES, WRITE_ROLES } from "@/lib/auth-helpers";
 import {
   syncProductsAndServices,
   type InventorySyncResult,
@@ -17,6 +17,13 @@ export async function disconnectJobber() {
   await assertRoleForAction("ADMIN");
   await prisma.jobberConnection.deleteMany({});
   revalidatePath("/job-flow/jobber");
+}
+
+// Wipe the sync-run history shown on the View Logs page. ADMIN-only.
+export async function clearSyncLogs() {
+  await assertRoleForAction(ADMIN_ROLES);
+  await prisma.syncRun.deleteMany({});
+  revalidatePath("/job-flow/jobber/logs");
 }
 
 export type InventorySyncFormState = FormState & {
@@ -66,9 +73,12 @@ export type JobsSyncFormState = FormState & {
 export async function syncJobberJobs(
   _prev: JobsSyncFormState,
 ): Promise<JobsSyncFormState> {
-  await assertRoleForAction(WRITE_ROLES);
+  const user = await assertRoleForAction(WRITE_ROLES);
 
-  const run = await runJobFlowSync();
+  const run = await runJobFlowSync({
+    trigger: "MANUAL",
+    triggeredByName: user.name ?? user.email ?? null,
+  });
 
   if (run.notConnected) {
     return {

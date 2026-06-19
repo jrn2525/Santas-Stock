@@ -141,11 +141,21 @@ export default async function JobberPage({
 
       {connection && (
         <section className="mt-6 rounded-lg border border-rule bg-card p-6">
-          <h2 className="text-lg font-semibold text-ink">Job Flow sync</h2>
-          <p className="mt-1 text-sm text-ink-dim">
-            Pull Customers + Properties, Jobs, Visits, Invoices, and Notes from
-            Jobber in one click.
-          </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-ink">Job Flow sync</h2>
+              <p className="mt-1 text-sm text-ink-dim">
+                Pull Customers + Properties, Jobs, Visits, Invoices, and Notes
+                from Jobber in one click.
+              </p>
+            </div>
+            <Link
+              href="/job-flow/jobber/logs"
+              className="rounded-md border border-rule bg-canvas px-3 py-2 text-sm font-medium text-ink hover:border-brand hover:text-brand"
+            >
+              View logs
+            </Link>
+          </div>
           <div className="mt-4 space-y-3">
             <JobberJobsSyncButton />
           </div>

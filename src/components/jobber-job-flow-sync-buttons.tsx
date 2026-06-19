@@ -68,10 +68,10 @@ function buildSummary(r: JobFlowSyncResult): string | null {
 
 function mergeWarnings(r: JobFlowSyncResult): string[] {
   return [
-    ...(r.jobs?.warnings ?? []).map((w) => `[Jobs] ${w}`),
-    ...(r.visits?.warnings ?? []).map((w) => `[Visits] ${w}`),
-    ...(r.invoices?.warnings ?? []).map((w) => `[Invoices] ${w}`),
-    ...(r.notes?.warnings ?? []).map((w) => `[Notes] ${w}`),
+    ...(r.jobs?.warnings ?? []).map((w) => `[Jobs] ${w.message}`),
+    ...(r.visits?.warnings ?? []).map((w) => `[Visits] ${w.message}`),
+    ...(r.invoices?.warnings ?? []).map((w) => `[Invoices] ${w.message}`),
+    ...(r.notes?.warnings ?? []).map((w) => `[Notes] ${w.message}`),
   ];
 }
 
