@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { getSettings } from "@/lib/settings";
@@ -12,16 +13,31 @@ export const dynamic = "force-dynamic";
 export default async function KitsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ q?: string; page?: string }>;
 }) {
   const user = await requireUser();
   const { defaultPageSize: PAGE_SIZE } = await getSettings();
   const canWrite = user.role === "ADMIN" || user.role === "MANAGER";
-  const { page: pageParam } = await searchParams;
+  const { q, page: pageParam } = await searchParams;
+  const query = q?.trim() ?? "";
   const page = parsePageParam(pageParam);
+
+  const where: Prisma.KitWhereInput | undefined = query
+    ? {
+        OR: [
+          { name: { contains: query, mode: "insensitive" } },
+          {
+            items: {
+              some: { item: { name: { contains: query, mode: "insensitive" } } },
+            },
+          },
+        ],
+      }
+    : undefined;
 
   const [kits, total] = await Promise.all([
     prisma.kit.findMany({
+      where,
       orderBy: [{ name: "asc" }],
       include: {
         items: {
@@ -31,7 +47,7 @@ export default async function KitsPage({
       take: PAGE_SIZE,
       skip: (page - 1) * PAGE_SIZE,
     }),
-    prisma.kit.count(),
+    prisma.kit.count({ where }),
   ]);
 
   return (
@@ -54,7 +70,17 @@ export default async function KitsPage({
         )}
       </header>
 
-      <div className="mt-8 overflow-x-auto rounded-lg border border-rule">
+      <form className="mt-6 max-w-md" action="/inventory/kits">
+        <input
+          type="search"
+          name="q"
+          defaultValue={query}
+          placeholder="Search by kit name or item..."
+          className="w-full rounded-md border border-rule bg-card px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+        />
+      </form>
+
+      <div className="mt-4 overflow-x-auto rounded-lg border border-rule">
         <table className="w-full min-w-[56rem] text-sm">
           <thead className="bg-card text-left text-xs uppercase tracking-wider text-ink-dim">
             <tr>
@@ -69,13 +95,19 @@ export default async function KitsPage({
             {kits.length === 0 ? (
               <tr>
                 <td colSpan={5} className="px-4 py-12 text-center text-ink-dim">
-                  No kits yet.
-                  {canWrite && (
+                  {query ? (
+                    <>No kits matched &ldquo;{query}&rdquo;.</>
+                  ) : (
                     <>
-                      {" "}
-                      <Link href="/inventory/kits/new" className="text-brand underline">
-                        Add the first one.
-                      </Link>
+                      No kits yet.
+                      {canWrite && (
+                        <>
+                          {" "}
+                          <Link href="/inventory/kits/new" className="text-brand underline">
+                            Add the first one.
+                          </Link>
+                        </>
+                      )}
                     </>
                   )}
                 </td>
@@ -129,7 +161,7 @@ export default async function KitsPage({
         total={total}
         pageSize={PAGE_SIZE}
         baseUrl="/inventory/kits"
-        preserved={{}}
+        preserved={query ? { q: query } : {}}
       />
     </>
   );
