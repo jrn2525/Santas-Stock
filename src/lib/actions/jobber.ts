@@ -10,6 +10,7 @@ import {
 import { runJobFlowSync, type JobFlowSyncResult } from "@/lib/jobber/run-sync";
 import { runWithSyncLock } from "@/lib/jobber/sync-lock";
 import { JobberNotConnectedError } from "@/lib/jobber/client";
+import { listStaleJobs, type StaleJobDTO } from "@/lib/stale-jobs";
 import type { FormState } from "./state";
 
 export async function disconnectJobber() {
@@ -55,7 +56,12 @@ export async function syncJobberInventory(
   }
 }
 
-export type JobsSyncFormState = FormState & { result?: JobFlowSyncResult };
+export type JobsSyncFormState = FormState & {
+  result?: JobFlowSyncResult;
+  // Jobs that exist in Santa's Stock but were deleted in Jobber, for the
+  // review pop-up. Present only after a sync that actually ran.
+  staleJobs?: StaleJobDTO[];
+};
 
 export async function syncJobberJobs(
   _prev: JobsSyncFormState,
@@ -83,11 +89,15 @@ export async function syncJobberJobs(
   revalidatePath("/job-flow/pick-list");
   revalidatePath("/job-flow/jobber");
 
+  // Surface any jobs that Jobber no longer has so the page can pop the review.
+  const staleJobs = await listStaleJobs();
+
   return {
     errors: {},
     message: run.phaseErrors.length
       ? `Sync failed: ${run.phaseErrors.join(" · ")}`
       : null,
     result: run.result,
+    staleJobs,
   };
 }

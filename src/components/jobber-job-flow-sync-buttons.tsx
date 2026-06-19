@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { syncJobberJobs, type JobsSyncFormState } from "@/lib/actions/jobber";
 import type { JobFlowSyncResult } from "@/lib/jobber/run-sync";
+import { StaleJobsModal } from "./stale-jobs-modal";
 
 const emptyJobs: JobsSyncFormState = { errors: {}, message: null };
 
@@ -15,16 +16,34 @@ export function JobberJobsSyncButton() {
   const summary = state.result ? buildSummary(state.result) : null;
   const warnings = state.result ? mergeWarnings(state.result) : [];
 
+  // Pop the review whenever a sync returns deleted-in-Jobber jobs. Keyed off
+  // the action's response identity so it re-opens after each Sync now.
+  const staleJobs = state.staleJobs ?? [];
+  const [modalOpen, setModalOpen] = useState(false);
+  const seenResponse = useRef<JobsSyncFormState | null>(null);
+  useEffect(() => {
+    if (state === seenResponse.current) return;
+    seenResponse.current = state;
+    if ((state.staleJobs?.length ?? 0) > 0) setModalOpen(true);
+  }, [state]);
+
   return (
-    <SyncSection
-      label="Customers, Jobs, Visits, Invoices, and Notes"
-      hint="One click pulls Customers + Properties, then Jobs, then Visits (for Calendar), then Invoices (for Billing Status), then Notes."
-      action={action}
-      pending={pending}
-      summary={summary}
-      warnings={warnings}
-      message={state.message}
-    />
+    <>
+      <SyncSection
+        label="Customers, Jobs, Visits, Invoices, and Notes"
+        hint="One click pulls Customers + Properties, then Jobs, then Visits (for Calendar), then Invoices (for Billing Status), then Notes."
+        action={action}
+        pending={pending}
+        summary={summary}
+        warnings={warnings}
+        message={state.message}
+        staleCount={staleJobs.length}
+        onReview={() => setModalOpen(true)}
+      />
+      {modalOpen && staleJobs.length > 0 && (
+        <StaleJobsModal jobs={staleJobs} onClose={() => setModalOpen(false)} />
+      )}
+    </>
   );
 }
 
@@ -64,6 +83,8 @@ function SyncSection({
   summary,
   warnings,
   message,
+  staleCount,
+  onReview,
 }: {
   label: string;
   hint: string;
@@ -72,6 +93,8 @@ function SyncSection({
   summary: string | null;
   warnings: string[];
   message: string | null;
+  staleCount: number;
+  onReview: () => void;
 }) {
   return (
     <div className="rounded-md border border-rule bg-canvas p-4">
@@ -92,6 +115,15 @@ function SyncSection({
       </div>
 
       {summary && <p className="mt-3 text-xs text-ink-dim">✓ {summary}</p>}
+      {staleCount > 0 && (
+        <button
+          type="button"
+          onClick={onReview}
+          className="mt-2 rounded-md border border-brand/50 px-3 py-1.5 text-xs font-medium text-brand hover:bg-brand/10"
+        >
+          Review {staleCount} job{staleCount === 1 ? "" : "s"} deleted in Jobber
+        </button>
+      )}
       {warnings.length > 0 && (
         <details className="mt-2 rounded border border-rule bg-card p-2">
           <summary className="cursor-pointer text-xs text-brand">

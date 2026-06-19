@@ -514,6 +514,9 @@ export type JobsSyncResult = {
   upserted: number;
   skipped: number;
   warnings: string[];
+  // Count of jobs that exist in Santa's Stock but Jobber no longer returns
+  // (i.e. deleted in Jobber) and haven't been dismissed from the review.
+  markedDeleted: number;
 };
 
 function toDate(s: string | null): Date | null {
@@ -529,8 +532,17 @@ function toDecimal(v: number | string | null): Prisma.Decimal | null {
 }
 
 export async function syncJobs(): Promise<JobsSyncResult> {
-  const result: JobsSyncResult = { upserted: 0, skipped: 0, warnings: [] };
+  const result: JobsSyncResult = {
+    upserted: 0,
+    skipped: 0,
+    warnings: [],
+    markedDeleted: 0,
+  };
   const now = new Date();
+
+  // Every Jobber job id we see this run. Used after pagination to reconcile
+  // deletions — any local job whose id we never saw was deleted in Jobber.
+  const seenJobberJobIds = new Set<string>();
 
   // Pre-load client & property maps + Item/Kit Jobber-id maps so line items
   // can be resolved to local rows without a per-line lookup.
@@ -567,6 +579,11 @@ export async function syncJobs(): Promise<JobsSyncResult> {
       cursor,
     });
     for (const node of data.jobs.nodes) {
+      // Record every id Jobber returned — even ones we skip below — so the
+      // deletion reconciliation never mistakes a skipped-but-present job for
+      // a deleted one.
+      seenJobberJobIds.add(node.id);
+
       const clientLocalId = node.client
         ? clientIdByJobberId.get(node.client.id)
         : undefined;
@@ -647,7 +664,70 @@ export async function syncJobs(): Promise<JobsSyncResult> {
       : null;
   } while (cursor);
 
+  // Reaching here means the full job list paginated successfully (any API
+  // error would have thrown out of the loop). Reconcile deletions: flag every
+  // local job Jobber no longer returns, and un-flag any that have reappeared.
+  await reconcileDeletedJobs(seenJobberJobIds, now, result);
+
   return result;
+}
+
+/**
+ * Compare the set of Jobber job ids seen this sync against the jobs stored
+ * locally. Local jobs Jobber didn't return are flagged deletedInJobberAt
+ * (timestamp preserved across syncs so the original detection time sticks).
+ * Jobs that have reappeared get un-flagged and their "stop showing" dismissal
+ * cleared. result.markedDeleted ends up as the count of still-flagged,
+ * not-yet-dismissed jobs.
+ */
+async function reconcileDeletedJobs(
+  seenJobberJobIds: Set<string>,
+  now: Date,
+  result: JobsSyncResult,
+): Promise<void> {
+  const localJobs = await prisma.jobberJob.findMany({
+    select: { id: true, jobberJobId: true, deletedInJobberAt: true },
+  });
+
+  // Safety valve: if Jobber returned zero jobs but we have some locally, treat
+  // it as a suspect/empty response rather than flagging the entire database as
+  // deleted. Better to warn and do nothing than to mass-flag on a fluke.
+  if (seenJobberJobIds.size === 0 && localJobs.length > 0) {
+    result.warnings.push(
+      "Jobber returned no jobs — skipped the deleted-job check this run to avoid flagging everything.",
+    );
+    result.markedDeleted = await prisma.jobberJob.count({
+      where: { deletedInJobberAt: { not: null }, staleDismissedAt: null },
+    });
+    return;
+  }
+
+  const missingIds: string[] = [];
+  const reappearedIds: string[] = [];
+  for (const lj of localJobs) {
+    if (seenJobberJobIds.has(lj.jobberJobId)) {
+      if (lj.deletedInJobberAt) reappearedIds.push(lj.id);
+    } else {
+      missingIds.push(lj.id);
+    }
+  }
+
+  if (missingIds.length > 0) {
+    await prisma.jobberJob.updateMany({
+      where: { id: { in: missingIds }, deletedInJobberAt: null },
+      data: { deletedInJobberAt: now },
+    });
+  }
+  if (reappearedIds.length > 0) {
+    await prisma.jobberJob.updateMany({
+      where: { id: { in: reappearedIds } },
+      data: { deletedInJobberAt: null, staleDismissedAt: null },
+    });
+  }
+
+  result.markedDeleted = await prisma.jobberJob.count({
+    where: { deletedInJobberAt: { not: null }, staleDismissedAt: null },
+  });
 }
 
 // ---------------------------------------------------------------------------

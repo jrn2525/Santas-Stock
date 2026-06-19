@@ -382,6 +382,16 @@ model JobberJob {
   currentStage JobStage @default(NEW)
   isOnHold     Boolean  @default(false)
 
+  /// Set by the Jobs sync when a job that exists here is no longer returned
+  /// by Jobber (i.e. it was deleted in Jobber). Cleared if the job reappears
+  /// in a later sync. Drives the "deleted in Jobber" review pop-up.
+  deletedInJobberAt DateTime?
+
+  /// Set when the user ticks "stop showing this" for a deleted-in-Jobber job
+  /// in the review pop-up. Such jobs stay in Santa's Stock but are hidden
+  /// from the pop-up on future syncs. Cleared if the job reappears in Jobber.
+  staleDismissedAt DateTime?
+
   /// Set the first time this job reaches COMPLETE and we successfully
   /// rolled its kits into the client's CustomerKit records. Used to keep
   /// the sync idempotent across revert -> re-complete cycles.
