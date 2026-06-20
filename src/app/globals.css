@@ -21,13 +21,16 @@ body {
   color: #ffffff;
 }
 
-/* Drop the browser-generated print header/footer (date, document title, page
-   number, and the page URL) by giving the page no margin box for them to
-   render in. Kept at top level (not nested in @media print) because some
-   Chrome versions only honor header/footer suppression from a top-level @page.
-   The printed content gets its own readable inset back via padding on <main>. */
+/* Per-page print margins. A non-zero @page margin is the only way to get a
+   real top AND bottom margin on EVERY page (including continuation pages) —
+   block padding on <main> only insets the first/last page. 0.3in keeps every
+   side comfortably above the requested 0.25in minimum and clear of the
+   printer's non-printable edge. NOTE: this same margin strip is where Chrome
+   draws its header/footer (date / title / page # / URL); to print without the
+   URL, untick "Headers and footers" in the print dialog's More settings
+   (Chrome remembers the choice). */
 @page {
-  margin: 0;
+  margin: 0.3in;
 }
 
 /* Print: strip the app chrome and render the page as a clean black-on-white
@@ -64,11 +67,11 @@ body {
   body > div > div > aside {
     display: none !important;
   }
-  /* With @page margin set to 0 (above) the browser no longer prints its
-     header/footer; restore a readable inset on the content itself. Left/right
-     padding is kept on every page; the top inset applies to the first page. */
+  /* The @page margin (above) now provides the page inset on every side of
+     every page, so <main> needs no extra padding — that would double the
+     margin. */
   body > div > div > main {
-    padding: 1.27cm !important;
+    padding: 0 !important;
   }
   .no-print {
     display: none !important;
@@ -77,11 +80,12 @@ body {
   .note-unchecked {
     display: none !important;
   }
-  /* Keep each kit's recipe together when paginating — don't split a
-     kit header from its component list. Sections themselves (Pick
-     List, Notes, Details) DO flow across pages so the printout
-     packs tightly with no wasted whitespace. */
-  .pick-list-kit {
+  /* Keep each pick-list card (kit + its recipe, or a standalone item) whole
+     when paginating — a card that won't fit before the bottom margin moves
+     entirely to the next page instead of being split across the break.
+     Sections themselves (Pick List, Notes, Details) still flow across pages
+     so the printout packs tightly with no wasted whitespace. */
+  .pick-list-row {
     break-inside: avoid;
   }
 
