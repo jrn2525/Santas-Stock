@@ -89,6 +89,16 @@ body {
     break-inside: avoid;
   }
 
+  /* Table-based printouts (Dead Stock, Deactivations, Jobs, etc.): keep each
+     row whole so it's never sliced across the page break, and repeat the
+     header row at the top of every page so multi-page tables stay readable. */
+  thead {
+    display: table-header-group;
+  }
+  tr {
+    break-inside: avoid;
+  }
+
   /* Job detail page collapses its right-column grid in print since
      the Job Flow panel is no-print — without this override the grid
      leaves a 320px gap on the right of every printed page. */
