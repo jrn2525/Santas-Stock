@@ -2,16 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { assertRoleForAction, ADMIN_ROLES } from "@/lib/auth-helpers";
+import { assertRoleForAction, WRITE_ROLES } from "@/lib/auth-helpers";
 import { runWithSyncLock } from "@/lib/jobber/sync-lock";
-import { resetJob } from "./reset-job";
+import { resetJobCore } from "@/lib/reset-job-core";
 
 export type StaleJobActionResult = { ok: boolean; message?: string };
 
 /**
  * Delete a job that was removed from Jobber, returning everything it consumed
  * back to stock first. Two phases:
- *   1. resetJob() — atomically restores inventory pulled by allocation,
+ *   1. resetJobCore() — atomically restores inventory pulled by allocation,
  *      inspection, and completion, and unwinds the customer-tote changes
  *      (the full "as imported" undo). This is the "release back to stock" the
  *      user asked for.
@@ -20,15 +20,17 @@ export type StaleJobActionResult = { ok: boolean; message?: string };
  *      not (no cascade) so we delete visits explicitly, and JobberNotes (which
  *      only SetNull on delete) are removed first so no orphans linger.
  *
- * Runs under the shared sync lock so it can't race a concurrent sync that's
- * re-upserting this job (which could re-flag it or fight resetJob's inventory
- * math). ADMIN-only and guarded — re-checked INSIDE the lock — so it can only
- * ever delete a job still flagged deleted-in-Jobber, never a live one.
+ * Allowed for Admin and Manager (WRITE_ROLES) — deleting a job that Jobber has
+ * already removed is routine cleanup, like the manager-allowed deactivation
+ * flow. (The standalone hard-reset tool stays Admin-only.) Runs under the
+ * shared sync lock so it can't race a concurrent sync re-upserting this job,
+ * and re-checks the deleted-in-Jobber flag INSIDE the lock so it can only ever
+ * delete a job still flagged deleted, never a live one.
  */
 export async function deleteStaleJob(
   jobId: string,
 ): Promise<StaleJobActionResult> {
-  await assertRoleForAction(ADMIN_ROLES);
+  await assertRoleForAction(WRITE_ROLES);
 
   const outcome = await runWithSyncLock(
     async (): Promise<StaleJobActionResult> => {
@@ -45,7 +47,7 @@ export async function deleteStaleJob(
 
       try {
         // Phase 1: return all inventory and reset derived state.
-        await resetJob(jobId, "RESET");
+        await resetJobCore(jobId);
 
         // Phase 2: remove the job and its children.
         await prisma.$transaction(async (tx) => {
@@ -92,7 +94,7 @@ export async function deleteStaleJob(
 export async function dismissStaleJob(
   jobId: string,
 ): Promise<StaleJobActionResult> {
-  await assertRoleForAction(ADMIN_ROLES);
+  await assertRoleForAction(WRITE_ROLES);
 
   await prisma.jobberJob.updateMany({
     where: { id: jobId, deletedInJobberAt: { not: null } },

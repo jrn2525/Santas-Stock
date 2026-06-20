@@ -7,7 +7,7 @@ import { StaleJobsModal } from "./stale-jobs-modal";
 
 const emptyJobs: JobsSyncFormState = { errors: {}, message: null };
 
-export function JobberJobsSyncButton({ isAdmin = false }: { isAdmin?: boolean }) {
+export function JobberJobsSyncButton() {
   const [state, action, pending] = useActionState<JobsSyncFormState>(
     syncJobberJobs,
     emptyJobs,
@@ -17,18 +17,16 @@ export function JobberJobsSyncButton({ isAdmin = false }: { isAdmin?: boolean })
   const warnings = state.result ? mergeWarnings(state.result) : [];
 
   // Pop the review whenever a sync returns deleted-in-Jobber jobs. Keyed off
-  // the action's response identity so it re-opens after each Sync now. Only
-  // admins can act on the review (the delete/keep actions are ADMIN-only), so
-  // it's gated to them — managers still see the sync summary and warnings.
-  const staleJobs = isAdmin ? state.staleJobs ?? [] : [];
+  // the action's response identity so it re-opens after each Sync now. The
+  // delete/keep actions are open to Admin + Manager, same as this page.
+  const staleJobs = state.staleJobs ?? [];
   const [modalOpen, setModalOpen] = useState(false);
   const seenResponse = useRef<JobsSyncFormState | null>(null);
   useEffect(() => {
-    if (!isAdmin) return;
     if (state === seenResponse.current) return;
     seenResponse.current = state;
     if ((state.staleJobs?.length ?? 0) > 0) setModalOpen(true);
-  }, [state, isAdmin]);
+  }, [state]);
 
   return (
     <>

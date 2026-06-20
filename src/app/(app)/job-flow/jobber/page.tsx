@@ -29,8 +29,7 @@ export default async function JobberPage({
 }: {
   searchParams: Promise<{ connected?: string; error?: string }>;
 }) {
-  const user = await requireRole(WRITE_ROLES);
-  const isAdmin = user.role === "ADMIN";
+  await requireRole(WRITE_ROLES);
   const params = await searchParams;
   const connection = await prisma.jobberConnection.findFirst({
     include: { connectedBy: { select: { name: true, email: true } } },
@@ -158,19 +157,17 @@ export default async function JobberPage({
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {isAdmin && (
-                <Link
-                  href="/job-flow/jobber/deleted"
-                  className={`rounded-md border px-3 py-2 text-sm font-medium ${
-                    deletedInJobberCount > 0
-                      ? "border-brand bg-brand/10 text-brand hover:bg-brand hover:text-ink"
-                      : "border-rule bg-canvas text-ink hover:border-brand hover:text-brand"
-                  }`}
-                >
-                  Deleted in Jobber
-                  {deletedInJobberCount > 0 ? ` (${deletedInJobberCount})` : ""}
-                </Link>
-              )}
+              <Link
+                href="/job-flow/jobber/deleted"
+                className={`rounded-md border px-3 py-2 text-sm font-medium ${
+                  deletedInJobberCount > 0
+                    ? "border-brand bg-brand/10 text-brand hover:bg-brand hover:text-ink"
+                    : "border-rule bg-canvas text-ink hover:border-brand hover:text-brand"
+                }`}
+              >
+                Deleted in Jobber
+                {deletedInJobberCount > 0 ? ` (${deletedInJobberCount})` : ""}
+              </Link>
               <Link
                 href="/job-flow/jobber/logs"
                 className="rounded-md border border-rule bg-canvas px-3 py-2 text-sm font-medium text-ink hover:border-brand hover:text-brand"
@@ -180,7 +177,7 @@ export default async function JobberPage({
             </div>
           </div>
           <div className="mt-4 space-y-3">
-            <JobberJobsSyncButton isAdmin={isAdmin} />
+            <JobberJobsSyncButton />
           </div>
         </section>
       )}

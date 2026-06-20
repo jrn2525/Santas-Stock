@@ -40,14 +40,20 @@ export function StaleJobsReview({
     setError(null);
     setBusyId(id);
     startTransition(async () => {
-      const res = await deleteStaleJob(id);
-      setBusyId(null);
-      setConfirmingId(null);
-      if (!res.ok) {
-        setError(res.message ?? "Could not delete the job.");
-        return;
+      try {
+        const res = await deleteStaleJob(id);
+        setBusyId(null);
+        setConfirmingId(null);
+        if (!res.ok) {
+          setError(res.message ?? "Could not delete the job.");
+          return;
+        }
+        setJobs((prev) => prev.filter((j) => j.id !== id));
+      } catch {
+        setBusyId(null);
+        setConfirmingId(null);
+        setError("Couldn't delete the job — please try again.");
       }
-      setJobs((prev) => prev.filter((j) => j.id !== id));
     });
   }
 
