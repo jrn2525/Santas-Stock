@@ -47,11 +47,20 @@ export default async function SettingsPage() {
 
       <section className="mt-8 max-w-3xl rounded-lg border border-rule bg-card p-6">
         <h2 className="text-lg font-semibold text-ink">Change password</h2>
-        <p className="mt-1 text-sm text-ink-dim">
-          You&apos;ll be signed out after changing your password. Sign back in
-          with the new one.
-        </p>
-        <ChangePasswordForm />
+        {user.role === "GUEST" ? (
+          <p className="mt-1 text-sm text-ink-dim">
+            This is a shared read-only demo account, so its password can&apos;t
+            be changed here.
+          </p>
+        ) : (
+          <>
+            <p className="mt-1 text-sm text-ink-dim">
+              You&apos;ll be signed out after changing your password. Sign back
+              in with the new one.
+            </p>
+            <ChangePasswordForm />
+          </>
+        )}
       </section>
 
       {canManage && settings && (

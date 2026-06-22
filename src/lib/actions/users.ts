@@ -310,10 +310,18 @@ export async function changeOwnPassword(
 
   const dbUser = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { passwordHash: true, active: true },
+    select: { passwordHash: true, active: true, role: true },
   });
   if (!dbUser || !dbUser.passwordHash || !dbUser.active) {
     return { errors: {}, message: "Your account is not available." };
+  }
+  // The GUEST account is a shared read-only demo login — don't let one guest
+  // change the shared password and lock everyone else out.
+  if (dbUser.role === "GUEST") {
+    return {
+      errors: {},
+      message: "Demo accounts can't change the password.",
+    };
   }
 
   const valid = await bcrypt.compare(
