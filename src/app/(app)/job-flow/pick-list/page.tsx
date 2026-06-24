@@ -85,7 +85,7 @@ export default async function PickListIndexPage({
       where,
       orderBy,
       include: {
-        client: { select: { name: true } },
+        client: { select: { name: true, phones: true } },
         property: { select: { address: true } },
       },
       take: PAGE_SIZE,
@@ -174,6 +174,7 @@ export default async function PickListIndexPage({
           <thead className="bg-card text-left text-xs uppercase tracking-wider text-ink-dim">
             <tr>
               <th className="px-4 py-3">Customer</th>
+              <th className="px-4 py-3">Phone</th>
               <th className="px-4 py-3">Scheduled</th>
               <th className="px-4 py-3">Job #</th>
               <th className="px-4 py-3">Title</th>
@@ -185,7 +186,7 @@ export default async function PickListIndexPage({
             {jobs.length === 0 ? (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   className="px-4 py-12 text-center text-ink-dim"
                 >
                   {query ? (
@@ -218,6 +219,9 @@ export default async function PickListIndexPage({
                     >
                       {j.client?.name ?? "—"}
                     </Link>
+                  </td>
+                  <td className="px-4 py-3 text-ink-dim whitespace-nowrap">
+                    {j.client?.phones?.[0] ?? "—"}
                   </td>
                   <td className="px-4 py-3 text-ink-dim whitespace-nowrap">
                     {j.startAt ? dateFmt.format(j.startAt) : "—"}

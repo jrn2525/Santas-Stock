@@ -75,6 +75,11 @@ export default async function PickListDetailPage({
             {job.client?.name ?? "—"}
             {job.startAt && <> · {dayFmt.format(job.startAt)}</>}
           </p>
+          {job.client?.phones && job.client.phones.length > 0 && (
+            <p className="mt-1 text-sm text-ink-dim">
+              Phone: {job.client.phones.join(" · ")}
+            </p>
+          )}
           {job.property?.address && (
             <p className="mt-1 text-sm text-ink-dim">
               {job.property.address}
