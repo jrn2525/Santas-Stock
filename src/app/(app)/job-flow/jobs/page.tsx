@@ -315,75 +315,78 @@ export default async function JobsPage({
                 </td>
               </tr>
             ) : (
-              jobs.map((j) => (
-                <tr key={j.id} className="text-ink hover:bg-card/40">
-                  <td className="px-4 py-3 text-ink-dim">
-                    <Link href={`/job-flow/jobs/${j.id}`}>
-                      {j.jobNumber ?? "—"}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3">
-                    {j.client ? (
-                      <Link
-                        href={`/job-flow/clients/${j.client.id}`}
-                        className="hover:text-brand"
-                      >
-                        {j.client.name}
+              jobs.map((j) => {
+                const jobHref = `/job-flow/jobs/${j.id}`;
+                return (
+                  <tr key={j.id} className="text-ink hover:bg-card/40">
+                    <td className="px-4 py-3 text-ink-dim">
+                      <Link href={jobHref} className="block hover:text-brand">
+                        {j.jobNumber ?? "—"}
                       </Link>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="px-4 py-3 font-medium">
-                    <Link
-                      href={`/job-flow/jobs/${j.id}`}
-                      className="hover:text-brand"
-                    >
-                      {j.title ?? "(untitled)"}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span
-                        className={`inline-block rounded border px-2 py-0.5 text-xs font-medium ${stageBadgeStyle(j.currentStage)}`}
-                      >
-                        {STAGE_LABELS[j.currentStage]}
-                      </span>
-                      {j.isOnHold && (
-                        <span
-                          className="inline-block rounded border border-yellow-600/40 bg-yellow-500/15 px-2 py-0.5 text-xs font-medium text-yellow-200"
-                          title="Job is on hold for shortages"
-                        >
-                          Awaiting Stock
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    {(() => {
-                      const key = billingStatusKey(j.invoiceStatus);
-                      return (
-                        <span
-                          className={`inline-block rounded border px-2 py-0.5 text-xs font-medium ${billingBadgeStyle(key)}`}
-                        >
-                          {BILLING_STATUS_LABELS[key]}
-                        </span>
-                      );
-                    })()}
-                  </td>
-                  <td className="px-4 py-3 text-ink-dim">
-                    {j.visits[0]?.status
-                      ? humanizeVisitStatus(j.visits[0].status)
-                      : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-ink-dim">
-                    {j.startAt ? dateFmt.format(j.startAt) : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums">
-                    {j.total ? moneyFmt.format(Number(j.total)) : "—"}
-                  </td>
-                </tr>
-              ))
+                    </td>
+                    <td className="px-4 py-3">
+                      <Link href={jobHref} className="block hover:text-brand">
+                        {j.client?.name ?? "—"}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 font-medium">
+                      <Link href={jobHref} className="block hover:text-brand">
+                        {j.title ?? "(untitled)"}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Link href={jobHref} className="block">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span
+                            className={`inline-block rounded border px-2 py-0.5 text-xs font-medium ${stageBadgeStyle(j.currentStage)}`}
+                          >
+                            {STAGE_LABELS[j.currentStage]}
+                          </span>
+                          {j.isOnHold && (
+                            <span
+                              className="inline-block rounded border border-yellow-600/40 bg-yellow-500/15 px-2 py-0.5 text-xs font-medium text-yellow-200"
+                              title="Job is on hold for shortages"
+                            >
+                              Awaiting Stock
+                            </span>
+                          )}
+                        </div>
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Link href={jobHref} className="block">
+                        {(() => {
+                          const key = billingStatusKey(j.invoiceStatus);
+                          return (
+                            <span
+                              className={`inline-block rounded border px-2 py-0.5 text-xs font-medium ${billingBadgeStyle(key)}`}
+                            >
+                              {BILLING_STATUS_LABELS[key]}
+                            </span>
+                          );
+                        })()}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-ink-dim">
+                      <Link href={jobHref} className="block hover:text-brand">
+                        {j.visits[0]?.status
+                          ? humanizeVisitStatus(j.visits[0].status)
+                          : "—"}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-ink-dim">
+                      <Link href={jobHref} className="block hover:text-brand">
+                        {j.startAt ? dateFmt.format(j.startAt) : "—"}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums">
+                      <Link href={jobHref} className="block hover:text-brand">
+                        {j.total ? moneyFmt.format(Number(j.total)) : "—"}
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
