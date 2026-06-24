@@ -288,8 +288,8 @@ export default async function JobsPage({
           <thead className="bg-card text-left text-xs uppercase tracking-wider text-ink-dim">
             <tr>
               <th className="px-4 py-3">Job #</th>
+              <th className="px-4 py-3">Customer</th>
               <th className="px-4 py-3">Title</th>
-              <th className="px-4 py-3">Client</th>
               <th className="px-4 py-3">Stage</th>
               <th className="px-4 py-3">Billing Status</th>
               <th className="px-4 py-3">Visit Status</th>
@@ -322,14 +322,6 @@ export default async function JobsPage({
                       {j.jobNumber ?? "—"}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 font-medium">
-                    <Link
-                      href={`/job-flow/jobs/${j.id}`}
-                      className="hover:text-brand"
-                    >
-                      {j.title ?? "(untitled)"}
-                    </Link>
-                  </td>
                   <td className="px-4 py-3">
                     {j.client ? (
                       <Link
@@ -341,6 +333,14 @@ export default async function JobsPage({
                     ) : (
                       "—"
                     )}
+                  </td>
+                  <td className="px-4 py-3 font-medium">
+                    <Link
+                      href={`/job-flow/jobs/${j.id}`}
+                      className="hover:text-brand"
+                    >
+                      {j.title ?? "(untitled)"}
+                    </Link>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap items-center gap-1.5">
