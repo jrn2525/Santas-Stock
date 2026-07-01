@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { getSettings } from "@/lib/settings";
 import { STAGE_LABELS } from "@/lib/job-flow";
+import { jobHasServiceCall } from "@/lib/service-call";
 import {
   BILLING_STATUS_LABELS,
   BILLING_STATUS_OPTIONS,
@@ -144,15 +145,20 @@ export default async function JobsPage({
       include: {
         client: { select: { id: true, name: true, active: true } },
         // Most recent visit (scheduled visits win over unscheduled) for the
-        // Visit Status column.
+        // Visit Status column. startAt doubles as the "has a scheduled visit"
+        // signal for Service Call jobs (nulls-last means visits[0].startAt is
+        // set iff any visit is scheduled).
         visits: {
           orderBy: [
             { startAt: { sort: "desc", nulls: "last" } },
             { createdAt: "desc" },
           ],
           take: 1,
-          select: { status: true },
+          select: { status: true, startAt: true },
         },
+        // For Service Call jobs, the Stage column shows the Service Call step
+        // instead of the normal stage — detect it from the line names.
+        lineItems: { select: { rawName: true, item: { select: { name: true } } } },
       },
       take: PAGE_SIZE,
       skip: (safePage - 1) * PAGE_SIZE,
@@ -319,6 +325,16 @@ export default async function JobsPage({
             ) : (
               jobs.map((j) => {
                 const jobHref = `/job-flow/jobs/${j.id}`;
+                // Service Call jobs show their Service Call step in the Stage
+                // column instead of the normal stage. (Completed ones are
+                // filtered out of this list, so it's Service Call or Scheduled.)
+                const serviceCallStep = jobHasServiceCall(j.lineItems)
+                  ? j.serviceCallCompletedAt
+                    ? "Completed Service Call"
+                    : j.visits[0]?.startAt != null
+                      ? "Scheduled Service Call"
+                      : "Service Call"
+                  : null;
                 return (
                   <tr key={j.id} className="text-ink hover:bg-card/40">
                     <td className="px-4 py-3 text-ink-dim">
@@ -338,21 +354,27 @@ export default async function JobsPage({
                     </td>
                     <td className="px-4 py-3">
                       <Link href={jobHref} className="block">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span
-                            className={`inline-block rounded border px-2 py-0.5 text-xs font-medium ${stageBadgeStyle(j.currentStage)}`}
-                          >
-                            {STAGE_LABELS[j.currentStage]}
+                        {serviceCallStep ? (
+                          <span className="inline-block rounded border border-brand/40 bg-brand/15 px-2 py-0.5 text-xs font-medium text-ink">
+                            {serviceCallStep}
                           </span>
-                          {j.isOnHold && (
+                        ) : (
+                          <div className="flex flex-wrap items-center gap-1.5">
                             <span
-                              className="inline-block rounded border border-yellow-600/40 bg-yellow-500/15 px-2 py-0.5 text-xs font-medium text-yellow-200"
-                              title="Job is on hold for shortages"
+                              className={`inline-block rounded border px-2 py-0.5 text-xs font-medium ${stageBadgeStyle(j.currentStage)}`}
                             >
-                              Awaiting Stock
+                              {STAGE_LABELS[j.currentStage]}
                             </span>
-                          )}
-                        </div>
+                            {j.isOnHold && (
+                              <span
+                                className="inline-block rounded border border-yellow-600/40 bg-yellow-500/15 px-2 py-0.5 text-xs font-medium text-yellow-200"
+                                title="Job is on hold for shortages"
+                              >
+                                Awaiting Stock
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </Link>
                     </td>
                     <td className="px-4 py-3">
