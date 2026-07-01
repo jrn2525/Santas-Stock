@@ -396,6 +396,11 @@ model JobberJob {
   /// from the pop-up on future syncs. Cleared if the job reappears in Jobber.
   staleDismissedAt DateTime?
 
+  /// Set when a "Service Call" job (a job whose pick list contains the
+  /// labor-only "Service Call" item) is marked Completed Service Call. Such
+  /// jobs leave the Jobs list and appear under Completed Jobs. Null = active.
+  serviceCallCompletedAt DateTime?
+
   /// Set the first time this job reaches COMPLETE and we successfully
   /// rolled its kits into the client's CustomerKit records. Used to keep
   /// the sync idempotent across revert -> re-complete cycles.
@@ -693,6 +698,15 @@ model SyncEvent {
   createdAt   DateTime   @default(now())
 
   @@index([status, createdAt])
+}
+
+// Jobber job ids the user deleted from the Completed Jobs list. The Jobs sync
+// skips these so a job that still lives in Jobber isn't re-imported after the
+// user has deleted its completed service call.
+model JobTombstone {
+  id          String   @id @default(cuid())
+  jobberJobId String   @unique
+  createdAt   DateTime @default(now())
 }
 
 // One row per Job Flow sync run (manual "Sync now" or scheduled auto-sync).

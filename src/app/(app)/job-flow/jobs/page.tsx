@@ -100,6 +100,8 @@ export default async function JobsPage({
   const page = parsePageParam(pageParam);
 
   const andClauses: Prisma.JobberJobWhereInput[] = [];
+  // Completed service calls live under Completed Jobs, not the Jobs list.
+  andClauses.push({ serviceCallCompletedAt: null });
   if (query) {
     andClauses.push({
       OR: [

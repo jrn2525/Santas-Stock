@@ -22,6 +22,7 @@ const jobFlowNav: NavItem[] = [
   { href: "/job-flow/calendar", label: "Calendar" },
   { href: "/job-flow/jobber", label: "Jobber", visibleTo: ["ADMIN", "MANAGER"] },
   { href: "/job-flow/deactivations", label: "Deactivations" },
+  { href: "/job-flow/completed-jobs", label: "Completed Jobs" },
 ];
 
 const inventoryNav: NavItem[] = [

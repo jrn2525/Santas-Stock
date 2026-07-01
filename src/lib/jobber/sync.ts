@@ -583,6 +583,13 @@ export async function syncJobs(): Promise<JobsSyncResult> {
       .map((k) => [k.jobberProductId, k.id]),
   );
 
+  // Jobs the user deleted from Completed Jobs — never re-import these even if
+  // they still exist in Jobber.
+  const tombstones = await prisma.jobTombstone.findMany({
+    select: { jobberJobId: true },
+  });
+  const tombstonedIds = new Set(tombstones.map((t) => t.jobberJobId));
+
   let cursor: string | null = null;
   do {
     const data: JobsResponse = await jobberQuery<JobsResponse>(JOBS_QUERY, {
@@ -593,6 +600,9 @@ export async function syncJobs(): Promise<JobsSyncResult> {
       // deletion reconciliation never mistakes a skipped-but-present job for
       // a deleted one.
       seenJobberJobIds.add(node.id);
+
+      // Tombstoned (deleted from Completed Jobs): never re-import.
+      if (tombstonedIds.has(node.id)) continue;
 
       const clientLocalId = node.client
         ? clientIdByJobberId.get(node.client.id)

@@ -5,6 +5,8 @@ import { requireUser } from "@/lib/auth-helpers";
 import { PrintButton } from "@/components/print-button";
 import { JobNotes } from "@/components/job-notes";
 import { JobFlowChart } from "@/components/job-flow/job-flow-chart";
+import { ServiceCallFlowCard } from "@/components/job-flow/service-call-flow-card";
+import { jobHasServiceCall } from "@/lib/service-call";
 import {
   PickListView,
   lineItemsToPickListLines,
@@ -60,6 +62,9 @@ export default async function JobDetailPage({
   });
 
   if (!job) notFound();
+
+  // Service Call jobs (labor-only) use the simplified 3-step flow card.
+  const isServiceCall = jobHasServiceCall(job.lineItems);
 
   const clientNotes = await prisma.jobberNote.findMany({
     where: { clientId: job.clientId },
@@ -362,14 +367,23 @@ export default async function JobDetailPage({
           )}
         </div>
 
-        {/* RIGHT — Job Flow chart */}
+        {/* RIGHT — Job Flow chart (Service Call jobs get the 3-step card) */}
         <aside className="no-print lg:sticky lg:top-6 lg:self-start">
-          <JobFlowChart
-            jobId={job.id}
-            currentStage={job.currentStage}
-            isOnHold={job.isOnHold}
-            canWrite={canWrite}
-          />
+          {isServiceCall ? (
+            <ServiceCallFlowCard
+              jobId={job.id}
+              scheduled={job.visits.some((v) => v.startAt != null)}
+              completed={job.serviceCallCompletedAt != null}
+              canWrite={canWrite}
+            />
+          ) : (
+            <JobFlowChart
+              jobId={job.id}
+              currentStage={job.currentStage}
+              isOnHold={job.isOnHold}
+              canWrite={canWrite}
+            />
+          )}
         </aside>
       </div>
     </>
