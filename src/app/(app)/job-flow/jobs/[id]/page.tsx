@@ -134,7 +134,9 @@ export default async function JobDetailPage({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 no-print">
-          {user.role === "ADMIN" && <ResetJobButton jobId={job.id} />}
+          {user.role === "ADMIN" && !isServiceCall && (
+            <ResetJobButton jobId={job.id} />
+          )}
           <PrintButton />
         </div>
       </header>

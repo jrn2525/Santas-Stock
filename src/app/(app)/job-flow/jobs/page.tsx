@@ -354,27 +354,28 @@ export default async function JobsPage({
                     </td>
                     <td className="px-4 py-3">
                       <Link href={jobHref} className="block">
-                        {serviceCallStep ? (
-                          <span className="inline-block rounded border border-brand/40 bg-brand/15 px-2 py-0.5 text-xs font-medium text-ink">
-                            {serviceCallStep}
-                          </span>
-                        ) : (
-                          <div className="flex flex-wrap items-center gap-1.5">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {serviceCallStep ? (
+                            <span className="inline-block rounded border border-brand/40 bg-brand/15 px-2 py-0.5 text-xs font-medium text-ink">
+                              {serviceCallStep}
+                            </span>
+                          ) : (
                             <span
                               className={`inline-block rounded border px-2 py-0.5 text-xs font-medium ${stageBadgeStyle(j.currentStage)}`}
                             >
                               {STAGE_LABELS[j.currentStage]}
                             </span>
-                            {j.isOnHold && (
-                              <span
-                                className="inline-block rounded border border-yellow-600/40 bg-yellow-500/15 px-2 py-0.5 text-xs font-medium text-yellow-200"
-                                title="Job is on hold for shortages"
-                              >
-                                Awaiting Stock
-                              </span>
-                            )}
-                          </div>
-                        )}
+                          )}
+                          {/* Never hide a real shortage, even on a service-call job. */}
+                          {j.isOnHold && (
+                            <span
+                              className="inline-block rounded border border-yellow-600/40 bg-yellow-500/15 px-2 py-0.5 text-xs font-medium text-yellow-200"
+                              title="Job is on hold for shortages"
+                            >
+                              Awaiting Stock
+                            </span>
+                          )}
+                        </div>
                       </Link>
                     </td>
                     <td className="px-4 py-3">
