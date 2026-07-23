@@ -236,6 +236,15 @@ async function doApplyChangeOrder(
   const shortageByItem = new Map<string, number>();
 
   await prisma.$transaction(async (tx) => {
+    // 0. Clear this job's existing shortages up front. `previouslyDeducted`
+    // (computed above) already captured them as physically-pulled stock, and
+    // the netDiff pass below recreates exactly the shortfall that remains
+    // under the new pick list. Without this, a surviving (updated-in-place)
+    // line's stale shortage rows linger — causing under-restore on reset and
+    // over-deduction on Release. Deleted lines' shortages cascade anyway;
+    // this also covers the lines that carry over.
+    await tx.jobLineShortage.deleteMany({ where: { jobLineItem: { jobId } } });
+
     // 1. Apply net inventory deltas. Track per-item shortages here so we can
     // attribute them to specific lines after the new JobLineItem rows exist.
     for (const [itemId, diff] of netDiff.entries()) {
