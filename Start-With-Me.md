@@ -4,7 +4,7 @@
 
 > **Maintenance:** update me at the end of each session — move finished items out, add new "Open items," and refresh "Last session."
 
-_Last updated: 2026-06-24_
+_Last updated: 2026-07-01_
 
 ---
 
@@ -23,8 +23,23 @@ _Last updated: 2026-06-24_
 
 ---
 
-## Last session summary (2026-06-24)
-All shipped to `main` and deployed. Newest → oldest:
+## Last session summary (2026-07-01)
+All shipped to `main` and deployed. Service Call jobs + a health check.
+
+**Service Call jobs + Completed Jobs**
+- A job whose Pick List contains the labor-only **"Service Call"** item uses a 3-step **Service Call flow** card on the job page (`ServiceCallFlowCard`) instead of the normal Job Flow chart: **Service Call → Scheduled Service Call → Completed Service Call**. Step 1 always lit; step 2 lights up once the job has a visit with a **scheduled date** (synced from Jobber); step 3 via a **Mark Completed Service Call** button (Admin/Manager), with a **Reopen** to undo. `e38746b`
+- Completing sets `JobberJob.serviceCallCompletedAt` → the job **leaves the Jobs list** and appears under a new **Completed Jobs** sidebar page (`/job-flow/completed-jobs`) — a Jobs-style checkbox list with a bulk **Delete selected** (confirm step). `e38746b`
+- **Delete tombstones** the Jobber id (new `JobTombstone` table) so the Jobs **sync won't re-import** it while it still lives in Jobber. Service calls are labor-only, so there's no inventory to release. `e38746b`
+- **Jobs list Stage column** shows the Service Call step ("Service Call" / "Scheduled Service Call") for service-call jobs instead of the normal stage. `47b4664`
+- **Health-check fixes:** still surface **Awaiting Stock** on a service-call job if it's ever on hold (never hide a real shortage); hide the Admin **Reset job** button on service-call jobs (it doesn't apply to labor-only). `0ac5421`
+- Service Call jobs are **excluded from the Job Flow board + Pick List** (labor-only — no allocation, nothing to pick) via `serviceCallJobWhere`, but **kept on the Calendar + Dashboard schedule** (a scheduled service call is real scheduled work the crew must see). `e1497a3`
+- **Schema:** `JobberJob.serviceCallCompletedAt` + `JobTombstone`; migration `20260624000000_service_call` also flags a `Service Call` item non-stock. Detection is by the exact line name **"Service Call"** (case-insensitive at runtime).
+- **Two review sub-agents audited the whole feature** — lifecycle, sync/tombstone integrity, delete FK-safety, migration, and permissions all passed with no HIGH/MEDIUM data bugs.
+
+---
+
+## Previous session (2026-06-24)
+Shipped to `main` and deployed. Newest → oldest:
 
 **Jobs page (`/job-flow/jobs`)**
 - Every cell in a job's row links to that job; the **Customer** name opens the **job** (not the customer page). `a4ac91b`
@@ -56,6 +71,9 @@ All shipped to `main` and deployed. Newest → oldest:
 ---
 
 ## Open items / to verify (ask the user)
+- [ ] **Confirm the Jobber catalog item is named exactly `Service Call`** (capital S/C) so the migration's non-stock flag matched it. The Service Call *flow* works regardless of casing (runtime detection is case-insensitive); only the `tracksStock=false` UPDATE is exact-case — and since service calls never run allocation, it's belt-and-suspenders.
+- [ ] Heads-up for the user: **deleting a Completed Job is permanent** (tombstoned so sync won't re-import). If one is ever needed back, it takes a manual delete of the `JobTombstone` row in the DB.
+- [ ] Decision revisit if wanted: Service Call jobs are currently **kept on the Calendar + Dashboard schedule**. Offered to hide them there too — user can ask if they change their mind.
 - [ ] **Confirm Specialty Service + Lift Service show "Service"** in Inventory → Items (the migration flips them by exact name `Specialty Service` / `Lift Service`; if a name differs, uncheck "Track stock" on the item form). 
 - [ ] Remind the user: to drop the **URL on printouts**, untick "Headers and footers" once in Chrome's print dialog.
 
@@ -64,6 +82,8 @@ All shipped to `main` and deployed. Newest → oldest:
 - Two benign deploy-log warnings (`npm warn config production`, the Prisma deprecation) — harmless, no action.
 
 ## Useful pointers
+- **Service Call feature:** detection helper + `serviceCallJobWhere` (Prisma `where` fragment to exclude them) in `src/lib/service-call.ts`; complete/reopen/delete actions in `src/lib/actions/service-call.ts`; the card `src/components/job-flow/service-call-flow-card.tsx`; Completed Jobs page `src/app/(app)/job-flow/completed-jobs/` + `src/components/job-flow/completed-jobs-list.tsx`. Sync skips tombstoned ids in `src/lib/jobber/sync.ts` (tombstone loaded before the pagination loop).
+- **Env gotcha (rebuilds):** the web container can wipe `node_modules` between sessions. If `npm ci` succeeds but the **Prisma engine download gets reset by the egress proxy** (`ECONNRESET`/`aborted` on `binaries.prisma.sh`), run `npm ci --ignore-scripts`, then `curl --retry 6 --retry-all-errors` the `libquery_engine.so.node.gz` and `schema-engine.gz` for `debian-openssl-3.0.x` (commit hash = `@prisma/engines-version`), gunzip them into **both** `node_modules/prisma/` and `node_modules/@prisma/engines/`, then `npx prisma generate`. curl retries harder than Prisma's fetcher, which is what makes it work.
 - Jobber sync core: `src/lib/jobber/sync.ts`, orchestrated by `src/lib/jobber/run-sync.ts` (manual + auto both record a `SyncRun`). Shared lock: `src/lib/jobber/sync-lock.ts`.
 - Inventory math funnels through `src/lib/stock.ts` (`deductStock` / `adjustStock`, both respect `tracksStock`). Job reset logic: `src/lib/reset-job-core.ts` (plain module) wrapped by `src/lib/actions/reset-job.ts` (ADMIN) and `src/lib/actions/stale-jobs.ts` (WRITE_ROLES).
 - Print rules: `src/app/(app)/...` pages use `<PrintButton />` + global `@media print` in `src/app/globals.css`.
