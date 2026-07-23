@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { roleLabel } from "@/lib/auth-helpers";
+import { requireRole, roleLabel, ADMIN_ROLES } from "@/lib/auth-helpers";
 import type { Role } from "@prisma/client";
 import { dateTimeFormatET } from "@/lib/datetime";
 
@@ -39,6 +39,9 @@ async function getStats() {
 }
 
 export default async function AdminOverviewPage() {
+  // Defense-in-depth to match the other admin pages (the segment layout
+  // already guards /admin/*, but each page asserts its own role too).
+  await requireRole(ADMIN_ROLES);
   const stats = await getStats();
 
   return (

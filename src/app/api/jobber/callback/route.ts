@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { auth } from "@/auth";
+import { requireRole, ADMIN_ROLES } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import {
   callbackUrlFor,
@@ -16,13 +16,9 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   const origin = getPublicOrigin(req);
 
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.redirect(new URL("/sign-in", origin));
-  }
-  if (session.user.role !== "ADMIN") {
-    return NextResponse.redirect(new URL("/unauthorized", origin));
-  }
+  // Live role + active check (requireRole re-queries the DB and redirects),
+  // not the cached JWT role.
+  const user = await requireRole(ADMIN_ROLES);
 
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
@@ -63,7 +59,7 @@ export async function GET(req: NextRequest) {
         expiresAt,
         scopes,
         jobberAccountId,
-        connectedById: session.user.id,
+        connectedById: user.id,
       },
     }),
   ]);

@@ -1,17 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { auth } from "@/auth";
+import { requireRole, ADMIN_ROLES } from "@/lib/auth-helpers";
 import { buildAuthorizeUrl, callbackUrlFor, getPublicOrigin } from "@/lib/jobber/oauth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.redirect(new URL("/sign-in", req.url));
-  }
-  if (session.user.role !== "ADMIN") {
-    return NextResponse.redirect(new URL("/unauthorized", req.url));
-  }
+  // Live role + active check (requireRole re-queries the DB and redirects),
+  // not the cached JWT role.
+  await requireRole(ADMIN_ROLES);
 
   const origin = getPublicOrigin(req);
   const state = crypto.randomUUID();

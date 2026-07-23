@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { ItemStatus, Prisma, ProductType } from "@prisma/client";
-import { auth } from "@/auth";
+import { requireRole, ADMIN_ROLES } from "@/lib/auth-helpers";
 import { prisma } from "@/lib/prisma";
 import { formatDateParam } from "@/lib/datetime";
 
@@ -61,13 +61,9 @@ function fixedHeaders(): string[] {
 }
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user) {
-    return new NextResponse("Not authenticated.", { status: 401 });
-  }
-  if (session.user.role !== "ADMIN") {
-    return new NextResponse("Forbidden.", { status: 403 });
-  }
+  // Re-query live role + active (not the cached JWT) so a demoted or
+  // deactivated user can't still export inventory with a valid token.
+  await requireRole(ADMIN_ROLES);
 
   const url = new URL(req.url);
   const scopeParam = url.searchParams.get("scope");
