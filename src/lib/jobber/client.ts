@@ -100,6 +100,11 @@ type CostExtensions = {
 const MAX_THROTTLE_RETRIES = 6;
 const MAX_TRANSIENT_RETRIES = 3;
 const SINGLE_WAIT_CAP_MS = 60_000;
+// Per-request network timeout. Without it, a hung TCP connection to Jobber
+// leaves the fetch pending forever, and since sync holds an in-process lock
+// the whole sync subsystem stalls until the container is redeployed. On
+// timeout the fetch aborts and the error propagates so the lock releases.
+const JOBBER_FETCH_TIMEOUT_MS = 60_000;
 const LOW_BUDGET_THRESHOLD = 1000;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -120,6 +125,7 @@ export async function jobberQuery<TData = unknown>(
         "X-JOBBER-GRAPHQL-VERSION": JOBBER_API_VERSION,
       },
       body: JSON.stringify({ query, variables }),
+      signal: AbortSignal.timeout(JOBBER_FETCH_TIMEOUT_MS),
     });
 
     if (!res.ok) {

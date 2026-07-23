@@ -742,15 +742,17 @@ async function reconcileDeletedJobs(
     select: { id: true, jobberJobId: true, deletedInJobberAt: true },
   });
 
-  // Safety valve: if Jobber returned zero jobs — or suspiciously few relative
-  // to what we have locally — treat it as a partial/fluke response rather than
-  // flagging the database as deleted. A real bulk deletion that large would be
-  // deliberate in Jobber and still surface on the next clean sync. Only applies
-  // the ratio check once there are enough local jobs for it to be meaningful.
+  // Safety valve: if Jobber returned zero jobs — or fewer than half of what we
+  // have locally — treat it as a partial/fluke response (a truncated but
+  // non-erroring page) rather than flagging the database as deleted. A real
+  // bulk deletion that large would be deliberate in Jobber. Applied for ALL
+  // account sizes: the previous `>= 20` gate meant a small account that got a
+  // truncated response (e.g. 1 of 12 jobs) would false-flag the other 11.
+  // The ratio never trips on a healthy sync (seen == local), so this only ever
+  // adds protection.
   const tooFew =
     seenJobberJobIds.size === 0 ||
-    (localJobs.length >= 20 &&
-      seenJobberJobIds.size < localJobs.length * 0.5);
+    seenJobberJobIds.size < localJobs.length * 0.5;
   if (tooFew && localJobs.length > 0) {
     result.warnings.push({
       message: `Jobber returned only ${seenJobberJobIds.size} of ${localJobs.length} known jobs — skipped the deleted-job check this run to avoid false flags.`,
