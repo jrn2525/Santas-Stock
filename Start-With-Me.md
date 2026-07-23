@@ -4,7 +4,7 @@
 
 > **Maintenance:** update me at the end of each session — move finished items out, add new "Open items," and refresh "Last session."
 
-_Last updated: 2026-07-01_
+_Last updated: 2026-07-01 (health-check pass)_
 
 ---
 
@@ -23,8 +23,22 @@ _Last updated: 2026-07-01_
 
 ---
 
-## Last session summary (2026-07-01)
-All shipped to `main` and deployed. Service Call jobs + a health check.
+## Deep-dive health check (2026-07-01)
+Ran four parallel review agents over the whole app (auth, inventory math, Jobber sync, data-integrity). Foundations verified solid: stock deduction is oversell-safe, `tracksStock` respected everywhere, migration↔schema parity, timezone/pagination/token-encryption/OAuth-CSRF all correct. Fixed and shipped to `main` + `claude/affectionate-knuth-2xK0h`:
+
+- **Security:** `/api/inventory/export`, `/api/jobber/connect`, `/api/jobber/callback` authorized off the cached JWT role — now use `requireRole(ADMIN_ROLES)` (live DB role + `active`). Added a defense-in-depth guard to `/admin/overview`. `1c8dc41`
+- **HIGH — sync wiped allocation state:** `syncJobs` delete-recreated every job's line items each run, resetting `isAllocated`/`kitsFromTote` and cascade-deleting shortages + inspection decisions (stock never restored → double-deduct on re-allocate). Now reconciles lines by Jobber line id (upsert Jobber-sourced fields, preserve allocation state, delete only removed Jobber lines, leave app-created lines). `562aaef`
+- **HIGH — change order left stale shortages:** in-place line updates kept old `JobLineShortage` rows → under-restore on reset / over-deduct on Release. Now clears the job's shortages at the top of the txn and lets the netDiff pass recreate the real shortfall. `83fe12a`
+- **HIGH — tote lookup inconsistent:** deactivate/inspection/change-order used a raw `customerKit.findFirst` (no property→client fallback) → silent tote corruption for multi-property customers. Routed through `findCustomerKit`. `4dd46ba`
+- **MEDIUM — sync hardening:** 60s `AbortSignal.timeout` on Jobber fetches (a hung request no longer stalls all syncs behind the lock); the "returned too few jobs" false-delete guard now applies to accounts of any size (was gated at ≥20). `963d42a`
+
+### Deferred (reported, NOT yet fixed — see below in Open items)
+MEDIUM: deactivation uses un-ceiled qty (under-returns for fractional kit lines); `resetJob`/`deleteStaleJob` don't take the per-job lock. LOW: dead-stock shows service items; deactivation-report regex parse; dashboard week-count vs calendar mismatch; sync-logs "30 days" copy has no date filter; change-order audit-JSON undercount with duplicate lines; `firstCompletedAt` cross-job race; **`npm run lint` broken** (Next 16 dropped `next lint`, no `eslint.config.js`).
+
+---
+
+## Service Call jobs + Completed Jobs (2026-07-01)
+All shipped to `main` and deployed.
 
 **Service Call jobs + Completed Jobs**
 - A job whose Pick List contains the labor-only **"Service Call"** item uses a 3-step **Service Call flow** card on the job page (`ServiceCallFlowCard`) instead of the normal Job Flow chart: **Service Call → Scheduled Service Call → Completed Service Call**. Step 1 always lit; step 2 lights up once the job has a visit with a **scheduled date** (synced from Jobber); step 3 via a **Mark Completed Service Call** button (Admin/Manager), with a **Reopen** to undo. `e38746b`
@@ -71,6 +85,11 @@ Shipped to `main` and deployed. Newest → oldest:
 ---
 
 ## Open items / to verify (ask the user)
+- [ ] **Deferred health-check fixes (user chose HIGH + key MEDIUM; these remain):**
+  - MEDIUM — `deactivateJob` uses un-ceiled line qty (`deactivate.ts:~123`), diverging from the `Math.ceil` used at allocate/reset/complete → under-returns stock for any *fractional* kit line. Latent unless kit lines ever carry fractional qty from Jobber. Fix: `Math.ceil` consistently.
+  - MEDIUM — `resetJob` (`reset-job.ts`) and `deleteStaleJob` (`stale-jobs.ts`) don't take `withJobLock` on the job (reset takes no lock; stale uses the *sync* lock) → a concurrent allocate/change-order on the same job could double-count. Low odds (single-user shop). Fix: wrap both in `withJobLock(jobId, …)`.
+  - LOW — `npm run lint` is broken: Next 16 removed `next lint` and there's no `eslint.config.js`. Add a flat ESLint config (eslint-config-next flat) so lint runs again.
+  - LOW (cosmetic) — dead-stock shows service items; deactivation-report regex parse; dashboard "this week" count vs Sun–Sat calendar; sync-logs "30 days" copy has no date filter; change-order audit-JSON undercounts duplicate-item lines; `firstCompletedAt` cross-job race.
 - [ ] **Confirm the Jobber catalog item is named exactly `Service Call`** (capital S/C) so the migration's non-stock flag matched it. The Service Call *flow* works regardless of casing (runtime detection is case-insensitive); only the `tracksStock=false` UPDATE is exact-case — and since service calls never run allocation, it's belt-and-suspenders.
 - [ ] Heads-up for the user: **deleting a Completed Job is permanent** (tombstoned so sync won't re-import). If one is ever needed back, it takes a manual delete of the `JobTombstone` row in the DB.
 - [ ] Decision revisit if wanted: Service Call jobs are currently **kept on the Calendar + Dashboard schedule**. Offered to hide them there too — user can ask if they change their mind.
