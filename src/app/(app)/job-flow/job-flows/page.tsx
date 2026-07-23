@@ -3,6 +3,7 @@ import type { JobStage } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { FLOW_STAGES, STAGE_LABELS, TERMINAL_STAGES } from "@/lib/job-flow";
+import { serviceCallJobWhere } from "@/lib/service-call";
 import { dateTimeFormatET } from "@/lib/datetime";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +18,8 @@ export default async function JobFlowOverviewPage() {
   const [byStage, onHoldCount, onHoldJobs, recentEvents] = await Promise.all([
     prisma.jobberJob.groupBy({
       by: ["currentStage"],
+      // Service Call jobs use their own flow — keep them out of the stage board.
+      where: { NOT: serviceCallJobWhere },
       _count: { _all: true },
     }),
     prisma.jobberJob.count({ where: { isOnHold: true } }),

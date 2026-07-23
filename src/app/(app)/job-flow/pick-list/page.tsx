@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { getSettings } from "@/lib/settings";
+import { serviceCallJobWhere } from "@/lib/service-call";
 import {
   addDaysET,
   startOfDayET,
@@ -56,6 +57,8 @@ export default async function PickListIndexPage({
   // Default behaviour: only show jobs from active customers — pick
   // lists for deactivated customers are noise on this view.
   andClauses.push({ client: { is: { active: true } } });
+  // Service Call jobs are labor-only — nothing to pick, so keep them off.
+  andClauses.push({ NOT: serviceCallJobWhere });
 
   if (dateRange === "week") {
     andClauses.push({
