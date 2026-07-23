@@ -32,8 +32,10 @@ Ran four parallel review agents over the whole app (auth, inventory math, Jobber
 - **HIGH — tote lookup inconsistent:** deactivate/inspection/change-order used a raw `customerKit.findFirst` (no property→client fallback) → silent tote corruption for multi-property customers. Routed through `findCustomerKit`. `4dd46ba`
 - **MEDIUM — sync hardening:** 60s `AbortSignal.timeout` on Jobber fetches (a hung request no longer stalls all syncs behind the lock); the "returned too few jobs" false-delete guard now applies to accounts of any size (was gated at ≥20). `963d42a`
 
-### Deferred (reported, NOT yet fixed — see below in Open items)
-MEDIUM: deactivation uses un-ceiled qty (under-returns for fractional kit lines); `resetJob`/`deleteStaleJob` don't take the per-job lock. LOW: dead-stock shows service items; deactivation-report regex parse; dashboard week-count vs calendar mismatch; sync-logs "30 days" copy has no date filter; change-order audit-JSON undercount with duplicate lines; `firstCompletedAt` cross-job race; **`npm run lint` broken** (Next 16 dropped `next lint`, no `eslint.config.js`).
+### Follow-up pass — remaining MEDIUM + LOW fixed (2026-07-01)
+- MEDIUM — `deactivateJob` now ceils the line qty (was under-returning fractional kit lines); `resetJob` + `deleteStaleJob` now take `withJobLock`. `d12303f`
+- LOW — `npm run lint` fixed (flat `eslint.config.mjs` + `eslint .`, passes clean); dead-stock excludes service items; sync-logs bounded to 30 days; dashboard stat relabeled "Next 7 days"; `firstCompletedAt` cross-job race closed with a guarded `updateMany`. `0597a48`
+- **Still open (cosmetic, audit-display only — deliberately left):** `ChangeOrder.diff` undercounts when a pick list has two lines of the same item/kit; deactivation-report parses its summary from free-text via regex (misfires only on adversarial reason text). Both would need disproportionate change (the latter a schema migration) for rare/adversarial edge cases.
 
 ---
 
@@ -85,11 +87,7 @@ Shipped to `main` and deployed. Newest → oldest:
 ---
 
 ## Open items / to verify (ask the user)
-- [ ] **Deferred health-check fixes (user chose HIGH + key MEDIUM; these remain):**
-  - MEDIUM — `deactivateJob` uses un-ceiled line qty (`deactivate.ts:~123`), diverging from the `Math.ceil` used at allocate/reset/complete → under-returns stock for any *fractional* kit line. Latent unless kit lines ever carry fractional qty from Jobber. Fix: `Math.ceil` consistently.
-  - MEDIUM — `resetJob` (`reset-job.ts`) and `deleteStaleJob` (`stale-jobs.ts`) don't take `withJobLock` on the job (reset takes no lock; stale uses the *sync* lock) → a concurrent allocate/change-order on the same job could double-count. Low odds (single-user shop). Fix: wrap both in `withJobLock(jobId, …)`.
-  - LOW — `npm run lint` is broken: Next 16 removed `next lint` and there's no `eslint.config.js`. Add a flat ESLint config (eslint-config-next flat) so lint runs again.
-  - LOW (cosmetic) — dead-stock shows service items; deactivation-report regex parse; dashboard "this week" count vs Sun–Sat calendar; sync-logs "30 days" copy has no date filter; change-order audit-JSON undercounts duplicate-item lines; `firstCompletedAt` cross-job race.
+- [ ] **All deferred health-check MEDIUM + LOW fixes are done** (see the follow-up pass above). Only two cosmetic, audit-display-only items were deliberately left (ChangeOrder.diff duplicate-line undercount; deactivation-report regex parse) — fix on request if they ever matter.
 - [ ] **Confirm the Jobber catalog item is named exactly `Service Call`** (capital S/C) so the migration's non-stock flag matched it. The Service Call *flow* works regardless of casing (runtime detection is case-insensitive); only the `tracksStock=false` UPDATE is exact-case — and since service calls never run allocation, it's belt-and-suspenders.
 - [ ] Heads-up for the user: **deleting a Completed Job is permanent** (tombstoned so sync won't re-import). If one is ever needed back, it takes a manual delete of the `JobTombstone` row in the DB.
 - [ ] Decision revisit if wanted: Service Call jobs are currently **kept on the Calendar + Dashboard schedule**. Offered to hide them there too — user can ask if they change their mind.
