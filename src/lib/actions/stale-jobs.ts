@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { assertRoleForAction, WRITE_ROLES } from "@/lib/auth-helpers";
 import { runWithSyncLock } from "@/lib/jobber/sync-lock";
+import { withJobLock } from "@/lib/job-lock";
 import { resetJobCore } from "@/lib/reset-job-core";
 
 export type StaleJobActionResult = { ok: boolean; message?: string };
@@ -33,40 +34,49 @@ export async function deleteStaleJob(
   await assertRoleForAction(WRITE_ROLES);
 
   const outcome = await runWithSyncLock(
-    async (): Promise<StaleJobActionResult> => {
-      // Re-read inside the lock so a sync that un-flagged the job (because it
-      // reappeared in Jobber) between the click and here can't be deleted.
-      const job = await prisma.jobberJob.findUnique({
-        where: { id: jobId },
-        select: { id: true, deletedInJobberAt: true },
-      });
-      if (!job) return { ok: true }; // already gone — nothing to do
-      if (!job.deletedInJobberAt) {
-        return { ok: false, message: "Job is still in Jobber — not deleting." };
-      }
-
-      try {
-        // Phase 1: return all inventory and reset derived state.
-        await resetJobCore(jobId);
-
-        // Phase 2: remove the job and its children.
-        await prisma.$transaction(async (tx) => {
-          await tx.jobberNote.deleteMany({
-            where: { OR: [{ jobId }, { visit: { jobId } }] },
-          });
-          await tx.jobberVisit.deleteMany({ where: { jobId } });
-          await tx.jobberJob.delete({ where: { id: jobId } });
+    async (): Promise<StaleJobActionResult> =>
+      // Also take the per-job lock (inside the sync lock) so the reset +
+      // delete can't interleave with a concurrent allocate/change-order/
+      // inspection on the same job, which serialize on withJobLock but not
+      // on the sync lock. Sync lock is always the outer of the two, so the
+      // ordering is consistent and can't deadlock.
+      withJobLock(jobId, async (): Promise<StaleJobActionResult> => {
+        // Re-read inside the lock so a sync that un-flagged the job (because
+        // it reappeared in Jobber) between the click and here can't be deleted.
+        const job = await prisma.jobberJob.findUnique({
+          where: { id: jobId },
+          select: { id: true, deletedInJobberAt: true },
         });
-      } catch (err) {
-        console.error(`[stale-jobs] delete ${jobId}:`, err);
-        return {
-          ok: false,
-          message:
-            err instanceof Error ? err.message : "Could not delete the job.",
-        };
-      }
-      return { ok: true };
-    },
+        if (!job) return { ok: true }; // already gone — nothing to do
+        if (!job.deletedInJobberAt) {
+          return {
+            ok: false,
+            message: "Job is still in Jobber — not deleting.",
+          };
+        }
+
+        try {
+          // Phase 1: return all inventory and reset derived state.
+          await resetJobCore(jobId);
+
+          // Phase 2: remove the job and its children.
+          await prisma.$transaction(async (tx) => {
+            await tx.jobberNote.deleteMany({
+              where: { OR: [{ jobId }, { visit: { jobId } }] },
+            });
+            await tx.jobberVisit.deleteMany({ where: { jobId } });
+            await tx.jobberJob.delete({ where: { id: jobId } });
+          });
+        } catch (err) {
+          console.error(`[stale-jobs] delete ${jobId}:`, err);
+          return {
+            ok: false,
+            message:
+              err instanceof Error ? err.message : "Could not delete the job.",
+          };
+        }
+        return { ok: true };
+      }),
   );
 
   if (!outcome.ran) {

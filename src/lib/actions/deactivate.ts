@@ -120,7 +120,11 @@ async function doDeactivateJob(
 
   for (const line of job.lineItems) {
     const decision = decisionByLineId.get(line.id);
-    const lineQty = Number(line.quantity);
+    // Ceil the line quantity to match what allocation/reset/complete use
+    // (all Math.ceil). A fractional kit line otherwise under-returns stock:
+    // allocation deducts ceil(componentQty × ceil(lineQty)) but deactivate
+    // would compute ceil(componentQty × rawLineQty) and return too few.
+    const lineQty = Math.ceil(Number(line.quantity));
 
     if (line.item && decision?.kind === "item") {
       const ret = Math.max(

@@ -1,6 +1,7 @@
 "use server";
 
 import { assertRoleForAction, ADMIN_ROLES } from "@/lib/auth-helpers";
+import { withJobLock } from "@/lib/job-lock";
 import { resetJobCore } from "@/lib/reset-job-core";
 
 /**
@@ -23,5 +24,8 @@ export async function resetJob(
     );
   }
   await assertRoleForAction(ADMIN_ROLES);
-  return resetJobCore(jobId);
+  // Serialize on the job like every other inventory-mutating action, so a
+  // reset can't interleave with a concurrent allocate/change-order/inspection
+  // on the same job and double-count stock.
+  return withJobLock(jobId, () => resetJobCore(jobId));
 }
