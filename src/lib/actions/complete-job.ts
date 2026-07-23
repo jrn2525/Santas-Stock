@@ -111,16 +111,17 @@ async function completeKitSyncAndFlip(
     // Flip NEW -> EXISTING in the SAME transaction as the kit sync and the
     // customerKitsSyncedAt stamp, so a failure can't leave the client marked
     // EXISTING while its kits stay unsynced.
-    if (client.customerStatus === "NEW") {
-      await tx.client.update({
-        where: { id: client.id },
-        data: {
-          customerStatus: "EXISTING",
-          firstCompletedAt: client.firstCompletedAt ?? new Date(),
-        },
-      });
-      converted = true;
-    }
+    // Conditional flip guarded on customerStatus = NEW, so two different jobs
+    // completing for the SAME client concurrently (withJobLock is per-job, not
+    // per-client) can't both flip and clobber firstCompletedAt. The row lock
+    // serializes the two updateManys; the second re-evaluates the WHERE (now
+    // EXISTING) and matches zero rows. A NEW client has never completed, so
+    // firstCompletedAt is null in that state and new Date() is the first stamp.
+    const flipped = await tx.client.updateMany({
+      where: { id: client.id, customerStatus: "NEW" },
+      data: { customerStatus: "EXISTING", firstCompletedAt: new Date() },
+    });
+    converted = flipped.count > 0;
 
     for (const line of lines) {
       if (!line.kit) continue;

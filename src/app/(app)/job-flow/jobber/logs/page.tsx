@@ -42,7 +42,12 @@ export default async function SyncLogsPage({
       ? phaseParam
       : "all";
 
+  // Bound to the last 30 days to match the header copy, so the page is
+  // correct even if no external pruning job runs. Still capped at 200.
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 30);
   const runs = await prisma.syncRun.findMany({
+    where: { startedAt: { gte: cutoff } },
     orderBy: { startedAt: "desc" },
     take: 200,
   });

@@ -99,6 +99,7 @@ export default async function DeadStockPage({
                 name: true,
                 sku: true,
                 unitCost: true,
+                tracksStock: true,
               },
             },
           },
@@ -110,7 +111,7 @@ export default async function DeadStockPage({
       orderBy: { decidedAt: "desc" },
       include: {
         componentItem: {
-          select: { id: true, name: true, sku: true, unitCost: true },
+          select: { id: true, name: true, sku: true, unitCost: true, tracksStock: true },
         },
         jobLineItem: {
           select: {
@@ -166,6 +167,9 @@ export default async function DeadStockPage({
   for (const d of lineDeaths) {
     const item = d.jobLineItem.item;
     if (!item) continue;
+    // Non-stock service items carry no inventory, so a DEAD decision on one is
+    // not a real unit loss — keep them off the dead-stock report.
+    if (!item.tracksStock) continue;
     const deadQty = Math.ceil(Number(d.jobLineItem.quantity));
     if (deadQty <= 0) continue;
     addToRow(item, deadQty, d.decidedAt);
@@ -174,6 +178,7 @@ export default async function DeadStockPage({
   for (const d of componentDeaths) {
     const item = d.componentItem;
     if (!item) continue;
+    if (!item.tracksStock) continue;
     const recipe = d.jobLineItem.kit?.items.find(
       (ki) => ki.itemId === item.id,
     );

@@ -27,6 +27,9 @@ export function FlashToast() {
   // replay it.
   useEffect(() => {
     if (!flash || !(flash in MESSAGES)) return;
+    // Intentional: surface the one-shot flash message when the URL param
+    // appears, then strip it below. Guarded so it runs once per flash value.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMessage(MESSAGES[flash]);
     const next = new URLSearchParams(Array.from(params.entries()));
     next.delete("flash");

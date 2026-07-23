@@ -25,6 +25,10 @@ export function JobberJobsSyncButton() {
   useEffect(() => {
     if (state === seenResponse.current) return;
     seenResponse.current = state;
+    // Intentional: open the stale-jobs modal once when a new sync response
+    // arrives that reported deleted-in-Jobber jobs. Ref-guarded to fire once
+    // per response.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if ((state.staleJobs?.length ?? 0) > 0) setModalOpen(true);
   }, [state]);
 

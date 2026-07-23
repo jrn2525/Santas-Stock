@@ -221,7 +221,7 @@ export default async function JobFlowDashboardPage() {
           href={`/job-flow/calendar?view=day&date=${formatDateParam(today)}`}
         />
         <Stat
-          label="This week's visits"
+          label="Next 7 days' visits"
           value={weekVisits.length}
           href={`/job-flow/calendar?view=week&date=${formatDateParam(today)}`}
         />
