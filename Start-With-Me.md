@@ -4,7 +4,9 @@
 
 > **Maintenance:** update me at the end of each session — move finished items out, add new "Open items," and refresh "Last session."
 
-_Last updated: 2026-07-01 (health-check pass)_
+_Last updated: 2026-07-01 (health-check + follow-up fixes)_
+
+**Current state:** all health-check findings are fixed and deployed to `main` + `claude/affectionate-knuth-2xK0h`. App is green — `tsc`, production build, and `npm run lint` all pass. Nothing in flight.
 
 ---
 
@@ -23,7 +25,10 @@ _Last updated: 2026-07-01 (health-check pass)_
 
 ---
 
-## Deep-dive health check (2026-07-01)
+## Last session (2026-07-01)
+Two pieces of work this session: the **Service Call jobs** feature, then a **deep-dive health check** of the whole app. Most recent first.
+
+### Deep-dive health check
 Ran four parallel review agents over the whole app (auth, inventory math, Jobber sync, data-integrity). Foundations verified solid: stock deduction is oversell-safe, `tracksStock` respected everywhere, migration↔schema parity, timezone/pagination/token-encryption/OAuth-CSRF all correct. Fixed and shipped to `main` + `claude/affectionate-knuth-2xK0h`:
 
 - **Security:** `/api/inventory/export`, `/api/jobber/connect`, `/api/jobber/callback` authorized off the cached JWT role — now use `requireRole(ADMIN_ROLES)` (live DB role + `active`). Added a defense-in-depth guard to `/admin/overview`. `1c8dc41`
@@ -32,17 +37,12 @@ Ran four parallel review agents over the whole app (auth, inventory math, Jobber
 - **HIGH — tote lookup inconsistent:** deactivate/inspection/change-order used a raw `customerKit.findFirst` (no property→client fallback) → silent tote corruption for multi-property customers. Routed through `findCustomerKit`. `4dd46ba`
 - **MEDIUM — sync hardening:** 60s `AbortSignal.timeout` on Jobber fetches (a hung request no longer stalls all syncs behind the lock); the "returned too few jobs" false-delete guard now applies to accounts of any size (was gated at ≥20). `963d42a`
 
-### Follow-up pass — remaining MEDIUM + LOW fixed (2026-07-01)
+#### Follow-up pass — remaining MEDIUM + LOW fixed
 - MEDIUM — `deactivateJob` now ceils the line qty (was under-returning fractional kit lines); `resetJob` + `deleteStaleJob` now take `withJobLock`. `d12303f`
 - LOW — `npm run lint` fixed (flat `eslint.config.mjs` + `eslint .`, passes clean); dead-stock excludes service items; sync-logs bounded to 30 days; dashboard stat relabeled "Next 7 days"; `firstCompletedAt` cross-job race closed with a guarded `updateMany`. `0597a48`
 - **Still open (cosmetic, audit-display only — deliberately left):** `ChangeOrder.diff` undercounts when a pick list has two lines of the same item/kit; deactivation-report parses its summary from free-text via regex (misfires only on adversarial reason text). Both would need disproportionate change (the latter a schema migration) for rare/adversarial edge cases.
 
----
-
-## Service Call jobs + Completed Jobs (2026-07-01)
-All shipped to `main` and deployed.
-
-**Service Call jobs + Completed Jobs**
+### Service Call jobs + Completed Jobs
 - A job whose Pick List contains the labor-only **"Service Call"** item uses a 3-step **Service Call flow** card on the job page (`ServiceCallFlowCard`) instead of the normal Job Flow chart: **Service Call → Scheduled Service Call → Completed Service Call**. Step 1 always lit; step 2 lights up once the job has a visit with a **scheduled date** (synced from Jobber); step 3 via a **Mark Completed Service Call** button (Admin/Manager), with a **Reopen** to undo. `e38746b`
 - Completing sets `JobberJob.serviceCallCompletedAt` → the job **leaves the Jobs list** and appears under a new **Completed Jobs** sidebar page (`/job-flow/completed-jobs`) — a Jobs-style checkbox list with a bulk **Delete selected** (confirm step). `e38746b`
 - **Delete tombstones** the Jobber id (new `JobTombstone` table) so the Jobs **sync won't re-import** it while it still lives in Jobber. Service calls are labor-only, so there's no inventory to release. `e38746b`
@@ -87,7 +87,8 @@ Shipped to `main` and deployed. Newest → oldest:
 ---
 
 ## Open items / to verify (ask the user)
-- [ ] **All deferred health-check MEDIUM + LOW fixes are done** (see the follow-up pass above). Only two cosmetic, audit-display-only items were deliberately left (ChangeOrder.diff duplicate-line undercount; deactivation-report regex parse) — fix on request if they ever matter.
+> Health check is fully closed out — every MEDIUM + LOW is fixed. Only two cosmetic, audit-display-only items were deliberately left (`ChangeOrder.diff` duplicate-line undercount; deactivation-report regex parse); fix on request if they ever matter.
+
 - [ ] **Confirm the Jobber catalog item is named exactly `Service Call`** (capital S/C) so the migration's non-stock flag matched it. The Service Call *flow* works regardless of casing (runtime detection is case-insensitive); only the `tracksStock=false` UPDATE is exact-case — and since service calls never run allocation, it's belt-and-suspenders.
 - [ ] Heads-up for the user: **deleting a Completed Job is permanent** (tombstoned so sync won't re-import). If one is ever needed back, it takes a manual delete of the `JobTombstone` row in the DB.
 - [ ] Decision revisit if wanted: Service Call jobs are currently **kept on the Calendar + Dashboard schedule**. Offered to hide them there too — user can ask if they change their mind.
