@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { withJobLock } from "@/lib/job-lock";
 import { adjustStock } from "@/lib/stock";
+import { findCustomerKit } from "@/lib/customer-kit";
 import {
   assertRoleForAction,
   WRITE_ROLES,
@@ -232,12 +233,13 @@ async function doDeactivateJob(
     }
 
     for (const update of toteUpdates) {
-      const tote = await tx.customerKit.findFirst({
-        where: {
-          clientId: job.clientId,
-          propertyId: job.propertyId ?? null,
-          kitId: update.kitId,
-        },
+      // Same resolver allocation/complete/reset use, so multi-property
+      // customers with a client-level tote resolve identically (property→
+      // client fallback) instead of silently missing the tote.
+      const tote = await findCustomerKit(tx, {
+        clientId: job.clientId,
+        propertyId: job.propertyId ?? null,
+        kitId: update.kitId,
       });
       if (!tote) continue;
 

@@ -5,6 +5,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { withJobLock } from "@/lib/job-lock";
 import { adjustStock, deductStock } from "@/lib/stock";
+import { findCustomerKit } from "@/lib/customer-kit";
 import { assertRoleForAction, WRITE_ROLES, requireUser } from "@/lib/auth-helpers";
 
 /**
@@ -340,13 +341,10 @@ async function doApplyChangeOrder(
       });
       if (jobMeta) {
         for (const kitId of removedKitIds) {
-          const tote = await tx.customerKit.findFirst({
-            where: {
-              clientId: jobMeta.clientId,
-              propertyId: jobMeta.propertyId ?? null,
-              kitId,
-            },
-            select: { id: true },
+          const tote = await findCustomerKit(tx, {
+            clientId: jobMeta.clientId,
+            propertyId: jobMeta.propertyId ?? null,
+            kitId,
           });
           if (tote) {
             await tx.customerKit.update({

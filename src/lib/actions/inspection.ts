@@ -5,6 +5,7 @@ import type { InspectionDecision } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { withJobLock } from "@/lib/job-lock";
 import { adjustStock } from "@/lib/stock";
+import { findCustomerKit } from "@/lib/customer-kit";
 import {
   assertRoleForAction,
   WRITE_ROLES,
@@ -498,13 +499,10 @@ async function doSaveInspectionDecisions(
       }
 
       for (const [kitId, deltas] of byKit) {
-        const tote = await tx.customerKit.findFirst({
-          where: {
-            clientId: jobMeta.clientId,
-            propertyId: jobMeta.propertyId ?? null,
-            kitId,
-          },
-          select: { id: true },
+        const tote = await findCustomerKit(tx, {
+          clientId: jobMeta.clientId,
+          propertyId: jobMeta.propertyId ?? null,
+          kitId,
         });
         if (!tote) continue;
 
