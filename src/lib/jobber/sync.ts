@@ -645,32 +645,61 @@ export async function syncJobs(): Promise<JobsSyncResult> {
             create: { jobberJobId: node.id, ...data_ },
           });
 
-          await tx.jobLineItem.deleteMany({ where: { jobId: upserted.id } });
+          // Reconcile line items by Jobber id instead of delete-all/recreate.
+          // The old approach wiped Santa's-Stock-owned state on EVERY sync:
+          // isAllocated / kitsFromTote reset to defaults and the shortages +
+          // inspection decisions hanging off each line cascade-deleted — with
+          // the already-deducted stock never restored, which also set up a
+          // double-deduction if the job was later re-allocated. Now we only
+          // touch Jobber-sourced fields and leave allocation state intact for
+          // lines that carry over.
           const lineNodes = node.lineItems?.nodes ?? [];
-          if (lineNodes.length > 0) {
-            await tx.jobLineItem.createMany({
-              data: lineNodes.map((li, pos) => {
-                const linkedJobberId = li.linkedProductOrService?.id ?? null;
-                const itemId = linkedJobberId
-                  ? itemIdByJobberProductId.get(linkedJobberId) ?? null
-                  : null;
-                const kitId =
-                  !itemId && linkedJobberId
-                    ? kitIdByJobberProductId.get(linkedJobberId) ?? null
-                    : null;
-                return {
+          const seenLineIds: string[] = [];
+          for (let pos = 0; pos < lineNodes.length; pos++) {
+            const li = lineNodes[pos];
+            const linkedJobberId = li.linkedProductOrService?.id ?? null;
+            const itemId = linkedJobberId
+              ? itemIdByJobberProductId.get(linkedJobberId) ?? null
+              : null;
+            const kitId =
+              !itemId && linkedJobberId
+                ? kitIdByJobberProductId.get(linkedJobberId) ?? null
+                : null;
+            const fields = {
+              itemId,
+              kitId,
+              rawName: li.name?.trim() || null,
+              quantity: toDecimal(li.quantity) ?? new Prisma.Decimal("1"),
+              notes: li.description?.trim() || null,
+              position: pos,
+            };
+            if (li.id) {
+              seenLineIds.push(li.id);
+              // update omits isAllocated/kitsFromTote → they're preserved.
+              await tx.jobLineItem.upsert({
+                where: { jobberLineItemId: li.id },
+                update: fields,
+                create: {
                   jobberLineItemId: li.id,
                   jobId: upserted.id,
-                  itemId,
-                  kitId,
-                  rawName: li.name?.trim() || null,
-                  quantity: toDecimal(li.quantity) ?? new Prisma.Decimal("1"),
-                  notes: li.description?.trim() || null,
-                  position: pos,
-                };
-              }),
-            });
+                  ...fields,
+                },
+              });
+            } else {
+              await tx.jobLineItem.create({
+                data: { jobId: upserted.id, ...fields },
+              });
+            }
           }
+          // Remove only Jobber-sourced lines Jobber no longer returns. Lines
+          // the app created itself (jobberLineItemId = null, e.g. a change
+          // order) have a null id, which `notIn` never matches, so they stay.
+          await tx.jobLineItem.deleteMany({
+            where: {
+              jobId: upserted.id,
+              jobberLineItemId: { not: null, notIn: seenLineIds },
+            },
+          });
         });
         result.upserted++;
       } catch (err) {
