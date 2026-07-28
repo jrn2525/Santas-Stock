@@ -1,5 +1,32 @@
 # Santa's Stock — Claude working notes
 
+## No assumptions — check and verify everything (required)
+
+**Do not state anything as fact that has not been verified.** If it can be
+checked, check it. If it cannot be checked, say so plainly and ask.
+
+Concretely:
+
+1. **Verify an action succeeded before reporting it done.** "I called the
+   tool" is not "it worked" — read it back, re-query, or list it.
+2. **Don't declare something impossible from the tool list alone.** This
+   environment has a shell, a language runtime, and network access, so a
+   missing MCP tool rarely means a missing capability. Reason from what can
+   be BUILT, not from the tool names on hand.
+3. **Query the real system before describing its state.** DNS, APIs, files,
+   repo contents — look, don't infer.
+4. **When a decision is the user's, ask.** Offer a recommendation with
+   reasoning, then let them choose. Don't pick silently on their behalf.
+
+Corollaries:
+- A quick check is cheap; a confident wrong assertion the user acts on is not.
+- Say which parts are verified and which are inference.
+- Knowledge has a cutoff — third-party UIs, pricing, and policies drift.
+  Never present a vendor's current screens or terms as settled fact; ask the
+  user what they actually see.
+- If a stated "fact" turns out wrong, correct it plainly and fix it wherever
+  it was written down, so a later session doesn't inherit the error.
+
 ## Communication style (REQUIRED)
 
 **The user wants step-by-step instructions, always.** They have multiple things going on at once and need a clear, ordered sequence to follow. When responding:
