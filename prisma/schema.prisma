@@ -299,6 +299,12 @@ model Client {
   // Kept as a single column so list views can sort and search uniformly.
   name String
 
+  /// What the Customers list sorts on: last name for people, company name for
+  /// businesses (see customerSortName). Stored rather than computed so the
+  /// paginated list can order in the database. Written by the sync alongside
+  /// name/firstName/lastName.
+  sortName String?
+
   // Identity fields — exactly the set requested for sync from Jobber.
   firstName   String?
   lastName    String?
@@ -341,6 +347,8 @@ model Client {
   syncedAt  DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+
+  @@index([sortName])
 }
 
 model Property {

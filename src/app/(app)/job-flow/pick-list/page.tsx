@@ -11,6 +11,7 @@ import {
   weekdayDateFormatET,
 } from "@/lib/datetime";
 import { Pagination, parsePageParam } from "@/components/pagination";
+import { customerLabel, customerNameSelect } from "@/lib/customer-name";
 
 export const dynamic = "force-dynamic";
 
@@ -46,9 +47,26 @@ export default async function PickListIndexPage({
       OR: [
         { title: { contains: query, mode: "insensitive" } },
         { jobNumber: { contains: query, mode: "insensitive" } },
+        // Match any name part, so searching a last name alone works now that
+        // customers are displayed and sorted last-name-first.
         {
           client: {
             is: { name: { contains: query, mode: "insensitive" } },
+          },
+        },
+        {
+          client: {
+            is: { lastName: { contains: query, mode: "insensitive" } },
+          },
+        },
+        {
+          client: {
+            is: { firstName: { contains: query, mode: "insensitive" } },
+          },
+        },
+        {
+          client: {
+            is: { companyName: { contains: query, mode: "insensitive" } },
           },
         },
       ],
@@ -88,7 +106,7 @@ export default async function PickListIndexPage({
       where,
       orderBy,
       include: {
-        client: { select: { name: true, phones: true } },
+        client: { select: { phones: true, ...customerNameSelect } },
         property: { select: { address: true } },
       },
       take: PAGE_SIZE,
@@ -220,7 +238,7 @@ export default async function PickListIndexPage({
                       href={`/job-flow/pick-list/${j.id}`}
                       className="hover:text-brand"
                     >
-                      {j.client?.name ?? "—"}
+                      {customerLabel(j.client)}
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-ink-dim whitespace-nowrap">

@@ -1,4 +1,5 @@
 import { getETParts, isAllDayVisit } from "@/lib/datetime";
+import type { CustomerNameParts } from "@/lib/customer-name";
 
 export type CalendarVisit = {
   id: string;
@@ -10,7 +11,7 @@ export type CalendarVisit = {
     id: string;
     title: string | null;
     jobNumber: string | null;
-    client: { name: string } | null;
+    client: CustomerNameParts | null;
     property: { address: string } | null;
   };
 };

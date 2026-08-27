@@ -8,6 +8,7 @@ import { STAGE_LABELS } from "@/lib/job-flow";
 import { to2Dp } from "@/lib/format";
 import { ClientStatusControls } from "@/components/client-status-controls";
 import { dateFormatET, dateTimeFormatET } from "@/lib/datetime";
+import { customerLabel } from "@/lib/customer-name";
 
 export const dynamic = "force-dynamic";
 
@@ -110,7 +111,7 @@ export default async function ClientDetailPage({
           </p>
           <div className="mt-2 flex flex-wrap items-baseline gap-3">
             <h1 className="text-3xl font-bold text-brand-hover">
-              {client.name}
+              {customerLabel(client)}
             </h1>
             {client.active ? (
               client.customerStatus === "EXISTING" ? (
@@ -149,7 +150,7 @@ export default async function ClientDetailPage({
         {canWrite && (
           <ClientStatusControls
             clientId={client.id}
-            clientName={client.name}
+            clientName={customerLabel(client)}
             active={client.active}
           />
         )}

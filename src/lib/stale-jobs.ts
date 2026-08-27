@@ -1,6 +1,7 @@
 import type { JobStage } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { STAGE_LABELS } from "@/lib/job-flow";
+import { customerLabel, customerNameSelect } from "@/lib/customer-name";
 
 // A job that exists in Santa's Stock but was deleted in Jobber, shown in the
 // review pop-up after a sync. Plain serializable shape so it can cross the
@@ -35,7 +36,7 @@ export async function listStaleJobs(): Promise<StaleJobDTO[]> {
       title: true,
       currentStage: true,
       deletedInJobberAt: true,
-      client: { select: { name: true } },
+      client: { select: customerNameSelect },
       lineItems: {
         where: { isAllocated: true },
         select: { id: true },
@@ -48,7 +49,7 @@ export async function listStaleJobs(): Promise<StaleJobDTO[]> {
     id: r.id,
     jobNumber: r.jobNumber,
     title: r.title,
-    clientName: r.client?.name ?? "—",
+    clientName: customerLabel(r.client),
     stage: r.currentStage,
     stageLabel: STAGE_LABELS[r.currentStage],
     hasAllocations: r.lineItems.length > 0,

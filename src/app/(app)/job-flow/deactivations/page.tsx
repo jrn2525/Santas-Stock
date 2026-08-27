@@ -11,6 +11,7 @@ import {
   getETParts,
   startOfNextDayET,
 } from "@/lib/datetime";
+import { customerLabel } from "@/lib/customer-name";
 
 export const dynamic = "force-dynamic";
 
@@ -147,7 +148,7 @@ export default async function DeactivationsPage({
       jobNumber: e.job.jobNumber,
       jobTitle: e.job.title,
       clientId: e.job.client?.id ?? null,
-      clientName: e.job.client?.name ?? "—",
+      clientName: customerLabel(e.job.client),
       propertyAddress: e.job.property?.address ?? null,
       byName: e.byUser?.name ?? null,
       reason: parsed.reason,

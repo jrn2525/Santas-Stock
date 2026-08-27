@@ -2,6 +2,7 @@
 import { prisma } from "@/lib/prisma";
 import { jobberQuery } from "./client";
 import { billingStatusKey, type BillingStatusKey } from "@/lib/billing-status";
+import { customerSortName } from "@/lib/customer-name";
 
 const CLIENTS_QUERY = /* GraphQL */ `
   query SyncClients($cursor: String) {
@@ -119,6 +120,12 @@ export async function syncClientsAndProperties(): Promise<SyncResult> {
         where: { jobberClientId: node.id },
         update: {
           name: deriveName(node),
+          sortName: customerSortName({
+            name: deriveName(node),
+            firstName: node.firstName,
+            lastName: node.lastName,
+            companyName: node.companyName,
+          }),
           firstName: node.firstName,
           lastName: node.lastName,
           companyName: node.companyName,
@@ -135,6 +142,12 @@ export async function syncClientsAndProperties(): Promise<SyncResult> {
         create: {
           jobberClientId: node.id,
           name: deriveName(node),
+          sortName: customerSortName({
+            name: deriveName(node),
+            firstName: node.firstName,
+            lastName: node.lastName,
+            companyName: node.companyName,
+          }),
           firstName: node.firstName,
           lastName: node.lastName,
           companyName: node.companyName,

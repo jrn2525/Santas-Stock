@@ -11,6 +11,7 @@ import {
 } from "@/lib/datetime";
 import type { CalendarVisit } from "./calendar-types";
 import { computeHourRange, computeVisitColumns } from "./calendar-types";
+import { customerLabelOrEmpty, customerLabel } from "@/lib/customer-name";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -102,9 +103,9 @@ export function CalendarWeekView({
                       <Link
                         href={`/job-flow/jobs/${v.job.id}`}
                         className="block truncate rounded bg-brand/20 px-1.5 py-0.5 text-xs text-ink hover:bg-brand"
-                        title={`${v.job.client?.name ?? ""} ${v.title ?? v.job.title ?? ""}`.trim()}
+                        title={`${customerLabelOrEmpty(v.job.client)} ${v.title ?? v.job.title ?? ""}`.trim()}
                       >
-                        {v.job.client?.name ?? v.title ?? "Visit"}
+                        {customerLabelOrEmpty(v.job.client) || v.title || "Visit"}
                       </Link>
                     </li>
                   ))}
@@ -167,10 +168,10 @@ export function CalendarWeekView({
                   top: `${block.top}px`,
                   height: `${block.height}px`,
                 }}
-                title={`${v.job.client?.name ?? ""}${v.startAt ? " · " + fmtTimeET(v.startAt) : ""}${v.endAt ? " – " + fmtTimeET(v.endAt) : ""}`}
+                title={`${customerLabelOrEmpty(v.job.client)}${v.startAt ? " · " + fmtTimeET(v.startAt) : ""}${v.endAt ? " – " + fmtTimeET(v.endAt) : ""}`}
               >
                 <div className="truncate font-medium">
-                  {v.job.client?.name ?? v.title ?? "Visit"}
+                  {customerLabelOrEmpty(v.job.client) || v.title || "Visit"}
                 </div>
                 {v.startAt && (
                   <div className="truncate opacity-90">

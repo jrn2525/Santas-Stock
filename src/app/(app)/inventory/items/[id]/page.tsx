@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth-helpers";
 import { to2Dp } from "@/lib/format";
 import { dateFormatET, dateTimeFormatET } from "@/lib/datetime";
+import { customerLabel, customerNameSelect } from "@/lib/customer-name";
 
 export const dynamic = "force-dynamic";
 
@@ -66,7 +67,7 @@ export default async function ItemDetailPage({
                   title: true,
                   jobNumber: true,
                   currentStage: true,
-                  client: { select: { name: true } },
+                  client: { select: customerNameSelect },
                 },
               },
             },
@@ -95,7 +96,7 @@ export default async function ItemDetailPage({
                 id: true,
                 title: true,
                 jobNumber: true,
-                client: { select: { name: true } },
+                client: { select: customerNameSelect },
               },
             },
           },
@@ -115,7 +116,7 @@ export default async function ItemDetailPage({
                 id: true,
                 title: true,
                 jobNumber: true,
-                client: { select: { name: true } },
+                client: { select: customerNameSelect },
               },
             },
             kit: { select: { name: true } },
@@ -147,7 +148,7 @@ export default async function ItemDetailPage({
       jobId: d.jobLineItem.job.id,
       jobTitle: d.jobLineItem.job.title,
       jobNumber: d.jobLineItem.job.jobNumber,
-      clientName: d.jobLineItem.job.client?.name ?? "—",
+      clientName: customerLabel(d.jobLineItem.job.client),
       context: "Line item",
       byName: d.decidedBy?.name ?? null,
     })),
@@ -158,7 +159,7 @@ export default async function ItemDetailPage({
       jobId: d.jobLineItem.job.id,
       jobTitle: d.jobLineItem.job.title,
       jobNumber: d.jobLineItem.job.jobNumber,
-      clientName: d.jobLineItem.job.client?.name ?? "—",
+      clientName: customerLabel(d.jobLineItem.job.client),
       context: d.jobLineItem.kit?.name
         ? `Component of ${d.jobLineItem.kit.name}`
         : "Kit component",
@@ -329,7 +330,7 @@ export default async function ItemDetailPage({
                   <span className="ml-2 text-xs text-ink-dim">
                     {s.jobLineItem.job.jobNumber &&
                       `#${s.jobLineItem.job.jobNumber} · `}
-                    {s.jobLineItem.job.client?.name ?? "—"}
+                    {customerLabel(s.jobLineItem.job.client)}
                   </span>
                 </Link>
                 <span className="text-xs tabular-nums text-red-300 whitespace-nowrap">

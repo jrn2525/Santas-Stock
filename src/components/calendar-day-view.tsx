@@ -9,6 +9,7 @@ import {
 } from "@/lib/datetime";
 import type { CalendarVisit } from "./calendar-types";
 import { computeHourRange, computeVisitColumns } from "./calendar-types";
+import { customerLabelOrEmpty, customerLabel } from "@/lib/customer-name";
 
 const HOUR_HEIGHT = 64;
 
@@ -56,9 +57,9 @@ export function CalendarDayView({
                   className="block rounded bg-brand/20 px-2 py-1 text-sm text-ink hover:bg-brand"
                 >
                   <span className="font-medium">
-                    {v.job.client?.name ?? v.title ?? "Visit"}
+                    {customerLabelOrEmpty(v.job.client) || v.title || "Visit"}
                   </span>
-                  {v.title && v.job.client?.name && (
+                  {v.title && customerLabelOrEmpty(v.job.client) && (
                     <span className="ml-2 text-ink-dim">{v.title}</span>
                   )}
                   {v.job.jobNumber && (
@@ -107,7 +108,7 @@ export function CalendarDayView({
               }}
             >
               <div className="font-medium">
-                {v.job.client?.name ?? v.title ?? "Visit"}
+                {customerLabelOrEmpty(v.job.client) || v.title || "Visit"}
               </div>
               {v.startAt && (
                 <div className="text-xs opacity-90">
@@ -115,7 +116,7 @@ export function CalendarDayView({
                   {v.endAt && ` – ${fmtTimeET(v.endAt)}`}
                 </div>
               )}
-              {(v.title || v.job.title) && v.job.client?.name && (
+              {(v.title || v.job.title) && customerLabelOrEmpty(v.job.client) && (
                 <div className="text-xs opacity-80 truncate">
                   {v.title ?? v.job.title}
                 </div>

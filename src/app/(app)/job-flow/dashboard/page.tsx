@@ -16,6 +16,11 @@ import {
   startOfDayET,
   todayET,
 } from "@/lib/datetime";
+import {
+  customerLabel,
+  customerLabelOrEmpty,
+  customerNameSelect,
+} from "@/lib/customer-name";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +62,7 @@ export default async function JobFlowDashboardPage() {
               status: true,
               currentStage: true,
               isOnHold: true,
-              client: { select: { name: true } },
+              client: { select: customerNameSelect },
               property: { select: { address: true } },
             },
           },
@@ -112,7 +117,7 @@ export default async function JobFlowDashboardPage() {
         jobNumber: v.job.jobNumber,
         currentStage: v.job.currentStage,
         isOnHold: v.job.isOnHold,
-        clientName: v.job.client?.name ?? null,
+        clientName: customerLabel(v.job.client),
         propertyAddress: v.job.property?.address ?? null,
         earliestStart: v.startAt,
         latestEnd: v.endAt,
@@ -265,7 +270,7 @@ export default async function JobFlowDashboardPage() {
                   >
                     <div className="flex items-baseline justify-between gap-2">
                       <div className="font-medium text-ink truncate">
-                        {v.job.client?.name ?? v.title ?? "(visit)"}
+                        {customerLabelOrEmpty(v.job.client) || v.title || "(visit)"}
                       </div>
                       <div className="shrink-0 text-xs tabular-nums text-ink-dim">
                         {v.startAt && isAllDayVisit(v.startAt, v.endAt)

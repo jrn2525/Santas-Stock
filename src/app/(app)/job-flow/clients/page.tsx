@@ -61,10 +61,16 @@ export default async function ClientsPage({
   const safePage = Math.min(page, maxPage);
   const clients = await prisma.client.findMany({
       where,
-      orderBy: { name: "asc" },
+      // Sort by the Last Name column now that it leads the table. sortName is
+      // the last name for people and the company name for businesses; rows
+      // synced before that column existed fall back to name.
+      orderBy: [{ sortName: { sort: "asc", nulls: "last" } }, { name: "asc" }],
       select: {
         id: true,
         name: true,
+        firstName: true,
+        lastName: true,
+        companyName: true,
         emails: true,
         phones: true,
         serviceCity: true,
@@ -82,7 +88,8 @@ export default async function ClientsPage({
       <header>
         <h1 className="text-3xl font-bold text-brand-hover">Customers</h1>
         <p className="mt-1 text-sm text-ink-dim">
-          Customers synced from Jobber. Click a name to open their detail page.
+          Customers synced from Jobber, listed last name first to match how the
+          totes are labeled. Click a row to open the customer&apos;s detail page.
         </p>
       </header>
 
@@ -141,10 +148,12 @@ export default async function ClientsPage({
       </form>
 
       <div className="mt-4 overflow-x-auto rounded-lg border border-rule">
-        <table className="w-full min-w-[56rem] text-sm">
+        <table className="w-full min-w-[68rem] text-sm">
           <thead className="bg-card text-left text-xs uppercase tracking-wider text-ink-dim">
             <tr>
-              <th className="px-4 py-3">Name</th>
+              <th className="px-4 py-3">Last Name</th>
+              <th className="px-4 py-3">First Name</th>
+              <th className="px-4 py-3">Company</th>
               <th className="px-4 py-3">Contact</th>
               <th className="px-4 py-3">Location</th>
               <th className="px-4 py-3">Status</th>
@@ -154,7 +163,7 @@ export default async function ClientsPage({
           <tbody className="divide-y divide-rule bg-canvas">
             {clients.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-12 text-center text-ink-dim">
+                <td colSpan={7} className="px-4 py-12 text-center text-ink-dim">
                   {query || statusFilter !== "active" ? (
                     <>No customers match the current filters.</>
                   ) : (
@@ -175,7 +184,24 @@ export default async function ClientsPage({
                         href={`/job-flow/clients/${c.id}`}
                         className="hover:text-brand"
                       >
-                        {c.name}
+                        {c.lastName?.trim() ||
+                          (c.companyName?.trim() ? "—" : c.name)}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Link
+                        href={`/job-flow/clients/${c.id}`}
+                        className="hover:text-brand"
+                      >
+                        {c.firstName?.trim() || "—"}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-ink-dim">
+                      <Link
+                        href={`/job-flow/clients/${c.id}`}
+                        className="hover:text-brand"
+                      >
+                        {c.companyName?.trim() || "—"}
                       </Link>
                     </td>
                     <td className="px-4 py-3 text-ink-dim">

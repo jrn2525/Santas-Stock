@@ -8,6 +8,7 @@ import {
   lineItemsToPickListLines,
 } from "@/components/job-flow/pick-list-view";
 import { longDateFormatET } from "@/lib/datetime";
+import { customerLabel } from "@/lib/customer-name";
 
 export const dynamic = "force-dynamic";
 
@@ -72,7 +73,7 @@ export default async function PickListDetailPage({
           </h1>
           <p className="mt-1 text-sm text-ink-dim">
             {job.jobNumber && <>Job #{job.jobNumber} · </>}
-            {job.client?.name ?? "—"}
+            {customerLabel(job.client)}
             {job.startAt && <> · {dayFmt.format(job.startAt)}</>}
           </p>
           {job.client?.phones && job.client.phones.length > 0 && (

@@ -14,6 +14,7 @@ import {
 import { ChangeOrderHistory } from "@/components/job-flow/change-order-history";
 import { ResetJobButton } from "@/components/job-flow/reset-job-button";
 import { longDateFormatET, timeFormatET } from "@/lib/datetime";
+import { customerLabel } from "@/lib/customer-name";
 
 export const dynamic = "force-dynamic";
 
@@ -168,7 +169,7 @@ export default async function JobDetailPage({
                       href={`/job-flow/clients/${job.client.id}`}
                       className="font-medium text-ink hover:text-brand"
                     >
-                      {job.client.name}
+                      {customerLabel(job.client)}
                     </Link>
                     {!job.client.active ? (
                       <span

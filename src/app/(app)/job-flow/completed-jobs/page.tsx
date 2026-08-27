@@ -5,6 +5,7 @@ import {
   CompletedJobsList,
   type CompletedJobRow,
 } from "@/components/job-flow/completed-jobs-list";
+import { customerLabel, customerNameSelect } from "@/lib/customer-name";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,7 @@ export default async function CompletedJobsPage() {
       jobNumber: true,
       title: true,
       serviceCallCompletedAt: true,
-      client: { select: { name: true } },
+      client: { select: customerNameSelect },
     },
   });
 
@@ -30,7 +31,7 @@ export default async function CompletedJobsPage() {
     id: j.id,
     jobNumber: j.jobNumber,
     title: j.title,
-    clientName: j.client?.name ?? "—",
+    clientName: customerLabel(j.client),
     completedLabel: j.serviceCallCompletedAt
       ? dateTimeFmt.format(j.serviceCallCompletedAt)
       : "—",

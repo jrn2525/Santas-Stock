@@ -14,6 +14,7 @@ import {
 } from "@/lib/billing-status";
 import { dateFormatET } from "@/lib/datetime";
 import { Pagination, parsePageParam } from "@/components/pagination";
+import { customerLabel, customerNameSelect } from "@/lib/customer-name";
 
 export const dynamic = "force-dynamic";
 
@@ -108,9 +109,26 @@ export default async function JobsPage({
       OR: [
         { title: { contains: query, mode: "insensitive" } },
         { jobNumber: { contains: query, mode: "insensitive" } },
+        // Match any name part, so searching a last name alone works now that
+        // customers are displayed and sorted last-name-first.
         {
           client: {
             is: { name: { contains: query, mode: "insensitive" } },
+          },
+        },
+        {
+          client: {
+            is: { lastName: { contains: query, mode: "insensitive" } },
+          },
+        },
+        {
+          client: {
+            is: { firstName: { contains: query, mode: "insensitive" } },
+          },
+        },
+        {
+          client: {
+            is: { companyName: { contains: query, mode: "insensitive" } },
           },
         },
       ],
@@ -143,7 +161,7 @@ export default async function JobsPage({
       where,
       orderBy,
       include: {
-        client: { select: { id: true, name: true, active: true } },
+        client: { select: { id: true, active: true, ...customerNameSelect } },
         // Most recent visit (scheduled visits win over unscheduled) for the
         // Visit Status column. startAt doubles as the "has a scheduled visit"
         // signal for Service Call jobs (nulls-last means visits[0].startAt is
@@ -344,7 +362,7 @@ export default async function JobsPage({
                     </td>
                     <td className="px-4 py-3">
                       <Link href={jobHref} className="block hover:text-brand">
-                        {j.client?.name ?? "—"}
+                        {customerLabel(j.client)}
                       </Link>
                     </td>
                     <td className="px-4 py-3 font-medium">

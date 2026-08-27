@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth-helpers";
 import { FLOW_STAGES, STAGE_LABELS, TERMINAL_STAGES } from "@/lib/job-flow";
 import { serviceCallJobWhere } from "@/lib/service-call";
 import { dateTimeFormatET } from "@/lib/datetime";
+import { customerLabel, customerNameSelect } from "@/lib/customer-name";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,7 @@ export default async function JobFlowOverviewPage() {
         id: true,
         title: true,
         jobNumber: true,
-        client: { select: { name: true } },
+        client: { select: customerNameSelect },
         startAt: true,
       },
     }),
@@ -44,7 +45,7 @@ export default async function JobFlowOverviewPage() {
             id: true,
             title: true,
             jobNumber: true,
-            client: { select: { name: true } },
+            client: { select: customerNameSelect },
           },
         },
         byUser: { select: { name: true } },
@@ -127,7 +128,7 @@ export default async function JobFlowOverviewPage() {
                     {j.title ?? "(untitled)"}{" "}
                     <span className="text-xs text-ink-dim">
                       {j.jobNumber && `#${j.jobNumber} · `}
-                      {j.client?.name ?? "—"}
+                      {customerLabel(j.client)}
                     </span>
                   </span>
                   <span className="text-xs text-yellow-200">
@@ -169,7 +170,7 @@ export default async function JobFlowOverviewPage() {
                   </Link>
                   <span className="ml-2 text-xs text-ink-dim">
                     {e.job.jobNumber && `#${e.job.jobNumber} · `}
-                    {e.job.client?.name ?? "—"}
+                    {customerLabel(e.job.client)}
                   </span>
                   <div className="mt-0.5 text-xs text-ink-dim">
                     {e.fromStage

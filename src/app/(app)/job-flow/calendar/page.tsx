@@ -21,6 +21,7 @@ import {
 import { CalendarMonthView } from "@/components/calendar-month-view";
 import { CalendarWeekView } from "@/components/calendar-week-view";
 import { CalendarDayView } from "@/components/calendar-day-view";
+import { customerNameSelect } from "@/lib/customer-name";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +71,7 @@ export default async function CalendarPage({
           id: true,
           title: true,
           jobNumber: true,
-          client: { select: { name: true } },
+          client: { select: customerNameSelect },
           property: { select: { address: true } },
         },
       },

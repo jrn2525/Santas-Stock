@@ -10,6 +10,7 @@ import {
   fmtTimeET,
 } from "@/lib/datetime";
 import type { CalendarVisit } from "./calendar-types";
+import { customerLabelOrEmpty, customerLabel } from "@/lib/customer-name";
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -82,7 +83,7 @@ export function CalendarMonthView({
                           {fmtTimeET(v.startAt)}
                         </span>
                       )}
-                      {v.job.client?.name ?? v.title ?? "Visit"}
+                      {customerLabelOrEmpty(v.job.client) || v.title || "Visit"}
                     </Link>
                   </li>
                 ))}
@@ -103,7 +104,7 @@ export function CalendarMonthView({
 
 function visitTooltip(v: CalendarVisit): string {
   const parts: string[] = [];
-  if (v.job.client?.name) parts.push(v.job.client.name);
+  if (customerLabelOrEmpty(v.job.client)) parts.push(customerLabel(v.job.client));
   if (v.title) parts.push(v.title);
   else if (v.job.title) parts.push(v.job.title);
   if (v.startAt && !isAllDayVisit(v.startAt, v.endAt)) {
