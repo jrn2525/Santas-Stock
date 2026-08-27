@@ -6,7 +6,7 @@
 
 _Last updated: 2026-07-02 (customer names last-name-first)_
 
-**Current state:** everything is committed and pushed to `main` (auto-deploying to Railway). App is green — `tsc`, production build, and `npm run lint` all pass with 0 errors. Nothing in flight. Awaiting John's visual confirmation of the last-name-first customer display (see Open items).
+**Current state:** everything is committed and pushed to `main` (auto-deploying to Railway). App is green — `tsc`, production build, and `npm run lint` all pass with 0 errors. Nothing in flight. The last-name-first customer display is **confirmed working in production by John**.
 
 ---
 
@@ -36,7 +36,7 @@ _Last updated: 2026-07-02 (customer names last-name-first)_
 - **Search widened** on Jobs + Pick List to match `firstName` / `lastName` / `companyName`, so searching a last name alone works (previously only matched the combined `name`).
 - **Schema:** `Client.sortName` (+ index), written by the sync (`customerSortName`) and backfilled by migration `20260702000000_client_sort_name` with the same COALESCE precedence — so existing customers sort correctly with **no re-sync needed**.
 - **Single source of truth:** `src/lib/customer-name.ts` — `customerLabel()` (returns `—` when empty), `customerLabelOrEmpty()` (returns `""`, for `label && <…>` truthiness checks and composite tooltips), `customerSortName()`, and `customerNameSelect` (the shared Prisma select). **Use these rather than reading `client.name` directly** — that's how the display stays consistent.
-- Verified: tsc + build + lint clean, and the formatting logic was unit-checked against real data shapes (person, company, company-with-contact, single-name, unnamed, null). **Not** verified against the live DB — no DB reachable from the container.
+- Verified: tsc + build + lint clean, and the formatting logic was unit-checked against real data shapes (person, company, company-with-contact, single-name, unnamed, null). **John confirmed it live in production on 2026-07-02** — display and sorting both correct.
 
 ### Also
 - **CLAUDE.md fact corrected:** it claimed "there is no standalone Customers index page." There is one (`/job-flow/clients`) — verified via the sidebar entry, the route file, and the build manifest. Fixed per the new no-assumptions rule's "fix it wherever it was written down."
@@ -108,7 +108,7 @@ Shipped to `main` and deployed. Newest → oldest:
 ## Open items / to verify (ask the user)
 > Health check is fully closed out — every MEDIUM + LOW is fixed. Only two cosmetic, audit-display-only items were deliberately left (`ChangeOrder.diff` duplicate-line undercount; deactivation-report regex parse); fix on request if they ever matter.
 
-- [ ] **Confirm the last-name-first display looks right** (shipped `ef7c60d`, not yet seen by John): `/job-flow/clients` shows **Last Name | First Name | Company** sorted by last name; a business (e.g. Admiral Title) shows its name in the **Company** column; a job page reads "Walters, Aaron"; and searching a bare last name on Jobs finds the job. Couldn't be verified from the container — no DB access.
+- [x] ~~Confirm the last-name-first display~~ — **John confirmed it live on 2026-07-02: good to go.** `/job-flow/clients` (Last Name | First Name | Company, sorted by last name) and the "Walters, Aaron" format are working in production.
 - [ ] **Confirm the Jobber catalog item is named exactly `Service Call`** (capital S/C) so the migration's non-stock flag matched it. The Service Call *flow* works regardless of casing (runtime detection is case-insensitive); only the `tracksStock=false` UPDATE is exact-case — and since service calls never run allocation, it's belt-and-suspenders.
 - [ ] Heads-up for the user: **deleting a Completed Job is permanent** (tombstoned so sync won't re-import). If one is ever needed back, it takes a manual delete of the `JobTombstone` row in the DB.
 - [ ] Decision revisit if wanted: Service Call jobs are currently **kept on the Calendar + Dashboard schedule**. Offered to hide them there too — user can ask if they change their mind.
