@@ -54,9 +54,8 @@ Corollaries:
 - Old Railway URL (still active as a fallback): https://santas-stock-santas-stock-dev.up.railway.app
 - Jobber developer changelog: https://developer.getjobber.com/docs/changelog/
 - Admin login: `john@jamenent.com`
-
-(There is no standalone Customers index page — customer detail is reached
-per-job at `/job-flow/clients/[id]`.)
+- Customers list: https://www.santasstock.com/job-flow/clients (customer detail
+  at `/job-flow/clients/[id]`)
 
 This applies even for small tasks. Default to the step-by-step format unless the user explicitly asks for a discussion or a high-level answer.
 

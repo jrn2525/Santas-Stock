@@ -4,9 +4,9 @@
 
 > **Maintenance:** update me at the end of each session — move finished items out, add new "Open items," and refresh "Last session."
 
-_Last updated: 2026-07-01 (health-check + follow-up fixes)_
+_Last updated: 2026-07-02 (customer names last-name-first)_
 
-**Current state:** all health-check findings are fixed and deployed to `main` + `claude/affectionate-knuth-2xK0h`. App is green — `tsc`, production build, and `npm run lint` all pass. Nothing in flight.
+**Current state:** everything is committed and pushed to `main` (auto-deploying to Railway). App is green — `tsc`, production build, and `npm run lint` all pass with 0 errors. Nothing in flight. Awaiting John's visual confirmation of the last-name-first customer display (see Open items).
 
 ---
 
@@ -25,8 +25,27 @@ _Last updated: 2026-07-01 (health-check + follow-up fixes)_
 
 ---
 
-## Last session (2026-07-01)
-Two pieces of work this session: the **Service Call jobs** feature, then a **deep-dive health check** of the whole app. Most recent first.
+## Last session (2026-07-02)
+
+### Customer names shown last name first — `ef7c60d`
+**Why:** the warehouse totes are labeled "Last, First". Showing one combined name made crew flip it mentally when matching screen to shelf.
+
+- **Customers list** (`/job-flow/clients`): the single Name column became **three** — **Last Name | First Name | Company**. Company shows `companyName` exactly as Jobber has it (John's explicit call — he asked for a dedicated Company column rather than folding it into Last Name). All three cells link to the customer detail page.
+- **Sorting changed with it**: the list was ordered by `name` (which is *first* name for people), so a Last Name column would have looked unsorted. Now ordered by the new `Client.sortName`.
+- **Everywhere with room for one value** → `"Walters, Aaron"`: job detail, Jobs list, Pick List (+ printouts), Calendar (day/week/month), Dashboard, Deactivations, Completed Jobs, item history, stale-job review. **Businesses keep their company name** — that's their identity and what's on a commercial tote.
+- **Search widened** on Jobs + Pick List to match `firstName` / `lastName` / `companyName`, so searching a last name alone works (previously only matched the combined `name`).
+- **Schema:** `Client.sortName` (+ index), written by the sync (`customerSortName`) and backfilled by migration `20260702000000_client_sort_name` with the same COALESCE precedence — so existing customers sort correctly with **no re-sync needed**.
+- **Single source of truth:** `src/lib/customer-name.ts` — `customerLabel()` (returns `—` when empty), `customerLabelOrEmpty()` (returns `""`, for `label && <…>` truthiness checks and composite tooltips), `customerSortName()`, and `customerNameSelect` (the shared Prisma select). **Use these rather than reading `client.name` directly** — that's how the display stays consistent.
+- Verified: tsc + build + lint clean, and the formatting logic was unit-checked against real data shapes (person, company, company-with-contact, single-name, unnamed, null). **Not** verified against the live DB — no DB reachable from the container.
+
+### Also
+- **CLAUDE.md fact corrected:** it claimed "there is no standalone Customers index page." There is one (`/job-flow/clients`) — verified via the sidebar entry, the route file, and the build manifest. Fixed per the new no-assumptions rule's "fix it wherever it was written down."
+- John added a standing **"No assumptions — check and verify everything"** rule to `CLAUDE.md` (`b23ac14`). It's auto-loaded every session. Practical upshot: verify before reporting done, query the real system, say which parts are verified vs inferred, and ask when the decision is his.
+
+---
+
+## Previous session (2026-07-01)
+Two pieces of work: the **Service Call jobs** feature, then a **deep-dive health check** of the whole app. Most recent first.
 
 ### Deep-dive health check
 Ran four parallel review agents over the whole app (auth, inventory math, Jobber sync, data-integrity). Foundations verified solid: stock deduction is oversell-safe, `tracksStock` respected everywhere, migration↔schema parity, timezone/pagination/token-encryption/OAuth-CSRF all correct. Fixed and shipped to `main` + `claude/affectionate-knuth-2xK0h`:
@@ -54,7 +73,7 @@ Ran four parallel review agents over the whole app (auth, inventory math, Jobber
 
 ---
 
-## Previous session (2026-06-24)
+## Earlier session (2026-06-24)
 Shipped to `main` and deployed. Newest → oldest:
 
 **Jobs page (`/job-flow/jobs`)**
@@ -89,6 +108,7 @@ Shipped to `main` and deployed. Newest → oldest:
 ## Open items / to verify (ask the user)
 > Health check is fully closed out — every MEDIUM + LOW is fixed. Only two cosmetic, audit-display-only items were deliberately left (`ChangeOrder.diff` duplicate-line undercount; deactivation-report regex parse); fix on request if they ever matter.
 
+- [ ] **Confirm the last-name-first display looks right** (shipped `ef7c60d`, not yet seen by John): `/job-flow/clients` shows **Last Name | First Name | Company** sorted by last name; a business (e.g. Admiral Title) shows its name in the **Company** column; a job page reads "Walters, Aaron"; and searching a bare last name on Jobs finds the job. Couldn't be verified from the container — no DB access.
 - [ ] **Confirm the Jobber catalog item is named exactly `Service Call`** (capital S/C) so the migration's non-stock flag matched it. The Service Call *flow* works regardless of casing (runtime detection is case-insensitive); only the `tracksStock=false` UPDATE is exact-case — and since service calls never run allocation, it's belt-and-suspenders.
 - [ ] Heads-up for the user: **deleting a Completed Job is permanent** (tombstoned so sync won't re-import). If one is ever needed back, it takes a manual delete of the `JobTombstone` row in the DB.
 - [ ] Decision revisit if wanted: Service Call jobs are currently **kept on the Calendar + Dashboard schedule**. Offered to hide them there too — user can ask if they change their mind.
@@ -100,6 +120,7 @@ Shipped to `main` and deployed. Newest → oldest:
 - Two benign deploy-log warnings (`npm warn config production`, the Prisma deprecation) — harmless, no action.
 
 ## Useful pointers
+- **Customer name display:** always go through `src/lib/customer-name.ts` (`customerLabel` / `customerLabelOrEmpty` / `customerNameSelect`) — never render `client.name` directly, or that spot will silently show first-name-first again and drift from the tote labels. Queries that load a client for display should use `client: { select: customerNameSelect }`.
 - **Service Call feature:** detection helper + `serviceCallJobWhere` (Prisma `where` fragment to exclude them) in `src/lib/service-call.ts`; complete/reopen/delete actions in `src/lib/actions/service-call.ts`; the card `src/components/job-flow/service-call-flow-card.tsx`; Completed Jobs page `src/app/(app)/job-flow/completed-jobs/` + `src/components/job-flow/completed-jobs-list.tsx`. Sync skips tombstoned ids in `src/lib/jobber/sync.ts` (tombstone loaded before the pagination loop).
 - **Env gotcha (rebuilds):** the web container can wipe `node_modules` between sessions. If `npm ci` succeeds but the **Prisma engine download gets reset by the egress proxy** (`ECONNRESET`/`aborted` on `binaries.prisma.sh`), run `npm ci --ignore-scripts`, then `curl --retry 6 --retry-all-errors` the `libquery_engine.so.node.gz` and `schema-engine.gz` for `debian-openssl-3.0.x` (commit hash = `@prisma/engines-version`), gunzip them into **both** `node_modules/prisma/` and `node_modules/@prisma/engines/`, then `npx prisma generate`. curl retries harder than Prisma's fetcher, which is what makes it work.
 - Jobber sync core: `src/lib/jobber/sync.ts`, orchestrated by `src/lib/jobber/run-sync.ts` (manual + auto both record a `SyncRun`). Shared lock: `src/lib/jobber/sync-lock.ts`.
