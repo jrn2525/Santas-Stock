@@ -4,7 +4,7 @@
 
 > **Maintenance:** update me at the end of each session — move finished items out, add new "Open items," and refresh "Last session."
 
-_Last updated: 2026-09-02 (Hermes daily-report spec)_
+_Last updated: 2026-09-02 (Hermes daily-report spec · all open items closed)_
 
 **Current state:** everything is committed and pushed to `main` (auto-deploying to Railway). Working tree clean. **Nothing in flight and no open items** — all were closed 2026-09-02. Last **code** change was 2026-07-02 (last-name-first customer names, **confirmed working in production by John**); everything since is docs-only, so app behavior is unchanged.
 
