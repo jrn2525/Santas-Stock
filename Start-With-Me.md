@@ -4,9 +4,9 @@
 
 > **Maintenance:** update me at the end of each session — move finished items out, add new "Open items," and refresh "Last session."
 
-_Last updated: 2026-09-02 (repo findings doc)_
+_Last updated: 2026-09-02 (Hermes daily-report spec)_
 
-**Current state:** everything is committed and pushed to `main` (auto-deploying to Railway). Working tree clean. Nothing in flight. Last code change was 2026-07-02 (last-name-first customer names, **confirmed working in production by John**); since then the only change is a docs-only addition, so the app is unchanged in behavior.
+**Current state:** everything is committed and pushed to `main` (auto-deploying to Railway). Working tree clean. Nothing in flight. Last **code** change was 2026-07-02 (last-name-first customer names, **confirmed working in production by John**) — everything since is docs-only, so app behavior is unchanged.
 
 ---
 
@@ -25,7 +25,26 @@ _Last updated: 2026-09-02 (repo findings doc)_
 
 ---
 
-## Last session (2026-09-01/02)
+## Last session (2026-09-02)
+
+### Hermes daily-report spec — `cf7361e` → `5a4f8e6`
+Wrote **`docs/hermes-daily-report.md`**: the build spec for a 5:30 AM ET daily email to GM **Scott Granger** (scott@christmasdecorplusmore.com), replacing a flawed earlier draft. Docs-only, no code touched. Hand this file to Hermes.
+
+**The report:** six sections — today's / this week's / next week's schedule, then payments received, new requests, and quotes approved in the window **5:00 AM → 4:59 AM ET**.
+
+**Two findings that shaped the whole design, both verified in this repo:**
+- **Santa's Stock has no payments, requests, or quotes** — only an `invoiceStatus` string. So those three sections **must** query the Jobber API directly; they cannot read Santa's Stock. The old draft claimed "nothing new is pulled from Jobber," which was impossible.
+- ⚠️ **Hermes needs its OWN Jobber Developer app.** Jobber **rotates the refresh token on every use**, so sharing Santa's Stock's connection would **silently break the production sync**. John registered **"Managers Daily Report"** with Clients / Scheduled Items / Requests / Quotes / Jobber Payments all Read.
+
+**What Hermes actually is** (read from the `jrn2525/Cudy` repo — briefly made public, now fine to re-privatize): **Nous Research Hermes Agent v0.20.5** on the Beelink (`10.77.42.50`), systemd services `hermes-gateway` + `hermes-dashboard`, config `~/.hermes/config.yaml`, tools consumed via **`mcp_servers` HTTP entries**, and it ships its **own cron**. `cloudflared` runs on that same box.
+
+**Callback URL resolved:** `https://jobber.askjohnbob.com/callback` → new tunnel route → `localhost:8767`. Real HTTPS, terminating on the machine that must hold the rotating refresh token. Recommended shape: a **local Jobber service on `:8767`** owning OAuth + token rotation, exposed to Hermes as an MCP server — mirroring the proven Brain pattern, so Hermes never touches a token. John's own `Brain OAuth/server.py` is a working reference.
+
+**Confirmed by John:** weeks start **Monday**; "Requested" = when the request arrived (render absolute — Jobber shows it relatively as "Fri"/"Aug 26"); Payments must use **Payment date, not Payout date** (they differ by days) and count only **Succeeded**.
+
+**Left unverified on purpose:** the payments/requests/quotes GraphQL query shapes (never used in this repo — introspect before building) and whether re-authorizing one app yields independent token pairs.
+
+---
 
 ### Repo findings doc — `a3be709`
 Answered eight questions about the codebase (asked in a read-only research framing) and wrote them to **`docs/repo-findings.md`**. Docs-only — no code touched, no behavior change. Worth reading before any purchasing/replenishment work, because it names the gaps precisely.
@@ -138,6 +157,7 @@ Shipped to `main` and deployed. Newest → oldest:
 - Two benign deploy-log warnings (`npm warn config production`, the Prisma deprecation) — harmless, no action.
 
 ## Useful pointers
+- **`docs/hermes-daily-report.md`** — the build spec for Scott's 5:30 AM report, handed to Hermes (which runs on John's Beelink, not here). Includes an end-to-end explainer of how the Jobber Developer app + OAuth flow works. **Note it is a spec for a *separate* system** — nothing in it changes the Santa's Stock app, and its Jobber connection must stay independent of Santa's Stock's (shared tokens would break the production sync).
 - **`docs/repo-findings.md`** — a cited walkthrough of the Jobber token/refresh design, what the sync pulls and when, the inventory schema and its gaps (no lead time / supplier / last-counted / true reorder point), the allocation model, single-pool locations, and the no-tests/no-sandbox reality. Read it before starting purchasing, replenishment, or multi-location work.
 - **Customer name display:** always go through `src/lib/customer-name.ts` (`customerLabel` / `customerLabelOrEmpty` / `customerNameSelect`) — never render `client.name` directly, or that spot will silently show first-name-first again and drift from the tote labels. Queries that load a client for display should use `client: { select: customerNameSelect }`.
 - **Service Call feature:** detection helper + `serviceCallJobWhere` (Prisma `where` fragment to exclude them) in `src/lib/service-call.ts`; complete/reopen/delete actions in `src/lib/actions/service-call.ts`; the card `src/components/job-flow/service-call-flow-card.tsx`; Completed Jobs page `src/app/(app)/job-flow/completed-jobs/` + `src/components/job-flow/completed-jobs-list.tsx`. Sync skips tombstoned ids in `src/lib/jobber/sync.ts` (tombstone loaded before the pagination loop).
