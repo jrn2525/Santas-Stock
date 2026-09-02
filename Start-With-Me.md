@@ -27,8 +27,10 @@ _Last updated: 2026-09-02 (Hermes daily-report spec · all open items closed)_
 
 ## Last session (2026-09-02)
 
-### Hermes daily-report spec — `cf7361e` → `5a4f8e6`
-Wrote **`docs/hermes-daily-report.md`**: the build spec for a 5:30 AM ET daily email to GM **Scott Granger** (scott@christmasdecorplusmore.com), replacing a flawed earlier draft. Docs-only, no code touched. Hand this file to Hermes.
+### Hermes daily-report spec — ✅ CLOSED, delivered `cf7361e` → `5a4f8e6`
+> **PROJECT CLOSED 2026-09-02.** John handed `docs/hermes-daily-report.md` to the Hermes Agent, which is building against it on the Beelink. **Nothing further for this repo** — it was always a spec for a *separate* system, and no Santa's Stock code changes for it. The remaining §10 items in that file are Hermes's build-time checks, not open items here. Don't reopen unless John asks for a spec change. History below is kept for context only.
+
+Wrote **`docs/hermes-daily-report.md`**: the build spec for a 5:30 AM ET daily email to GM **Scott Granger** (scott@christmasdecorplusmore.com), replacing a flawed earlier draft. Docs-only, no code touched.
 
 **The report:** six sections — today's / this week's / next week's schedule, then payments received, new requests, and quotes approved in the window **5:00 AM → 4:59 AM ET**.
 
@@ -158,7 +160,7 @@ Shipped to `main` and deployed. Newest → oldest:
 - Two benign deploy-log warnings (`npm warn config production`, the Prisma deprecation) — harmless, no action.
 
 ## Useful pointers
-- **`docs/hermes-daily-report.md`** — the build spec for Scott's 5:30 AM report, handed to Hermes (which runs on John's Beelink, not here). Includes an end-to-end explainer of how the Jobber Developer app + OAuth flow works. **Note it is a spec for a *separate* system** — nothing in it changes the Santa's Stock app, and its Jobber connection must stay independent of Santa's Stock's (shared tokens would break the production sync).
+- **`docs/hermes-daily-report.md`** — ✅ **closed/delivered 2026-09-02.** The build spec for Scott's 5:30 AM report; Hermes is building it on John's Beelink. Reference only — **no Santa's Stock work remains**. The one thing to protect if it ever comes up: its Jobber connection must stay **independent** of Santa's Stock's, because Jobber rotates refresh tokens and a shared connection would break the production sync.
 - **`docs/repo-findings.md`** — a cited walkthrough of the Jobber token/refresh design, what the sync pulls and when, the inventory schema and its gaps (no lead time / supplier / last-counted / true reorder point), the allocation model, single-pool locations, and the no-tests/no-sandbox reality. Read it before starting purchasing, replenishment, or multi-location work.
 - **Customer name display:** always go through `src/lib/customer-name.ts` (`customerLabel` / `customerLabelOrEmpty` / `customerNameSelect`) — never render `client.name` directly, or that spot will silently show first-name-first again and drift from the tote labels. Queries that load a client for display should use `client: { select: customerNameSelect }`.
 - **Service Call feature:** detection helper + `serviceCallJobWhere` (Prisma `where` fragment to exclude them) in `src/lib/service-call.ts`; complete/reopen/delete actions in `src/lib/actions/service-call.ts`; the card `src/components/job-flow/service-call-flow-card.tsx`; Completed Jobs page `src/app/(app)/job-flow/completed-jobs/` + `src/components/job-flow/completed-jobs-list.tsx`. Sync skips tombstoned ids in `src/lib/jobber/sync.ts` (tombstone loaded before the pagination loop).

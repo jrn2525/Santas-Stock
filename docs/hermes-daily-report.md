@@ -9,9 +9,16 @@ plus what happened in the last 24 hours.**
 | Recipient | Scott Granger, GM — scott@christmasdecorplusmore.com |
 | Schedule | 5:30 AM America/New_York, **every day** |
 | Data source | **Jobber GraphQL API, queried directly** |
-| Status | Spec — ready to build |
+| Status | ✅ **DELIVERED to Hermes 2026-09-02 — build in progress on the Beelink** |
 | Date | 2026-09-02 |
-| Version | 2.1 — all blocking questions resolved |
+| Version | 2.1 — final; all blocking questions resolved |
+
+> **This spec is closed and handed off.** John gave it to the Hermes Agent, which
+> is building against it on the Beelink. **Nothing here is Santa's Stock work** —
+> no code in this repo changes for it. The remaining items in §10 (payment status
+> values, the payments/requests/quotes query shapes, primary phone/email, currency
+> formatting) are **Hermes's build-time checks**, not open items for this repo.
+> Don't reopen this unless John asks for a spec change.
 
 > **This supersedes the earlier "CDPM Install Schedule Report" draft.** That draft
 > covered only the install schedule (tomorrow / this week / next two weeks) and
