@@ -9,9 +9,9 @@ plus what happened in the last 24 hours.**
 | Recipient | Scott Granger, GM — scott@christmasdecorplusmore.com |
 | Schedule | 5:30 AM America/New_York, **every day** |
 | Data source | **Jobber GraphQL API, queried directly** |
-| Status | Spec, ready to build |
+| Status | Spec — ready to build |
 | Date | 2026-09-02 |
-| Version | 2.0 |
+| Version | 2.1 — all blocking questions resolved |
 
 > **This supersedes the earlier "CDPM Install Schedule Report" draft.** That draft
 > covered only the install schedule (tomorrow / this week / next two weeks) and
@@ -79,8 +79,8 @@ indistinguishable from a broken report.
 | # | Section | Window |
 |---|---------|--------|
 | 1 | Today's Schedule | Today, 00:00–23:59 ET |
-| 2 | This Week's Schedule | Today → end of this calendar week |
-| 3 | Next Week's Schedule | The following full calendar week |
+| 2 | This Week's Schedule | Today → Sunday of this week |
+| 3 | Next Week's Schedule | The following Mon–Sun, in full |
 | 4 | Payments Received | Last 24h (see §4) |
 | 5 | New Requests | Last 24h |
 | 6 | Quotes Approved | Last 24h |
@@ -91,16 +91,24 @@ indistinguishable from a broken report.
 
 ### Week definitions (confirmed by John)
 
-**Calendar weeks**, not rolling windows:
+**Calendar weeks starting MONDAY** (confirmed by John, 2026-09-02) — not rolling
+windows:
 
 - **Today** — the calendar day the email is sent.
-- **This week** — from today through the **end of the current calendar week**.
-- **Next week** — the **entire following calendar week**, start to end.
+- **This week** — from today through **Sunday** of the current week.
+- **Next week** — the **following Monday through Sunday**, in full.
 
-> **Open item:** confirm whether the week starts **Sunday** or **Monday**. The app
-> elsewhere uses a Sunday-anchored week. Pick one and keep it consistent — "next
-> week" must mean the same block every day, including when the report is sent on a
-> weekend. See §10.
+Worked example, sent **Wednesday Sep 2**: This week = **Sep 2 → Sep 6 (Sun)**.
+Next week = **Sep 7 (Mon) → Sep 13 (Sun)**.
+
+⚠️ **Note for anyone reusing Santa's Stock's date helpers:** that app's calendar
+uses a **Sunday**-anchored week (`startOfWeekET`). This report is **Monday**-
+anchored. Don't borrow that helper without changing the anchor, or every week
+boundary lands a day off.
+
+Edge case: when the report is sent **on a Sunday**, "this week" is that single day
+and "next week" begins the next morning. That is correct and intended — the block
+"next week" refers to never shifts.
 
 Today's stops also appear inside This Week. That repetition is intentional — Scott
 reads section 1 for today and section 2 for planning.
@@ -194,9 +202,27 @@ Everyone who submitted a request inside the window.
 
 | Column | Notes |
 |---|---|
-| Client | Customer name |
-| Contact | Phone and/or email |
-| Requested | **⏳ PENDING — see §10.** John is sending a screenshot of the Jobber Requests view to define this column exactly. Do not build this column until that is settled. |
+| Client | Customer name — see the "New Call" caveat below |
+| Contact | Phone and/or email (some requests have both, some phone only) |
+| Requested | **When the request came in**, rendered absolute — e.g. `Sep 1, 4:02 PM` |
+
+**Confirmed against Jobber's Requests view** (screenshot from John, 2026-09-02).
+That screen shows: Client, Title, Property, Contact, Requested, Status. The three
+columns John asked for map to it exactly. Three things to build around:
+
+1. **Render "Requested" as an absolute date+time — do not copy Jobber's display.**
+   The UI shows it relatively: `11:00 AM` for today, `Fri` for a few days back,
+   `Aug 26` beyond that. That's fine on a screen you're looking at live; it is
+   ambiguous in an email read at 5:30 the next morning. Since every row is inside a
+   known 24-hour window anyway, print the real timestamp.
+2. **⚠️ Many "clients" are auto-generated placeholders.** Observed client values
+   include `New Call [+13026445686]`, `New Call [+14172933602]` — phone-call-sourced
+   requests where Jobber has no name yet, alongside real names like `Katie Stordahl`
+   and `Jimmy Brown`. **Print whatever Jobber has; never blank the row.** A nameless
+   lead is exactly the one Scott needs to chase. If the name is a `New Call [...]`
+   placeholder, the Contact column is the useful field — make sure it renders.
+3. **Available if wanted later:** Title (observed: `Quo Request`), Property, and
+   Status (observed: `New`). Not included now — John specified three columns.
 
 ### Section 6 — Quotes Approved
 
@@ -500,12 +526,10 @@ sending to John before Scott.
 
 ## 10. Open items
 
-1. **⏳ The "Requested" column (§4, section 5).** Still open — the screenshot John
-   sent on 2026-09-02 was the **Payments** view (now folded into section 4), not
-   Requests. Need a look at the Jobber **Requests** list to define this column.
-   Blocking for that one column only; everything else can be built.
-2. **Week start: Sunday or Monday?** Determines what "next week" means. Must be
-   consistent.
+1. ~~The "Requested" column.~~ **RESOLVED 2026-09-02** — it is the date/time the
+   request came in. Render it absolute, not Jobber's relative display. See §4.
+2. ~~Week start.~~ **RESOLVED 2026-09-02** — weeks start **Monday**. See §3, and
+   note Santa's Stock's own helper is Sunday-anchored.
 3. ~~Scopes.~~ **RESOLVED 2026-09-02** — the *Managers Daily Report* app has
    Clients, Scheduled Items, Requests, Quotes, and Jobber Payments all enabled
    Read. See §5. Optional cleanup: turn off the scopes the report doesn't use.
@@ -581,8 +605,9 @@ Tennessee Brokerage     Sep 1, 2:37 PM        $550.00
 NEW REQUESTS — SEP 1, 5:00 AM TO SEP 2, 4:59 AM
 ================================================================
 Client                  Contact                     Requested
-Kirk Dale               (865) 555-0119              [pending — see §10]
-                        kdale@example.com
+Kasi Henrickson         (407) 782-6753              Sep 1, 4:02 PM
+                        khenri915@gmail.com
+New Call [+18653189414] (865) 318-9414              Sep 1, 6:19 PM
 
 ================================================================
 QUOTES APPROVED — SEP 1, 5:00 AM TO SEP 2, 4:59 AM
