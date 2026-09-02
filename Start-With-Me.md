@@ -6,7 +6,7 @@
 
 _Last updated: 2026-09-02 (Hermes daily-report spec)_
 
-**Current state:** everything is committed and pushed to `main` (auto-deploying to Railway). Working tree clean. Nothing in flight. Last **code** change was 2026-07-02 (last-name-first customer names, **confirmed working in production by John**) — everything since is docs-only, so app behavior is unchanged.
+**Current state:** everything is committed and pushed to `main` (auto-deploying to Railway). Working tree clean. **Nothing in flight and no open items** — all were closed 2026-09-02. Last **code** change was 2026-07-02 (last-name-first customer names, **confirmed working in production by John**); everything since is docs-only, so app behavior is unchanged.
 
 ---
 
@@ -143,10 +143,12 @@ Shipped to `main` and deployed. Newest → oldest:
 ---
 
 ## Open items / to verify (ask the user)
-> Health check is fully closed out — every MEDIUM + LOW is fixed. Only two cosmetic, audit-display-only items were deliberately left (`ChangeOrder.diff` duplicate-line undercount; deactivation-report regex parse); fix on request if they ever matter.
+> ✅ **Nothing open as of 2026-09-02.** Every item below is closed — kept for the record so a later session sees what was decided and why, rather than re-raising it. Start new work from a clean slate.
+>
+> Health check is also fully closed out — every MEDIUM + LOW is fixed. Only two cosmetic, audit-display-only items were deliberately left (`ChangeOrder.diff` duplicate-line undercount; deactivation-report regex parse); fix on request if they ever matter.
 
 - [x] ~~Confirm the last-name-first display~~ — **John confirmed it live on 2026-07-02: good to go.** `/job-flow/clients` (Last Name | First Name | Company, sorted by last name) and the "Walters, Aaron" format are working in production.
-- [ ] **⏳ ONLY ITEM STILL OPEN — John to check `Service Call`, `Specialty Service`, `Lift Service` on https://www.santasstock.com/inventory/items.** Each should show the word **Service** in the **Quantity** column (that's how `tracksStock: false` renders — `items/page.tsx:152-158`). A **number** instead means the migration's exact-name `UPDATE` didn't match that item's capitalization. Fix needs no code: open the item → untick **Track stock for this item** → Save. Low stakes either way — the Service Call *flow* is case-insensitive at runtime and service calls never run allocation, so the flag is belt-and-suspenders.
+- [x] ~~Confirm the non-stock service items~~ — **VERIFIED IN PRODUCTION 2026-09-02.** `Lift Service`, `Service Call`, and `Specialty Service` all show **Service** in the QTY column on https://www.santasstock.com/inventory/items, so all three `tracksStock=false` migrations matched their names exactly. No fix needed.
 - [x] ~~Service Call jobs on the Calendar + Dashboard~~ — **RESOLVED 2026-09-02: John chose to KEEP them visible.** A scheduled service call is real work someone must show up for; hiding it risks a missed appointment. They stay excluded from the Job Flow board + Pick List (the inventory/allocation views). Don't "tidy" this later — it's a deliberate call.
 - [x] ~~Heads-up: deleting a Completed Job is permanent~~ — told John 2026-09-02. Tombstoned so sync won't re-import; recovery needs a manual `JobTombstone` row delete.
 - [x] ~~Print-URL tip~~ — told John 2026-09-02. Chrome print dialog → **More settings** → untick **Headers and footers** (sticks after once).
