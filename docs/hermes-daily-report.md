@@ -275,7 +275,7 @@ John registered a second Jobber Developer app on 2026-09-02:
 |---|---|
 | App name | **Managers Daily Report** |
 | Developer | Christmas Decor Plus More, LLC |
-| Callback URL | ⏳ **Still to set — see below** |
+| Callback URL | `https://jobber.askjohnbob.com/callback` — see below |
 
 ### Callback URL
 
