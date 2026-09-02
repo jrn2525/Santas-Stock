@@ -277,6 +277,66 @@ John registered a second Jobber Developer app on 2026-09-02:
 | Developer | Christmas Decor Plus More, LLC |
 | Callback URL | `https://jobber.askjohnbob.com/callback` — see below |
 
+### How the Jobber Developer app works — read this before writing any code
+
+If you have never wired up a Jobber app, this is the whole mental model. Nothing
+here is optional; skipping step 5 is what breaks these integrations weeks later.
+
+**What the app is.** A registration in Jobber's Developer Center that gives you two
+credentials — a **Client ID** and a **Client Secret**. They identify *the software*.
+They are not a login and they grant no data access on their own. John's account is
+separate: he must *authorize* the app against his Jobber account before it can read
+anything.
+
+**Where the credentials go.** Copy them from the Developer Center into the Hermes
+box's environment — `~/.hermes/.env`, or the systemd unit for the local Jobber
+service:
+
+```
+JOBBER_CLIENT_ID=<from Developer Center>
+JOBBER_CLIENT_SECRET=<from Developer Center>
+```
+
+⚠️ **Never** commit them, paste them into a chat, or put them in a doc. Same rule
+John already applies to the Telegram bot token. Treat the Client Secret like a
+password — anyone holding it plus a refresh token can read the whole Jobber account.
+
+**The flow, start to finish:**
+
+1. **John authorizes, once, in a browser.** The service sends him to Jobber's
+   authorize URL with `client_id`, `redirect_uri`, `response_type=code`, and a
+   random `state`.
+2. **He approves** the scopes on Jobber's screen.
+3. **Jobber redirects his browser** to the callback URL with `?code=…&state=…`.
+   Verify `state` matches what you sent — that's the CSRF guard. Santa's Stock does
+   this with an httpOnly cookie and rejects a mismatch.
+4. **Exchange the code for tokens** — `POST` to the token URL with the code,
+   `client_id`, `client_secret`, `redirect_uri`, and `grant_type=authorization_code`.
+   You get back an **access token** (short-lived) and a **refresh token**
+   (long-lived). The code is single-use and expires fast.
+5. **From then on it runs unattended.** Before each API call, check whether the
+   access token is near expiry; if so, `POST` again with
+   `grant_type=refresh_token`. **Jobber returns a NEW refresh token every time and
+   invalidates the old one.** You must persist the new one immediately, and never
+   let two refreshes run concurrently — see §1.1. Get this wrong and it works for
+   about an hour, then dies in a way that looks random days later.
+6. **Every API call** then carries `Authorization: Bearer <access token>` plus the
+   version header.
+
+**How it breaks, and the fix.** If the stored refresh token is ever lost, clobbered,
+or spent twice, no amount of retrying helps — the grant is dead. The only recovery
+is John re-doing step 1. So: back up the token store, write it atomically, and log
+loudly when a refresh fails rather than silently retrying.
+
+**What John does vs. what the code does:**
+
+| Step | Who |
+|---|---|
+| Register the app, set scopes + callback | John (Developer Center) |
+| Copy Client ID/Secret into the environment | John, once |
+| Click Approve in the browser | John, once |
+| Everything after that — refresh, rotate, query | The code, forever |
+
 ### Callback URL
 
 This is the OAuth `redirect_uri`: where Jobber returns the browser after John
