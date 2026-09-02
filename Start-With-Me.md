@@ -4,9 +4,9 @@
 
 > **Maintenance:** update me at the end of each session — move finished items out, add new "Open items," and refresh "Last session."
 
-_Last updated: 2026-07-02 (customer names last-name-first)_
+_Last updated: 2026-09-02 (repo findings doc)_
 
-**Current state:** everything is committed and pushed to `main` (auto-deploying to Railway). App is green — `tsc`, production build, and `npm run lint` all pass with 0 errors. Nothing in flight. The last-name-first customer display is **confirmed working in production by John**.
+**Current state:** everything is committed and pushed to `main` (auto-deploying to Railway). Working tree clean. Nothing in flight. Last code change was 2026-07-02 (last-name-first customer names, **confirmed working in production by John**); since then the only change is a docs-only addition, so the app is unchanged in behavior.
 
 ---
 
@@ -25,7 +25,25 @@ _Last updated: 2026-07-02 (customer names last-name-first)_
 
 ---
 
-## Last session (2026-07-02)
+## Last session (2026-09-01/02)
+
+### Repo findings doc — `a3be709`
+Answered eight questions about the codebase (asked in a read-only research framing) and wrote them to **`docs/repo-findings.md`**. Docs-only — no code touched, no behavior change. Worth reading before any purchasing/replenishment work, because it names the gaps precisely.
+
+Headline answers, all cited to files in the doc:
+- **Jobber token:** single `JobberConnection` row, both tokens **AES-256-GCM encrypted at rest** (key from `TOKEN_ENCRYPTION_KEY`, falling back to `AUTH_SECRET`). Refresh at <5 min to expiry; Jobber **rotates the refresh token on every use**, so concurrent refreshes are coalesced onto one in-flight promise.
+- **Sync scope/schedule:** five phases (Customers+Properties → Jobs incl. line items → Visits → Invoices → Notes); Products/Services is a *separate* manual sync. **No cron** — an in-process 30s ticker reads DB-configured `autoSyncTimes`/`autoSyncDays` (ET). `autoSyncEnabled` defaults **false**; the live configured times are data, so recorded as **unknown**. Webhook sync exists but `WEBHOOK_SYNC_ENABLED = false`.
+- **Inventory gaps (relevant to any reordering feature):** **no** lead time, **no** supplier/vendor record, **no** last-counted date, and **no true reorder point** — only `minQuantity`, a low-stock *display* threshold. `Item.sku` is **nullable**.
+- **Allocation:** real concept, but **not a reservation** — there is one quantity column and allocation **decrements `Item.quantity` immediately** (`deductStock`), with shortfalls as `JobLineShortage`. So on-hand can't be split into free vs committed after the fact.
+- **Locations:** **single global pool.** `homeLocation`/`currentLocation` are free-text labels on the item — no per-location quantities, so shop-vs-truck stock isn't modeled.
+- **No tests, no sandbox:** zero test files/deps, and `JOBBER_API_URL` is hardcoded to production with no env override — **every run hits live Jobber and the production DB.**
+- **Jobber line items:** already fully ingested into `JobLineItem` and resolved to local `Item`/`Kit` via `linkedProductOrService.id` — the foundation for Pick List, allocation, change orders, and inspection.
+
+Recorded as **unknown** rather than guessed: the live auto-sync times (DB config, not code) and the Railway build config (no `Dockerfile`/`railway.toml` in the repo). Secrets redacted throughout — env vars named only, never valued.
+
+---
+
+## Previous session (2026-07-02)
 
 ### Customer names shown last name first — `ef7c60d`
 **Why:** the warehouse totes are labeled "Last, First". Showing one combined name made crew flip it mentally when matching screen to shelf.
@@ -44,7 +62,7 @@ _Last updated: 2026-07-02 (customer names last-name-first)_
 
 ---
 
-## Previous session (2026-07-01)
+## Earlier session (2026-07-01)
 Two pieces of work: the **Service Call jobs** feature, then a **deep-dive health check** of the whole app. Most recent first.
 
 ### Deep-dive health check
@@ -120,6 +138,7 @@ Shipped to `main` and deployed. Newest → oldest:
 - Two benign deploy-log warnings (`npm warn config production`, the Prisma deprecation) — harmless, no action.
 
 ## Useful pointers
+- **`docs/repo-findings.md`** — a cited walkthrough of the Jobber token/refresh design, what the sync pulls and when, the inventory schema and its gaps (no lead time / supplier / last-counted / true reorder point), the allocation model, single-pool locations, and the no-tests/no-sandbox reality. Read it before starting purchasing, replenishment, or multi-location work.
 - **Customer name display:** always go through `src/lib/customer-name.ts` (`customerLabel` / `customerLabelOrEmpty` / `customerNameSelect`) — never render `client.name` directly, or that spot will silently show first-name-first again and drift from the tote labels. Queries that load a client for display should use `client: { select: customerNameSelect }`.
 - **Service Call feature:** detection helper + `serviceCallJobWhere` (Prisma `where` fragment to exclude them) in `src/lib/service-call.ts`; complete/reopen/delete actions in `src/lib/actions/service-call.ts`; the card `src/components/job-flow/service-call-flow-card.tsx`; Completed Jobs page `src/app/(app)/job-flow/completed-jobs/` + `src/components/job-flow/completed-jobs-list.tsx`. Sync skips tombstoned ids in `src/lib/jobber/sync.ts` (tombstone loaded before the pagination loop).
 - **Env gotcha (rebuilds):** the web container can wipe `node_modules` between sessions. If `npm ci` succeeds but the **Prisma engine download gets reset by the egress proxy** (`ECONNRESET`/`aborted` on `binaries.prisma.sh`), run `npm ci --ignore-scripts`, then `curl --retry 6 --retry-all-errors` the `libquery_engine.so.node.gz` and `schema-engine.gz` for `debian-openssl-3.0.x` (commit hash = `@prisma/engines-version`), gunzip them into **both** `node_modules/prisma/` and `node_modules/@prisma/engines/`, then `npx prisma generate`. curl retries harder than Prisma's fetcher, which is what makes it work.
