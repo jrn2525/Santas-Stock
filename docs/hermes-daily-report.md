@@ -1,0 +1,445 @@
+# CDPM Daily Morning Report — build spec for Hermes
+
+**A single email to the GM every morning at 5:30 AM Eastern, covering the schedule
+plus what happened in the last 24 hours.**
+
+| | |
+|---|---|
+| Owner | John Nichols |
+| Recipient | Scott Granger, GM — scott@christmasdecorplusmore.com |
+| Schedule | 5:30 AM America/New_York, **every day** |
+| Data source | **Jobber GraphQL API, queried directly** |
+| Status | Spec, ready to build |
+| Date | 2026-09-02 |
+| Version | 2.0 |
+
+> **This supersedes the earlier "CDPM Install Schedule Report" draft.** That draft
+> covered only the install schedule (tomorrow / this week / next two weeks) and
+> assumed the data came from Santa's Stock's existing sync. Both assumptions were
+> wrong for this report. See §9.
+
+---
+
+## 1. Read this first — two things that will bite you
+
+### 1.1 Create a SEPARATE Jobber Developer app for Hermes ⚠️
+
+**Do not reuse Santa's Stock's Jobber app or its tokens.** Register a second app in
+the Jobber Developer Center for Hermes, with its own client ID/secret, and
+authorize it separately.
+
+**Why this matters:** Jobber **rotates the refresh token on every use**. If Hermes
+and Santa's Stock share one connection, whichever refreshes second is holding a
+token that was just invalidated. The 5:30 AM Hermes run would silently break
+John's production Santa's Stock sync, and the failure would surface hours later as
+"Jobber not connected."
+
+That rotation behavior is not speculation — it is the documented reason Santa's
+Stock funnels all of its own concurrent refreshes through a single in-flight
+promise (`src/lib/jobber/client.ts`).
+
+**Why a separate *app*, not just a second authorization of the same app:**
+
+1. **Guaranteed isolation.** A separate app unambiguously has its own credentials
+   and its own token pairs. No shared-token failure mode, at all.
+2. **Least privilege.** Hermes needs payments + requests + quotes read; Santa's
+   Stock needs none of those. Separate apps keep each grant narrow, instead of
+   widening what the production sync's token can reach.
+3. **Independent revocation.** If Hermes's token leaks, revoke it without touching
+   the live sync.
+
+**Unverified, and the reason to not take the shortcut:** whether authorizing the
+*same* app twice against the same Jobber account produces two independent token
+pairs, or whether Jobber **replaces** the existing grant. That is vendor behavior
+and is not checkable from this repo. If it replaces the grant, a second
+authorization of the Santa's Stock app would take the production sync offline. A
+separate app makes the question moot.
+
+**Never** copy a refresh token out of the Santa's Stock database.
+
+### 1.2 Three of the six sections do not exist in Santa's Stock
+
+Santa's Stock syncs only: Customers/Properties, Jobs (incl. line items), Visits,
+Invoices, and Notes — plus Products/Services on a separate manual sync.
+
+It has **no payment records** (only an `invoiceStatus` string like `"paid"` — no
+payment date, no amount), **no requests**, and **no quotes**.
+
+So sections 4, 5, and 6 **must** come from the Jobber API directly. That is why
+this whole report queries Jobber rather than reading Santa's Stock.
+
+---
+
+## 2. What the report contains
+
+Six sections, same order every day. **Every section always renders** — if it has no
+rows, it prints `None` rather than disappearing. A missing section is
+indistinguishable from a broken report.
+
+| # | Section | Window |
+|---|---------|--------|
+| 1 | Today's Schedule | Today, 00:00–23:59 ET |
+| 2 | This Week's Schedule | Today → end of this calendar week |
+| 3 | Next Week's Schedule | The following full calendar week |
+| 4 | Payments Received | Last 24h (see §4) |
+| 5 | New Requests | Last 24h |
+| 6 | Quotes Approved | Last 24h |
+
+---
+
+## 3. Sections 1–3: Schedule
+
+### Week definitions (confirmed by John)
+
+**Calendar weeks**, not rolling windows:
+
+- **Today** — the calendar day the email is sent.
+- **This week** — from today through the **end of the current calendar week**.
+- **Next week** — the **entire following calendar week**, start to end.
+
+> **Open item:** confirm whether the week starts **Sunday** or **Monday**. The app
+> elsewhere uses a Sunday-anchored week. Pick one and keep it consistent — "next
+> week" must mean the same block every day, including when the report is sent on a
+> weekend. See §10.
+
+Today's stops also appear inside This Week. That repetition is intentional — Scott
+reads section 1 for today and section 2 for planning.
+
+### Fields per stop
+
+```
+8:00 AM    John Bob Jones
+           1420 Oak Ridge Hwy, Lenoir City, TN 37771
+           (865) 555-0142    jbjones@example.com
+```
+
+- Time (or the week label when no time is set)
+- Client name
+- Full service address
+- Phone and email
+
+Order stops by start time within each day; group by day within a week section.
+
+> **Assumption to confirm:** these five fields are carried over from John's earlier
+> draft, which he did not object to. If Scott needs more (job number, job title,
+> crew), say so and they get added.
+
+### Visits with no set time
+
+Some installs are booked to a week rather than a day. They must **not** be guessed
+onto a day. Group them at the end of the week they belong to under a clear heading:
+
+```
+WEEK OF SEP 21 — NO SET DAY
+           Katie Stordahl
+           [address]
+           [phone]    [email]
+```
+
+They never appear in section 1 (Today), because there is no day to place them on.
+
+---
+
+## 4. Sections 4–6: the 24-hour window
+
+All three "what happened" sections share one window, in **America/New_York**:
+
+> **From 5:00:00 AM ET the previous day, through 4:59:59 AM ET on the send day.**
+
+That is the 24 hours ending 31 minutes before the 5:30 AM send, so nothing falls
+between the window and the email.
+
+**Must be timezone-correct, not UTC-offset math.** Eastern shifts between EDT
+(UTC−4) and EST (UTC−5). Compute the boundaries as *Eastern wall-clock times* and
+convert to whatever the API expects. Hard-coding an offset silently shifts the
+window by an hour twice a year. (Santa's Stock solves this with `Intl`-based
+helpers in `src/lib/datetime.ts` — same approach applies.)
+
+**Worked example.** Report sent **Wed Sep 2, 5:30 AM ET**:
+- Window opens: **Tue Sep 1, 5:00:00 AM ET**
+- Window closes: **Wed Sep 2, 4:59:59 AM ET**
+
+### Section 4 — Payments Received
+
+Everyone who paid inside the window.
+
+| Column | Notes |
+|---|---|
+| Client | Customer name |
+| Payment Date | The date the client paid, ET |
+| Amount | Currency-formatted, e.g. `$1,250.00` |
+
+Add a **total** row at the bottom — Scott will add them up anyway.
+
+**Confirmed against Jobber's Payments view** (screenshot from John, 2026-09-02).
+That screen lists: Client, Payment date, Payment status, Method, Payout date,
+Amount — with each row also linking to an Invoice #. Three consequences:
+
+1. **Use "Payment date", never "Payout date."** They are different columns and
+   often days apart (e.g. paid Aug 26 → paid out Aug 28; some rows read "Upcoming"
+   or "Manually deposited"). Payout date is when money reaches the bank, which is
+   not what Scott is being told. Filtering on the wrong one silently shifts the
+   whole section.
+2. **Filter to successful payments.** The view has a Payment status column
+   (observed value: `Succeeded`). Only count payments that actually cleared — a
+   failed or pending attempt must not appear as revenue. Confirm the full set of
+   status values in the API before relying on this.
+3. **Available if Scott wants more later** — and cheap to add, since they're on the
+   same record: **Method** (Card / Check) and **Invoice #**. Not included now
+   because John specified three columns.
+
+### Section 5 — New Requests
+
+Everyone who submitted a request inside the window.
+
+| Column | Notes |
+|---|---|
+| Client | Customer name |
+| Contact | Phone and/or email |
+| Requested | **⏳ PENDING — see §10.** John is sending a screenshot of the Jobber Requests view to define this column exactly. Do not build this column until that is settled. |
+
+### Section 6 — Quotes Approved
+
+Everyone who **approved** a quote inside the window.
+
+| Column | Notes |
+|---|---|
+| Client | Customer name |
+| Quote Number | Jobber's quote number |
+
+**Important:** this must catch **both** paths to approval:
+1. The client approving the quote themselves (client-side approval), and
+2. Someone at CDPM using **"Mark as Approved"** in Jobber.
+
+These are often distinct events in the data model. If they carry different
+statuses or timestamps, capture both — a quote John marked approved is exactly as
+important to Scott as one the client clicked.
+
+---
+
+## 5. Connecting to Jobber
+
+**Verified from the Santa's Stock codebase** (these are known-good):
+
+| Item | Value |
+|---|---|
+| GraphQL endpoint | `https://api.getjobber.com/api/graphql` |
+| OAuth authorize | `https://api.getjobber.com/api/oauth/authorize` |
+| OAuth token | `https://api.getjobber.com/api/oauth/token` |
+| Version header | `X-JOBBER-GRAPHQL-VERSION` (Santa's Stock pins `2025-04-16`) |
+| Auth header | `Authorization: Bearer <access token>` |
+| Pagination | `nodes { … }` + `pageInfo { hasNextPage endCursor }`, page size 25 |
+| Refresh | `grant_type=refresh_token`; **rotates the refresh token every use** |
+| Token expiry | From `expires_in`, or the access token's JWT `exp` claim |
+
+**Throttling.** Jobber uses a **cost-based** throttle and returns
+`extensions.cost.throttleStatus` on every response. Read it and wait exactly long
+enough for the bucket to refill rather than using a fixed sleep. Santa's Stock
+retries up to 6 times on throttle and 3 on transient 502/503/504, with a 60s
+per-request timeout. Mirror that.
+
+**Store tokens encrypted at rest.** Santa's Stock uses AES-256-GCM with a random
+per-value IV. Hermes should do no less. Never log a token.
+
+### Scopes — check before building
+
+Santa's Stock does **not** request scopes in its authorize URL; they are configured
+on the app in the Jobber Developer Center. Its current grant covers clients, jobs,
+visits, invoices, notes, and products/services — **it has no reason to include
+payments, requests, or quotes.**
+
+**Action:** confirm the Hermes app has read scopes for **payments, requests, and
+quotes**, then re-authorize. If a scope is missing, those queries fail at runtime,
+not at setup — so verify before the first scheduled send.
+
+### Query names — verify against the live schema
+
+⚠️ **Honest limitation:** Santa's Stock has never queried payments, requests, or
+quotes, so this repo contains **no working example** of those queries. Their exact
+type names, fields, filter arguments, and status enums are **not verified here**,
+and a vendor's API drifts.
+
+**Do not guess them.** Before building sections 4–6, run GraphQL introspection
+against the live endpoint (or read Jobber's current API docs) to confirm:
+
+- The query/connection name for each of payments, requests, quotes
+- The timestamp field each one filters on — and whether server-side date filtering
+  is supported (strongly preferred over pulling everything and filtering locally)
+- The exact status values that mean "approved" for a quote, covering both the
+  client-approved and "Mark as Approved" paths
+- Whether payment amount comes back as a number or a string, and in what currency
+  unit
+
+The known-good patterns above (pagination, throttle handling, version header) apply
+to those queries too.
+
+---
+
+## 6. Email delivery
+
+| Item | Choice |
+|---|---|
+| To | scott@christmasdecorplusmore.com |
+| Reply-to | John |
+| Subject | `CDPM Daily Report — Wed, Sep 2` |
+| Format | HTML **with a plain-text alternative** |
+| Recipients | Built as a list, so people can be added without a code change |
+
+Keep it scannable on a phone. Scott is reading this at 5:30 AM.
+
+---
+
+## 7. Failure handling
+
+The rules that keep this trustworthy:
+
+1. **Partial beats silent.** If one section's query fails, send the report with the
+   other five and state plainly which section failed and why. Never drop the send.
+2. **Empty is not the same as broken.** A section with no rows prints `None`. A
+   section that errored says so explicitly. These must never look alike.
+3. **Never present stale data as current.** If a section is served from cache or a
+   prior run, label it with its timestamp.
+4. **Heartbeat to John.** If the 5:30 AM send does not go out at all, John gets
+   notified. A report that stops arriving looks exactly like a quiet week — that is
+   how a broken job hides for a month.
+5. **Retry, then report.** Transient API errors retry with backoff. If retries are
+   exhausted, rule 1 applies.
+6. **Log every run**: started, finished, per-section row counts, and any errors.
+
+---
+
+## 8. Suggested build order
+
+| Phase | Scope | Done when |
+|---|---|---|
+| 1 | Hermes's own Jobber OAuth connection + scope check | A test query returns data, and Santa's Stock's sync still works afterward |
+| 2 | Sections 1–3 (schedule) | John compares against Jobber and it matches |
+| 3 | Sections 4–6, after the schema check in §5 | Counts match Jobber for a known day |
+| 4 | Email to John at 5:30 AM | Five consecutive correct sends |
+| 5 | Switch recipient to Scott | He reads it and says what's missing |
+
+Sending to John first is deliberate — it catches formatting and timezone errors
+before they reach the GM.
+
+---
+
+## 9. What changed from the earlier draft
+
+The previous "CDPM Install Schedule Report" spec was wrong in four ways:
+
+1. **Scope.** It covered only the install schedule. It had no payments, requests, or
+   quotes — three of the six sections John actually wants.
+2. **Data source.** It stated "all five fields already come through the existing
+   sync. Nothing new is pulled from Jobber." True for the schedule; **impossible**
+   for payments/requests/quotes, which Santa's Stock does not store at all.
+3. **Horizons.** It used tomorrow / this week / next two weeks. The ask is
+   **today / this week / next week**.
+4. **Cadence.** It specified Sunday–Friday, six sends. The ask is **every morning**.
+
+Carried forward from it, because they were right: the per-stop field list, the
+week-window handling for undated installs, the freshness/heartbeat discipline, and
+sending to John before Scott.
+
+---
+
+## 10. Open items
+
+1. **⏳ The "Requested" column (§4, section 5).** Still open — the screenshot John
+   sent on 2026-09-02 was the **Payments** view (now folded into section 4), not
+   Requests. Need a look at the Jobber **Requests** list to define this column.
+   Blocking for that one column only; everything else can be built.
+2. **Week start: Sunday or Monday?** Determines what "next week" means. Must be
+   consistent.
+3. **Scopes.** Confirm the Hermes app has payments + requests + quotes read access
+   before the first scheduled send.
+4. **Payment status values.** Confirm the full set (`Succeeded` observed) so the
+   filter in section 4 excludes failed/pending attempts correctly.
+5. **Query shapes.** Introspect the live Jobber schema for payments, requests, and
+   quotes (§5). Not verifiable from the Santa's Stock repo.
+6. **Multiple phones/emails.** If a client has several, does Jobber flag a primary?
+   If not, the report takes the first — check that against a few real records.
+7. **Currency formatting** for the payments total.
+
+---
+
+## Appendix: Example output
+
+```
+Subject: CDPM Daily Report — Wed, Sep 2
+
+================================================================
+TODAY'S SCHEDULE — WEDNESDAY, SEPTEMBER 2
+================================================================
+8:00 AM    John Bob Jones
+           1420 Oak Ridge Hwy, Lenoir City, TN 37771
+           (865) 555-0142    jbjones@example.com
+
+10:30 AM   Ellen Flautt
+           [address]
+           [phone]    [email]
+
+================================================================
+THIS WEEK — SEP 2 TO SEP 6
+================================================================
+THURSDAY SEP 3
+9:00 AM    Debbie Sexton
+           [address]
+           [phone]    [email]
+
+FRIDAY SEP 4
+8:00 AM    Darius Hairston
+           [address]
+           [phone]    [email]
+
+NO SET DAY THIS WEEK
+           Kasi Henrickson
+           [address]
+           [phone]    [email]
+
+================================================================
+NEXT WEEK — SEP 7 TO SEP 13
+================================================================
+MONDAY SEP 7
+8:00 AM    Susie McCamy
+           [address]
+           [phone]    [email]
+
+WEEK OF SEP 7 — NO SET DAY
+           Katie Stordahl
+           [address]
+           [phone]    [email]
+
+================================================================
+PAYMENTS RECEIVED — SEP 1, 5:00 AM TO SEP 2, 4:59 AM
+================================================================
+Client                  Payment Date        Amount
+Amanda Wilson           Sep 1, 9:14 AM      $1,250.00
+Tennessee Brokerage     Sep 1, 2:37 PM        $550.00
+                                    TOTAL   $1,800.00
+
+================================================================
+NEW REQUESTS — SEP 1, 5:00 AM TO SEP 2, 4:59 AM
+================================================================
+Client                  Contact                     Requested
+Kirk Dale               (865) 555-0119              [pending — see §10]
+                        kdale@example.com
+
+================================================================
+QUOTES APPROVED — SEP 1, 5:00 AM TO SEP 2, 4:59 AM
+================================================================
+Client                  Quote Number
+Pam Michelson           #1042
+UT / Chi Omega          #1039
+
+================================================================
+Generated Sep 2, 5:30 AM ET
+```
+
+Empty sections still render:
+
+```
+================================================================
+QUOTES APPROVED — SEP 1, 5:00 AM TO SEP 2, 4:59 AM
+================================================================
+None
+```
