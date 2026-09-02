@@ -241,7 +241,74 @@ per-request timeout. Mirror that.
 **Store tokens encrypted at rest.** Santa's Stock uses AES-256-GCM with a random
 per-value IV. Hermes should do no less. Never log a token.
 
-### Scopes — check before building
+### The app — CONFIRMED
+
+John registered a second Jobber Developer app on 2026-09-02:
+
+| Field | Value |
+|---|---|
+| App name | **Managers Daily Report** |
+| Developer | Christmas Decor Plus More, LLC |
+| Callback URL | ⏳ **Still to set — see below** |
+
+### Callback URL
+
+This is the OAuth `redirect_uri`: where Jobber returns the browser after John
+approves, carrying a one-time `?code=`. Whatever listens there must exchange that
+code for tokens **using the Managers Daily Report app's own Client ID + Secret**,
+and the value must match the authorize request **exactly** (OAuth requirement).
+
+**Do not use either of these:**
+
+- ❌ `https://www.santasstock.com/api/jobber/callback` — Santa's Stock's route
+  exchanges with *its own* client credentials, so a code minted for the Managers
+  Daily Report app fails there (`error=token_exchange`). Verified non-destructive
+  — that route exchanges before it writes, so a failure leaves the production
+  connection intact — but it cannot work.
+- ❌ `https://example.com/jobber/callback` — a placeholder carried over from
+  another draft app. Fine for saving a draft; authorization can never complete,
+  since the code would be delivered to a domain John doesn't control.
+
+**Pick whichever matches where Hermes runs:**
+
+1. **Hermes's own redirect URL** — if the Hermes platform issues one for
+   connecting third-party services, use it verbatim. Simplest, and the tokens live
+   where they're used.
+2. **A dedicated route on Santa's Stock** — e.g.
+   `https://www.santasstock.com/api/hermes/jobber/callback`. John already owns that
+   domain with valid HTTPS. It would use its **own**
+   `HERMES_JOBBER_CLIENT_ID` / `HERMES_JOBBER_CLIENT_SECRET` env vars and store the
+   Hermes tokens **separately** from `JobberConnection` — never in the same row.
+   More work, but a stable endpoint John controls.
+3. **One-time localhost capture** — e.g. `http://localhost:8976/callback`, run a
+   small listener once, capture the code, exchange it, store the refresh token in
+   Hermes. ⚠️ **Unverified:** whether Jobber accepts a plain `http://localhost`
+   redirect. Some providers require HTTPS. Confirm before relying on it.
+
+### Scopes — CONFIRMED for this app
+
+Verified from the Developer Center screenshots (2026-09-02). Every scope the six
+sections need is enabled, **Read**, with Write left unchecked:
+
+| Scope | Covers |
+|---|---|
+| **Clients** | Client names + contact info (all sections) |
+| **Scheduled Items** | *"Visits, Assessments, Tasks, and Calendar Events"* — sections 1–3 |
+| **Requests** | Section 5 |
+| **Quotes** | Section 6 |
+| **Jobber Payments** | Section 4 (read-only — no Write option offered) |
+| Jobs, Invoices | Supporting context; invoices link to payments |
+
+**Read-only is correct — keep it that way.** This report never writes to Jobber.
+Leave every **Write** box unchecked.
+
+**Recommend trimming the rest.** Also switched on but unused by this report:
+Users, Tax Rates, Expenses, Custom Field Configurations, Timesheets, Vehicles and
+Equipment, Marketing. Least privilege says turn off what the report doesn't read —
+it shrinks what a leaked token could reach. Not urgent, but easier to do now than
+after the app is live.
+
+### Scopes — general note
 
 Santa's Stock does **not** request scopes in its authorize URL; they are configured
 on the app in the Jobber Developer Center. Its current grant covers clients, jobs,
@@ -350,15 +417,18 @@ sending to John before Scott.
    Blocking for that one column only; everything else can be built.
 2. **Week start: Sunday or Monday?** Determines what "next week" means. Must be
    consistent.
-3. **Scopes.** Confirm the Hermes app has payments + requests + quotes read access
-   before the first scheduled send.
-4. **Payment status values.** Confirm the full set (`Succeeded` observed) so the
+3. ~~Scopes.~~ **RESOLVED 2026-09-02** — the *Managers Daily Report* app has
+   Clients, Scheduled Items, Requests, Quotes, and Jobber Payments all enabled
+   Read. See §5. Optional cleanup: turn off the scopes the report doesn't use.
+4. **⏳ Callback URL.** Depends on where Hermes runs — see §5 for the three
+   options. Required before the app can be authorized.
+5. **Payment status values.** Confirm the full set (`Succeeded` observed) so the
    filter in section 4 excludes failed/pending attempts correctly.
-5. **Query shapes.** Introspect the live Jobber schema for payments, requests, and
+6. **Query shapes.** Introspect the live Jobber schema for payments, requests, and
    quotes (§5). Not verifiable from the Santa's Stock repo.
-6. **Multiple phones/emails.** If a client has several, does Jobber flag a primary?
+7. **Multiple phones/emails.** If a client has several, does Jobber flag a primary?
    If not, the report takes the first — check that against a few real records.
-7. **Currency formatting** for the payments total.
+8. **Currency formatting** for the payments total.
 
 ---
 
