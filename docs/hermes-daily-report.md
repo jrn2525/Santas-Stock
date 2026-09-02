@@ -269,21 +269,110 @@ and the value must match the authorize request **exactly** (OAuth requirement).
   another draft app. Fine for saving a draft; authorization can never complete,
   since the code would be delivered to a domain John doesn't control.
 
-**Pick whichever matches where Hermes runs:**
+**ANSWER — use a Cloudflare-tunneled hostname to the Beelink:**
 
-1. **Hermes's own redirect URL** — if the Hermes platform issues one for
-   connecting third-party services, use it verbatim. Simplest, and the tokens live
-   where they're used.
-2. **A dedicated route on Santa's Stock** — e.g.
-   `https://www.santasstock.com/api/hermes/jobber/callback`. John already owns that
-   domain with valid HTTPS. It would use its **own**
-   `HERMES_JOBBER_CLIENT_ID` / `HERMES_JOBBER_CLIENT_SECRET` env vars and store the
-   Hermes tokens **separately** from `JobberConnection` — never in the same row.
-   More work, but a stable endpoint John controls.
-3. **One-time localhost capture** — e.g. `http://localhost:8976/callback`, run a
-   small listener once, capture the code, exchange it, store the refresh token in
-   Hermes. ⚠️ **Unverified:** whether Jobber accepts a plain `http://localhost`
-   redirect. Some providers require HTTPS. Confirm before relying on it.
+```
+https://jobber.askjohnbob.com/callback
+```
+
+…routed by the existing Beelink `cloudflared` tunnel to a local listener on
+`localhost:8767`.
+
+**Verified environment** (from the `jrn2525/Cudy` repo, read 2026-09-02):
+
+| Fact | Detail |
+|---|---|
+| What Hermes is | **Nous Research Hermes Agent**, v0.20.5, Python 3.11.15 |
+| Where it runs | Beelink, `10.77.42.50` — local, headless |
+| How it runs | systemd user services `hermes-gateway` + `hermes-dashboard` |
+| Config / secrets | `~/.hermes/config.yaml`, `~/.hermes/.env` |
+| How it gets tools | **`mcp_servers` HTTP entries** in `config.yaml` (same as John's Brain) |
+| Tunnel | `cloudflared` runs **on the Beelink** (tunnel `openclaw-control-2`) |
+| Proven routes | `hermes.askjohnbob.com` → `localhost:9119`; `brain.askjohnbob.com` → `localhost:8766` |
+
+**Why this rather than the alternatives:**
+
+- **Real HTTPS**, so it avoids the open question of whether Jobber accepts a plain
+  `http://localhost` redirect — no need to find out.
+- **It terminates on the Beelink**, the machine where Hermes lives and where the
+  rotating refresh token has to be written. A callback on Santa's Stock would land
+  the code on the wrong machine.
+- **The ingress pattern is already proven twice** on this exact box.
+
+### Gotchas — all four are recorded in John's own Cudy journal
+
+1. **Do NOT put Cloudflare Access in front of the callback path.** The journal notes
+   Access on `hermes.askjohnbob.com` produces *"two logins (Cloudflare email code,
+   then the Hermes form)."* An Access interstitial sitting between Jobber's redirect
+   and the listener will break the code hand-off. Use a hostname with **no Access
+   app** (as `brain.` ended up after the Access app was deleted), or add an explicit
+   bypass for `/callback`.
+2. **Bind the listener to `127.0.0.1`, not `0.0.0.0`.** `cloudflared` runs on the
+   same box; loopback is the established pattern here and keeps the port off the LAN.
+3. **Always verify the tunnel route actually saved** — the journal records a save
+   that *silently failed*:
+   ```bash
+   sudo journalctl -u cloudflared --no-pager | grep "Updated to new configuration" | tail -1
+   ```
+4. **Watch the Host header** if the listener validates it. The Hermes dashboard
+   rejected any Host but its bind address (`Invalid Host header`); the fix was
+   Cloudflare route → Origin request settings → **HTTP Host Header = `localhost`**.
+   A minimal callback listener won't care, but know the symptom.
+
+### Recommended shape: a local Jobber service, not OAuth inside Hermes
+
+Hermes consumes tools as **`mcp_servers` HTTP entries** — exactly how it reads
+John's Brain. So mirror that proven pattern instead of teaching Hermes OAuth:
+
+```
+Jobber  ──OAuth──▶  jobber.askjohnbob.com  ──tunnel──▶  127.0.0.1:8767
+                                                          (local Jobber service)
+                                                                 ▲
+                                              Hermes ────────────┘
+                                              via mcp_servers HTTP entry
+```
+
+That local service owns the whole credential problem: the callback, encrypted
+token storage on disk, and **rotation-safe refresh with single-flight** (§1.1).
+Hermes just calls it and formats the email — it never touches a token.
+
+**John already has a working reference for this.** `Brain OAuth/server.py` in the
+Cudy repo is a self-hosted OAuth 2.1 server with redirect-URI allow-listing,
+approval gating, and **rotating refresh tokens** — the same problem, already
+solved on the same machine. Copy its token-store approach rather than inventing one.
+
+**Suggested port `8767`** — adjacent to the Brain's `8766` and clear of the ports
+in use on that box (`8080` llama.cpp, `8765`/`8766` Brain, `9119` Hermes dashboard,
+`58650` OpenClaw).
+
+**Wiring it into Hermes** — same two lines as John's Brain, in
+`~/.hermes/config.yaml`:
+
+```yaml
+mcp_servers:
+  johns_brain:
+    url: "http://127.0.0.1:8765/mcp"
+  jobber:                                   # new
+    url: "http://127.0.0.1:8767/mcp"
+```
+
+**Adding the tunnel hostname** — Cloudflare dashboard → tunnel
+`openclaw-control-2` → add public hostname `jobber.askjohnbob.com` →
+`http://localhost:8767`, then verify it saved (gotcha 3 above).
+
+### Scheduling the 5:30 AM send
+
+**Hermes ships its own cron.** Its Web Dashboard exposes *"sessions, memory,
+skills, MCP, cron, logs"* — so the daily trigger is a Hermes cron entry, not a
+system crontab. Prefer it: it keeps the schedule with the agent that owns the job.
+
+Two Beelink-specific realities that a cloud server wouldn't have:
+
+- **The box must be awake at 5:30 AM.** A sleeping or rebooting Beelink sends
+  nothing, silently. `hermes-gateway` is already `Restart=on-failure` with linger
+  enabled, so it survives reboots — but confirm the machine doesn't sleep.
+- **This is exactly why §7's heartbeat matters.** A report that stops arriving is
+  indistinguishable from a quiet week. John needs to hear about a missed send.
 
 ### Scopes — CONFIRMED for this app
 
@@ -420,8 +509,9 @@ sending to John before Scott.
 3. ~~Scopes.~~ **RESOLVED 2026-09-02** — the *Managers Daily Report* app has
    Clients, Scheduled Items, Requests, Quotes, and Jobber Payments all enabled
    Read. See §5. Optional cleanup: turn off the scopes the report doesn't use.
-4. **⏳ Callback URL.** Depends on where Hermes runs — see §5 for the three
-   options. Required before the app can be authorized.
+4. ~~Callback URL.~~ **RESOLVED 2026-09-02** — `https://jobber.askjohnbob.com/callback`
+   via the Beelink's existing cloudflared tunnel to `localhost:8767`. See §5 for the
+   verified environment and the four gotchas.
 5. **Payment status values.** Confirm the full set (`Succeeded` observed) so the
    filter in section 4 excludes failed/pending attempts correctly.
 6. **Query shapes.** Introspect the live Jobber schema for payments, requests, and
