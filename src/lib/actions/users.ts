@@ -220,6 +220,50 @@ export async function resetUserPassword(
 }
 
 /**
+ * Set a specific password chosen by an admin, rather than generating a random
+ * one. ADMIN only. Companion to resetUserPassword — same effect on the account
+ * (the old password stops working immediately), but the admin picks the value
+ * so they can hand it over directly.
+ *
+ * `requireChange` controls whether the user still hits the change-password
+ * screen on next login. Left off, the chosen password just works.
+ */
+export async function setUserPassword(
+  userId: string,
+  newPassword: string,
+  requireChange: boolean,
+): Promise<{ ok: boolean; error?: string }> {
+  await assertRoleForAction(ADMIN_ROLES);
+
+  const password = newPassword ?? "";
+  if (password.length < 8) {
+    return { ok: false, error: "Password must be at least 8 characters." };
+  }
+
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, role: true },
+  });
+  if (!target) {
+    return { ok: false, error: "User not found." };
+  }
+  // The GUEST account is a shared read-only demo login — changing its password
+  // would lock out everyone using the demo. Same guard as changeOwnPassword.
+  if (target.role === "GUEST") {
+    return { ok: false, error: "Demo accounts can't have their password set." };
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash, mustChangePassword: requireChange },
+  });
+
+  revalidatePath(`/admin/users/${userId}/edit`);
+  return { ok: true };
+}
+
+/**
  * Permanently delete a user. ADMIN only, and requires the confirmation
  * token "DELETE" (the UI gates this behind a two-step confirm). Guards
  * against deleting your own account or the last remaining Admin. History

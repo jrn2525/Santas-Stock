@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ADMIN_ROLES, requireRole } from "@/lib/auth-helpers";
 import { EditUserForm } from "@/components/user-form";
 import { ResetPasswordButton } from "@/components/reset-password-button";
+import { SetPasswordForm } from "@/components/set-password-form";
 import { DeleteUserButton } from "@/components/delete-user-button";
 
 export const dynamic = "force-dynamic";
@@ -43,13 +44,37 @@ export default async function EditUserPage({
 
       <section className="mt-10 rounded-lg border border-rule bg-card p-6">
         <h2 className="text-lg font-semibold text-ink">Password</h2>
-        <p className="mt-1 text-sm text-ink-dim">
-          {user.mustChangePassword
-            ? "This user has a pending temporary password and must change it on next login."
-            : "Generate a new temporary password. The user's current password will stop working immediately and they'll be forced to change it on next login."}
-        </p>
+        {user.mustChangePassword && (
+          <p className="mt-1 text-sm text-ink-dim">
+            This user has a pending temporary password and must change it on
+            next login.
+          </p>
+        )}
+
         <div className="mt-4">
-          <ResetPasswordButton userId={user.id} userEmail={user.email} />
+          <h3 className="text-sm font-semibold text-ink">
+            Set a password yourself
+          </h3>
+          <p className="mt-1 text-sm text-ink-dim">
+            Choose the password and hand it to them. Their current password
+            stops working immediately.
+          </p>
+          <div className="mt-3">
+            <SetPasswordForm userId={user.id} userEmail={user.email} />
+          </div>
+        </div>
+
+        <div className="mt-8 border-t border-rule pt-6">
+          <h3 className="text-sm font-semibold text-ink">
+            Or generate a temporary one
+          </h3>
+          <p className="mt-1 text-sm text-ink-dim">
+            Creates a random password and forces them to choose their own at
+            next login. Their current password stops working immediately.
+          </p>
+          <div className="mt-3">
+            <ResetPasswordButton userId={user.id} userEmail={user.email} />
+          </div>
         </div>
       </section>
 
