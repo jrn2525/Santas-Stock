@@ -3,6 +3,7 @@ import Image from "next/image";
 import { AuthError } from "next-auth";
 import { signIn } from "@/auth";
 import { getSettings, logoUrl } from "@/lib/settings";
+import { PasswordInput } from "@/components/password-input";
 
 // Render per-request so a changed logo / business name shows without a rebuild.
 export const dynamic = "force-dynamic";
@@ -81,14 +82,14 @@ export default async function SignInPage({
           <label htmlFor="password" className="block text-sm font-medium text-ink">
             Password
           </label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            required
-            className="mt-1 block w-full rounded-md border border-rule bg-card px-3 py-2 text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-          />
+          <div className="mt-1">
+            <PasswordInput
+              id="password"
+              name="password"
+              autoComplete="current-password"
+              required
+            />
+          </div>
         </div>
 
         {message && (

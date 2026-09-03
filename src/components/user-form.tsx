@@ -10,6 +10,7 @@ import {
 } from "@/lib/actions/users";
 import { emptyFormState, type FormState } from "@/lib/actions/state";
 import { TempPasswordReveal } from "@/components/temp-password-reveal";
+import { PasswordInput } from "@/components/password-input";
 
 const ROLE_OPTIONS: { value: Role; label: string; help: string }[] = [
   { value: "ADMIN", label: "Admin", help: "Full control, including user management." },
@@ -46,14 +47,15 @@ export function NewUserForm() {
           >
             Password <span className="ml-0.5 text-brand">*</span>
           </label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            required
-            minLength={8}
-            className="mt-1 block w-full rounded-md border border-rule bg-canvas px-3 py-2 text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
-          />
+          <div className="mt-1">
+            <PasswordInput
+              id="password"
+              name="password"
+              required
+              minLength={8}
+              fieldLabel="guest password"
+            />
+          </div>
           <p className="mt-2 text-xs text-ink-dim">
             You choose this password for the Guest demo account (at least 8
             characters). Other roles get an auto-generated temporary password.

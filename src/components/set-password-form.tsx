@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { setUserPassword } from "@/lib/actions/users";
+import { PasswordInput } from "@/components/password-input";
 
 /**
  * Admin-chosen password for another user. Companion to ResetPasswordButton:
@@ -20,7 +21,6 @@ export function SetPasswordForm({
   userEmail: string;
 }) {
   const [password, setPassword] = useState("");
-  const [visible, setVisible] = useState(false);
   const [requireChange, setRequireChange] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +77,6 @@ export function SetPasswordForm({
           onClick={() => {
             setSaved(false);
             setPassword("");
-            setVisible(false);
             setRequireChange(false);
           }}
           className="mt-3 rounded-md border border-rule bg-canvas px-3 py-1.5 text-sm font-medium text-ink hover:border-brand"
@@ -96,10 +95,9 @@ export function SetPasswordForm({
       >
         New password
       </label>
-      <div className="relative mt-1">
-        <input
+      <div className="mt-1">
+        <PasswordInput
           id="admin-set-password"
-          type={visible ? "text" : "password"}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           onKeyDown={(e) => {
@@ -110,19 +108,8 @@ export function SetPasswordForm({
           }}
           autoComplete="new-password"
           placeholder="At least 8 characters"
-          className="block w-full rounded-md border border-rule bg-card px-3 py-2 pr-11 text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+          fieldLabel="new password"
         />
-        <button
-          type="button"
-          onClick={() => setVisible((v) => !v)}
-          aria-label={visible ? "Hide password" : "Show password"}
-          aria-pressed={visible}
-          tabIndex={-1}
-          title={visible ? "Hide" : "Show"}
-          className="absolute inset-y-0 right-0 flex items-center px-3 text-ink-dim transition hover:text-ink"
-        >
-          {visible ? <EyeOffIcon /> : <EyeIcon />}
-        </button>
       </div>
       {tooShort && (
         <p className="mt-1 text-xs text-brand">
@@ -158,40 +145,3 @@ export function SetPasswordForm({
   );
 }
 
-function EyeIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  );
-}
-
-function EyeOffIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-      <line x1="1" y1="1" x2="23" y2="23" />
-    </svg>
-  );
-}
