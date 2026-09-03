@@ -4,9 +4,9 @@
 
 > **Maintenance:** update me at the end of each session — move finished items out, add new "Open items," and refresh "Last session."
 
-_Last updated: 2026-09-02 (Hermes daily-report spec · all open items closed)_
+_Last updated: 2026-09-03 (auth fix + password features)_
 
-**Current state:** everything is committed and pushed to `main` (auto-deploying to Railway). Working tree clean. **Nothing in flight and no open items** — all were closed 2026-09-02. Last **code** change was 2026-07-02 (last-name-first customer names, **confirmed working in production by John**); everything since is docs-only, so app behavior is unchanged.
+**Current state:** everything is committed and pushed to `main` (auto-deploying to Railway). Working tree clean. **Nothing in flight and no open items.** Last code change was 2026-09-03 (the temp-password nav bug + password features below) — **John confirmed all of it working in production.** `tsc`, build, and `npm run lint` all pass with 0 errors.
 
 ---
 
@@ -25,7 +25,32 @@ _Last updated: 2026-09-02 (Hermes daily-report spec · all open items closed)_
 
 ---
 
-## Last session (2026-09-02)
+## Last session (2026-09-03)
+Triggered by John onboarding his son **Cooper Nichols** as a Crew user — creating that account surfaced a real bug. All confirmed working in production by John.
+
+### 🐛 Temp-password users hit an error on every nav click — `6bf6aff`
+**Repro:** create a user (they get a temporary password, so `mustChangePassword` is set) → sign in → click any sidebar link → *"An unexpected response was received from the server."* **Every new hire would have hit this on their first login.**
+
+**Cause:** `authorized()` in `src/auth.config.ts` returned a bare **`Response.redirect`**. An in-app navigation is an RSC request; a raw redirect hands it HTML instead of an RSC payload and the client router can't parse it. Tell-tale sign it was client-side, not a server throw: **the error box showed no digest.**
+
+**Fixes:**
+- Both redirects now use **`NextResponse.redirect`** — Next's own middleware redirect, which the router understands.
+- **Navigation is hidden entirely while `mustChangePassword` is set** (sidebar, workspace tabs, settings links). The middleware bounces every route but the password screen, so those links were all dead ends. **Sign out stays** as the escape hatch.
+- `requireUser()` now reads `mustChangePassword` from the **DB** alongside role/active, so the layout sees the live value rather than the JWT's cached copy.
+
+⚠️ **Don't "simplify" that back to `Response.redirect`** — it looks equivalent and silently breaks in-app navigation.
+
+### 🔑 Admin can set a specific password — `403ceef`
+**Admin → Users → Edit → Password** now has two paths; the original **Reset password** (random temp) is untouched:
+- **"Set a password yourself"** — type it and hand it over, with a **"Require them to change it at next login"** checkbox (**default off**, John's explicit choice, so the typed password just works). On success it echoes the password once for copying.
+- `setUserPassword` is ADMIN-gated, enforces the same 8-char minimum as the self-service form, and **refuses the shared GUEST demo account** — changing that would lock out every demo user.
+
+### 👁 Password eye toggles — `f42b133`, `606e2a4`
+Show/hide on **every** password field: sign-in, all three change-password fields, admin set-password, and the Guest demo password on the new-user form. All share one component, **`src/components/password-input.tsx`** (input + toggle + icons; works controlled or uncontrolled). **No inline `type="password"` inputs remain — use `PasswordInput` for any new one** rather than re-implementing the icons.
+
+---
+
+## Previous session (2026-09-02)
 
 ### Hermes daily-report spec — ✅ CLOSED, delivered `cf7361e` → `5a4f8e6`
 > **PROJECT CLOSED 2026-09-02.** John handed `docs/hermes-daily-report.md` to the Hermes Agent, which is building against it on the Beelink. **Nothing further for this repo** — it was always a spec for a *separate* system, and no Santa's Stock code changes for it. The remaining §10 items in that file are Hermes's build-time checks, not open items here. Don't reopen unless John asks for a spec change. History below is kept for context only.
@@ -64,7 +89,7 @@ Recorded as **unknown** rather than guessed: the live auto-sync times (DB config
 
 ---
 
-## Previous session (2026-07-02)
+## Earlier session (2026-07-02)
 
 ### Customer names shown last name first — `ef7c60d`
 **Why:** the warehouse totes are labeled "Last, First". Showing one combined name made crew flip it mentally when matching screen to shelf.
@@ -160,6 +185,8 @@ Shipped to `main` and deployed. Newest → oldest:
 - Two benign deploy-log warnings (`npm warn config production`, the Prisma deprecation) — harmless, no action.
 
 ## Useful pointers
+- **Password fields:** always use **`src/components/password-input.tsx`** (`PasswordInput`) — it owns the input, the show/hide eye, and the icons, and works controlled or uncontrolled. Every password field in the app uses it; don't hand-roll another `type="password"` input.
+- **Auth redirects:** in `src/auth.config.ts`, redirects **must** be `NextResponse.redirect`, not the bare `Response.redirect`. The raw version looks equivalent but breaks in-app (RSC) navigation — that was the 2026-09-03 bug.
 - **`docs/hermes-daily-report.md`** — ✅ **closed/delivered 2026-09-02.** The build spec for Scott's 5:30 AM report; Hermes is building it on John's Beelink. Reference only — **no Santa's Stock work remains**. The one thing to protect if it ever comes up: its Jobber connection must stay **independent** of Santa's Stock's, because Jobber rotates refresh tokens and a shared connection would break the production sync.
 - **`docs/repo-findings.md`** — a cited walkthrough of the Jobber token/refresh design, what the sync pulls and when, the inventory schema and its gaps (no lead time / supplier / last-counted / true reorder point), the allocation model, single-pool locations, and the no-tests/no-sandbox reality. Read it before starting purchasing, replenishment, or multi-location work.
 - **Customer name display:** always go through `src/lib/customer-name.ts` (`customerLabel` / `customerLabelOrEmpty` / `customerNameSelect`) — never render `client.name` directly, or that spot will silently show first-name-first again and drift from the tote labels. Queries that load a client for display should use `client: { select: customerNameSelect }`.
