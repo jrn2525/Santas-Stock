@@ -22,6 +22,11 @@ export default async function AppLayout({
   const user = await requireUser();
   const settings = await getSettings();
 
+  // A user on a temporary password can only go to the change-password screen —
+  // the auth middleware bounces every other route. Showing them a full nav is a
+  // trap: every link is a dead end. Hide navigation until the password is set.
+  const mustChangePassword = user.mustChangePassword === true;
+
   return (
     <div className="flex min-h-screen flex-col">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-rule bg-sidebar px-4 py-4 lg:px-6">
@@ -45,10 +50,11 @@ export default async function AppLayout({
               />
             )}
           </Link>
-          <WorkspaceTabs role={user.role} />
+          {!mustChangePassword && <WorkspaceTabs role={user.role} />}
         </div>
 
         <div className="flex items-center gap-4 text-xs">
+          {!mustChangePassword && (
           <Link
             href="/settings"
             title="Settings"
@@ -70,13 +76,18 @@ export default async function AppLayout({
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </svg>
           </Link>
-          <Link
-            href="/settings"
-            className="text-right hover:text-ink"
-            title="Your account &amp; settings"
-          >
-            <div className="text-ink">{user.name}</div>
-          </Link>
+          )}
+          {mustChangePassword ? (
+            <div className="text-right text-ink">{user.name}</div>
+          ) : (
+            <Link
+              href="/settings"
+              className="text-right hover:text-ink"
+              title="Your account &amp; settings"
+            >
+              <div className="text-ink">{user.name}</div>
+            </Link>
+          )}
           <form action={signOutAction}>
             <button
               type="submit"
@@ -89,14 +100,18 @@ export default async function AppLayout({
       </header>
 
       {/* Mobile nav: the sidebar collapses to a scrollable top bar below lg. */}
-      <nav className="border-b border-rule bg-sidebar lg:hidden">
-        <Sidebar role={user.role} orientation="horizontal" />
-      </nav>
+      {!mustChangePassword && (
+        <nav className="border-b border-rule bg-sidebar lg:hidden">
+          <Sidebar role={user.role} orientation="horizontal" />
+        </nav>
+      )}
 
       <div className="flex flex-1">
-        <aside className="hidden w-56 shrink-0 flex-col border-r border-rule bg-sidebar lg:flex">
-          <Sidebar role={user.role} />
-        </aside>
+        {!mustChangePassword && (
+          <aside className="hidden w-56 shrink-0 flex-col border-r border-rule bg-sidebar lg:flex">
+            <Sidebar role={user.role} />
+          </aside>
+        )}
         <main className="min-w-0 flex-1 px-4 py-6 lg:px-8 lg:py-8">
           {user.role === "GUEST" && <DemoBanner />}
           {children}

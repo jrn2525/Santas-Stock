@@ -1,4 +1,10 @@
 import type { NextAuthConfig } from "next-auth";
+// NextResponse (not the bare Web `Response`) is Next's own middleware redirect.
+// It's what the client router understands: a plain `Response.redirect` sends
+// HTML back to an in-app navigation, which expects an RSC payload, and the page
+// dies with "An unexpected response was received from the server." That's what
+// a user with a temporary password hit on every sidebar click.
+import { NextResponse } from "next/server";
 
 // Edge-compatible config used by middleware. Must NOT import Node-only
 // modules (like bcryptjs or @prisma/client). The full config in src/auth.ts
@@ -21,7 +27,7 @@ export const authConfig: NextAuthConfig = {
 
       if (isSignIn) {
         if (isLoggedIn) {
-          return Response.redirect(new URL("/job-flow/dashboard", nextUrl));
+          return NextResponse.redirect(new URL("/job-flow/dashboard", nextUrl));
         }
         return true;
       }
@@ -29,7 +35,7 @@ export const authConfig: NextAuthConfig = {
       if (!isLoggedIn) return false;
 
       if (auth.user.mustChangePassword && !isChangePassword) {
-        return Response.redirect(new URL("/account/change-password", nextUrl));
+        return NextResponse.redirect(new URL("/account/change-password", nextUrl));
       }
 
       return true;
